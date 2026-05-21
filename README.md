@@ -1,5 +1,7 @@
 # Tank
 
+<p align="center"><img width="400" height="250" alt="tank" src="https://github.com/user-attachments/assets/ac7cc97d-2d5b-4ede-b795-7d506c2e5267"/></p>
+
 > Your security-engineering operator. Like Tank in *The Matrix* —
 > sees the whole map, feeds you context, never lies about what it doesn't know.
 
