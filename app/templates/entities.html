@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Tank — entities{% endblock %}
+
+{% block content %}
+<section class="entities-page">
+  <h1>Entities</h1>
+  <p class="lede">The typed knowledge graph extracted from your KB.
+  Click an entity to see its card and edges.</p>
+
+  <nav class="entity-type-tabs">
+    {% for t, n in counts.items() | sort %}
+      <a class="entity-tab {% if t == selected_type %}active{% endif %}"
+         href="/entities?type={{ t }}">
+        {{ t }} <span class="dim">({{ n }})</span>
+      </a>
+    {% else %}
+      <p class="dim">No entities yet. Ingest some docs to populate.</p>
+    {% endfor %}
+  </nav>
+
+  {% if selected_type %}
+    <table class="entity-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Confidence</th>
+          <th>Provenance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entities %}
+          <tr>
+            <td><a href="/entities/{{ e.id }}">{{ e.name }}</a></td>
+            <td>{{ (e.description or "")[:120] }}</td>
+            <td>{{ "%.2f" | format(e.confidence) }}</td>
+            <td>
+              <span class="badge badge-{{ 'source' if e.provenance in ('source','user') else 'inferred' if e.provenance == 'inferred' else 'claim' }}">
+                {{ e.provenance }}
+              </span>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="dim">No entities of this type yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if selected_type == "Service" %}
+    <h2>Graph view</h2>
+    <div id="entity-graph" class="entity-graph"></div>
+    <script src="/static/graph.js"></script>
+    <script>renderGraph("Service", 2);</script>
+  {% endif %}
+</section>
+{% endblock %}

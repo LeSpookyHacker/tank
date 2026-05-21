@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Tank — detections{% endblock %}
+
+{% block content %}
+<section class="det-page">
+  <header class="page-head">
+    <h1>Detections</h1>
+    <p class="dim">Sigma rules ingested into Tank, linked to MITRE
+      ATT&CK techniques. Use the coverage map to see what techniques
+      are uncovered.</p>
+    <a href="/api/detections/coverage" class="btn">view coverage JSON</a>
+  </header>
+
+  <h2>Detections ({{ detections|length }})</h2>
+  <table class="det-table">
+    <thead><tr><th>Name</th><th>Description</th></tr></thead>
+    <tbody>
+      {% for d in detections %}
+      <tr>
+        <td><strong>{{ d.name }}</strong></td>
+        <td class="dim">{{ (d.description or '')[:200] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2" class="dim">
+        No detection rules ingested yet. Ingest Sigma YAML via
+        <code>POST /api/ingest/path</code>.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>ATT&CK techniques referenced ({{ techniques|length }})</h2>
+  <ul>
+    {% for t in techniques %}
+      <li><code>{{ t.name }}</code> — {{ (t.description or '')[:120] }}</li>
+    {% else %}
+      <li class="dim">No technique tags found.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

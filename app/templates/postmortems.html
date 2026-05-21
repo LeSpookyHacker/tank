@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Tank — postmortems{% endblock %}
+
+{% block content %}
+<section class="pm-page">
+  <header class="page-head">
+    <h1>Postmortems</h1>
+    <p class="dim">Author postmortems in Tank. Action items become
+      followups on publish.</p>
+    <a href="/postmortems/new" class="btn">+ new postmortem</a>
+  </header>
+
+  <table class="pm-table">
+    <thead><tr>
+      <th>Title</th><th>Severity</th><th>Status</th>
+      <th>Services</th><th>Created</th>
+    </tr></thead>
+    <tbody>
+      {% for pm in postmortems %}
+      <tr>
+        <td><a href="/postmortems/{{ pm.id }}">{{ pm.title }}</a></td>
+        <td>{{ pm.severity or '—' }}</td>
+        <td><span class="badge">{{ pm.status }}</span></td>
+        <td>{{ pm.services_affected|length }}</td>
+        <td>{{ "%.0f"|format(pm.created_at) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="dim">No postmortems yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

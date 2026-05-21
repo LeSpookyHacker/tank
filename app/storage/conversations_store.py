@@ -1,0 +1,56 @@
+"""CRUD for `conversations`."""
+from __future__ import annotations
+
+import json
+import time
+import uuid
+
+from app.db import LOCK, get_conn
+
+
+def create(*, role_mode: str, model: str,
+           title: str | None = None,
+           scope: dict | None = None) -> str:
+    cid = uuid.uuid4().hex
+    now = time.time()
+    conn = get_conn()
+    with LOCK:
+        conn.execute(
+            "INSERT INTO conversations "
+            "(id, title, role_mode, model, scope_json, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (cid, title, role_mode, model,
+             json.dumps(scope or {}), now, now),
+        )
+    return cid
+
+
+def get(conv_id: str) -> dict | None:
+    row = get_conn().execute(
+        "SELECT * FROM conversations WHERE id = ?", (conv_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_recent(limit: int = 50) -> list[dict]:
+    rows = get_conn().execute(
+        "SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def touch(conv_id: str, title: str | None = None) -> None:
+    conn = get_conn()
+    with LOCK:
+        if title:
+            conn.execute(
+                "UPDATE conversations SET updated_at = ?, title = ? "
+                "WHERE id = ?",
+                (time.time(), title, conv_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE conversations SET updated_at = ? WHERE id = ?",
+                (time.time(), conv_id),
+            )

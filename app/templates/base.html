@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Tank{% endblock %}</title>
+
+  {# Set theme synchronously before <body> renders to prevent a flash
+     when the user has chosen light mode on a return visit. #}
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("tank-theme");
+        if (!t) {
+          t = window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light" : "dark";
+        }
+        if (t === "light") document.documentElement.classList.add("theme-light");
+      } catch (e) { /* localStorage blocked — fall back to default dark */ }
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark">▰</span>
+      <span class="brand-name">Tank</span>
+    </a>
+    <nav class="topnav">
+      <a href="/">Today</a>
+      <a href="/entities">Entities</a>
+      <a href="/threat-models">Threats</a>
+      <a href="/design-reviews">Reviews</a>
+      <a href="/postmortems">PMs</a>
+      <a href="/compliance">Compliance</a>
+      <a href="/reports">Reports</a>
+      <a href="/chat">Chat</a>
+      <a href="/me">Me</a>
+      <a href="/settings">Settings</a>
+    </nav>
+    {% if state %}
+    <div class="role-toggle" data-current="{{ state.role_mode.value }}">
+      <span class="role-pill" data-role="ic">Staff IC</span>
+      <span class="role-pill" data-role="manager">Manager</span>
+      <span class="role-pill" data-role="both">Both</span>
+    </div>
+    {% endif %}
+    <button id="theme-toggle"
+            class="theme-toggle"
+            type="button"
+            aria-label="Toggle day/night theme"
+            title="Toggle day/night theme"
+            onclick="tankToggleTheme()">
+      <span class="icon-moon" aria-hidden="true">☾</span>
+      <span class="icon-sun"  aria-hidden="true">☀</span>
+    </button>
+  </header>
+
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>Tank · local-first · {{ "claude-sonnet-4-6" }}</span>
+    <span class="privacy-badge">redaction map stays on this machine</span>
+  </footer>
+
+  <script>
+    function tankToggleTheme() {
+      var root = document.documentElement;
+      var next = root.classList.contains("theme-light") ? "dark" : "light";
+      root.classList.toggle("theme-light", next === "light");
+      try { localStorage.setItem("tank-theme", next); } catch (e) {}
+    }
+  </script>
+</body>
+</html>

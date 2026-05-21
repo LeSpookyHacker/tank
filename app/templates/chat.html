@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Tank — chat{% endblock %}
+
+{% block content %}
+<section class="chat-layout">
+  <aside class="chat-sidebar">
+    <h2>Conversations</h2>
+    <button class="btn-primary" onclick="newConversation()">+ new</button>
+    <ul class="conv-list">
+      {% for c in conversations %}
+        <li class="conv-item {% if active and active.id == c.id %}active{% endif %}">
+          <a href="/chat?conv={{ c.id }}">
+            <strong>{{ c.title or "(untitled)" }}</strong>
+            <span class="conv-meta">{{ c.role_mode }} · {{ c.updated_at | int }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <main class="chat-main">
+    {% if active %}
+      <header class="chat-header">
+        <h1>{{ active.title or "Conversation" }}</h1>
+        <span class="dim">role: {{ active.role_mode }} · model: {{ active.model }}</span>
+      </header>
+
+      <div id="messages" class="messages">
+        {% for m in messages %}
+          <article class="bubble bubble-{{ m.role }}">
+            <header class="bubble-meta">
+              <span class="bubble-role">{{ m.role }}</span>
+              {% if m.cache_read_in and m.cache_read_in > 0 %}
+                <span class="badge badge-source" title="prompt cache hit">cache hit</span>
+              {% endif %}
+            </header>
+            <div class="bubble-body">{{ m.display_view or m.content_json }}</div>
+            {% if m.citations_json and m.citations_json != "[]" %}
+              <details class="bubble-citations">
+                <summary>citations</summary>
+                <pre>{{ m.citations_json }}</pre>
+              </details>
+            {% endif %}
+          </article>
+        {% endfor %}
+        <article id="streaming-bubble" class="bubble bubble-assistant" hidden>
+          <header class="bubble-meta">
+            <span class="bubble-role">assistant</span>
+            <span class="badge badge-inferred">streaming</span>
+          </header>
+          <div class="bubble-body" id="streaming-body"></div>
+          <details class="bubble-citations">
+            <summary>tool use</summary>
+            <pre id="streaming-tools"></pre>
+          </details>
+        </article>
+      </div>
+
+      <form class="composer" onsubmit="return sendMessage(event)">
+        <textarea id="composer-input"
+                  placeholder="Ask Tank about your KB. Use shift+enter for newline."
+                  rows="3"></textarea>
+        <button type="submit" class="btn-primary">Send</button>
+      </form>
+    {% else %}
+      <div class="empty-state">
+        <h1>No conversation selected</h1>
+        <p class="dim">Pick one from the sidebar or start a new chat.</p>
+        <button class="btn-primary" onclick="newConversation()">+ new conversation</button>
+      </div>
+    {% endif %}
+  </main>
+</section>
+
+<script>
+const ACTIVE_CONV = {{ (active.id if active else "null") | tojson }};
+
+async function newConversation() {
+  const r = await fetch("/api/conversations", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({}),
+  });
+  const j = await r.json();
+  window.location = "/chat?conv=" + j.id;
+}
+
+async function sendMessage(ev) {
+  ev.preventDefault();
+  const ta = document.getElementById("composer-input");
+  const content = ta.value.trim();
+  if (!content) return false;
+  ta.value = "";
+
+  // Echo the user message immediately.
+  const msgs = document.getElementById("messages");
+  const userBubble = document.createElement("article");
+  userBubble.className = "bubble bubble-user";
+  userBubble.innerHTML = `
+    <header class="bubble-meta"><span class="bubble-role">user</span></header>
+    <div class="bubble-body"></div>`;
+  userBubble.querySelector(".bubble-body").textContent = content;
+  msgs.insertBefore(userBubble,
+    document.getElementById("streaming-bubble"));
+
+  // Show streaming bubble.
+  const sb = document.getElementById("streaming-bubble");
+  const body = document.getElementById("streaming-body");
+  const tools = document.getElementById("streaming-tools");
+  body.textContent = "";
+  tools.textContent = "";
+  sb.hidden = false;
+
+  await fetch(`/api/conversations/${ACTIVE_CONV}/messages`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({content}),
+  });
+
+  const es = new EventSource(`/api/conversations/${ACTIVE_CONV}/stream`);
+  es.addEventListener("text_delta", e => {
+    const d = JSON.parse(e.data);
+    body.textContent += d.text;
+    msgs.scrollTop = msgs.scrollHeight;
+  });
+  es.addEventListener("tool_use", e => {
+    const d = JSON.parse(e.data);
+    tools.textContent += `→ ${d.name}(${JSON.stringify(d.input)})\n`;
+  });
+  es.addEventListener("tool_result", e => {
+    const d = JSON.parse(e.data);
+    tools.textContent += `← ${d.name} (${d.size}b)\n`;
+  });
+  es.addEventListener("done", () => {
+    es.close();
+    // Reload to pick up the persisted message with full styling.
+    window.location.reload();
+  });
+  es.addEventListener("error", () => {
+    body.textContent += "\n[connection closed]";
+    es.close();
+  });
+
+  return false;
+}
+</script>
+{% endblock %}

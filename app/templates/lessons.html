@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Tank — lessons{% endblock %}
+
+{% block content %}
+<section class="lessons-page">
+  <header class="page-head">
+    <h1>Lessons learned</h1>
+    <p class="dim">Lessons captured from postmortems, tabletops, and
+      design reviews. Search before you re-learn.</p>
+  </header>
+
+  <form class="filter-bar" method="get">
+    <input name="q" placeholder="search lessons…" value="{{ q or '' }}">
+    <input name="tag" placeholder="tag filter (e.g. authn)"
+           value="{{ tag or '' }}">
+    <button class="btn-secondary">search</button>
+  </form>
+
+  <ol class="lessons-list">
+    {% for l in lessons %}
+    <li class="lesson-card">
+      <header>
+        <h3>{{ l.title }}</h3>
+        <span class="dim small">
+          source: {{ l.source_kind }}
+          &nbsp;·&nbsp; {{ "%.0f"|format(l.captured_at) }}
+          {% if l.tags %}
+          &nbsp;·&nbsp;
+          {% for t in l.tags %}
+          <a href="/lessons?tag={{ t }}"><code>{{ t }}</code></a>{% if not loop.last %}, {% endif %}
+          {% endfor %}
+          {% endif %}
+        </span>
+      </header>
+      <div class="lesson-body">{{ l.body_md }}</div>
+    </li>
+    {% else %}
+    <li class="dim">No lessons match.</li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

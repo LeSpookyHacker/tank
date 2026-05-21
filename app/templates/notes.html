@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Tank — notes{% endblock %}
+
+{% block content %}
+<section class="notes-page">
+  <h1>Learning capture</h1>
+  <p class="lede">Dump rough notes after a meeting or reading. Tank
+  proposes entities, relationships, and facts to add to your KB —
+  you confirm what's worth keeping.</p>
+
+  <form class="notes-form" onsubmit="return submitNotes(event)">
+    <textarea id="notes-body" rows="8"
+      placeholder="Met with Alice. She said SCP exceptions go through her, ~3/week. Frustrated about lack of guardrails on dev accounts. Mentioned Raj on FinOps."></textarea>
+    <button type="submit" class="btn-primary">Capture</button>
+  </form>
+
+  <article id="diff" class="notes-diff" hidden>
+    <h2>Tank's proposed additions</h2>
+    <p class="dim">Nothing is written to the KB until you confirm.</p>
+    <div id="diff-body"></div>
+    <button class="btn-primary" onclick="commitDiff()">Commit selected</button>
+  </article>
+
+  <h2>Recent captures</h2>
+  <ul class="notes-list">
+    {% for n in notes %}
+      <li>
+        <span class="dim">{{ n.created_at | int }}</span>
+        {{ n.body_redacted[:200] }}…
+        {% if n.confirmed %}<span class="badge badge-source">confirmed</span>{% endif %}
+      </li>
+    {% else %}
+      <li class="dim">No captures yet.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<script>
+let currentNoteId = null;
+let currentDiff = null;
+
+async function submitNotes(ev) {
+  ev.preventDefault();
+  const body = document.getElementById("notes-body").value.trim();
+  if (!body) return false;
+  const btn = ev.target.querySelector("button");
+  btn.disabled = true;
+  btn.textContent = "extracting…";
+  try {
+    const r = await fetch("/api/notes", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({body}),
+    });
+    const j = await r.json();
+    currentNoteId = j.note_id;
+    currentDiff = j.diff;
+    renderDiff(j.diff);
+  } catch (e) {
+    alert("Failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Capture";
+  }
+  return false;
+}
+
+function renderDiff(diff) {
+  const wrap = document.getElementById("diff");
+  wrap.hidden = false;
+  const body = document.getElementById("diff-body");
+  const ents = (diff.new_entities || []).map((e, i) =>
+    `<label><input type="checkbox" data-kind="entity" data-idx="${i}" checked>
+     <strong>${escapeHtml(e.type)}</strong> ${escapeHtml(e.name)}
+     ${e.description ? "— " + escapeHtml(e.description) : ""}</label>`
+  ).join("");
+  const rels = (diff.new_relationships || []).map((r, i) =>
+    `<label><input type="checkbox" data-kind="rel" data-idx="${i}" checked>
+     ${escapeHtml(r.src_name)} --${escapeHtml(r.kind)}-->
+     ${escapeHtml(r.dst_name)}</label>`
+  ).join("");
+  const facts = (diff.facts || []).map(f =>
+    `<li>${escapeHtml(f.claim || JSON.stringify(f))}</li>`
+  ).join("");
+
+  body.innerHTML = `
+    ${ents ? `<h3>Entities</h3>${ents}` : ""}
+    ${rels ? `<h3>Relationships</h3>${rels}` : ""}
+    ${facts ? `<h3>Facts (not auto-committed)</h3><ul>${facts}</ul>` : ""}
+    ${!ents && !rels && !facts ? "<p class='dim'>Tank didn't propose anything to add. That's fine — the journal still recorded the entry.</p>" : ""}
+  `;
+}
+
+async function commitDiff() {
+  if (!currentNoteId) return;
+  const entities = [...document.querySelectorAll('[data-kind="entity"]:checked')]
+    .map(c => parseInt(c.dataset.idx));
+  const relationships = [...document.querySelectorAll('[data-kind="rel"]:checked')]
+    .map(c => parseInt(c.dataset.idx));
+  const r = await fetch(`/api/notes/${currentNoteId}/confirm`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({entities, relationships}),
+  });
+  const j = await r.json();
+  alert(`Committed: ${j.written_entities || 0} entities, ${j.written_edges || 0} edges.`);
+  window.location.reload();
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+</script>
+{% endblock %}

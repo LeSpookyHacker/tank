@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Tank — Today{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>
+    {% if state.user_scope.org %}
+      Welcome back. Working on <span class="hl">{{ state.user_scope.org }}</span>.
+    {% else %}
+      Welcome back.
+    {% endif %}
+  </h1>
+  <p class="lede">
+    {% if lens == "map" %}
+      Day {{ tenure }} — <strong>Map mode</strong>. Coverage first; who-owns-what; who to meet.
+    {% elif lens == "prioritize" %}
+      Day {{ tenure }} — <strong>Prioritize mode</strong>. Risk ranking; gap closure; coalition.
+    {% elif lens == "execute" %}
+      Day {{ tenure }} — <strong>Execute mode</strong>. Ship commitments; track decisions.
+    {% elif lens == "maintain" %}
+      Day {{ tenure }} — <strong>Maintain mode</strong>. Drift; freshness; succession.
+    {% else %}
+      {% if state.role_mode.value == "ic" %}Staff IC lens.
+      {% elif state.role_mode.value == "manager" %}Manager lens.
+      {% else %}Dual lens — IC depth + Manager framing.{% endif %}
+    {% endif %}
+  </p>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <div class="card-label">Documents</div>
+    <div class="card-value">{{ counts.documents }}</div>
+    <div class="card-action"><a href="/ingest">Ingest more →</a></div>
+  </div>
+  <div class="card">
+    <div class="card-label">Entities</div>
+    <div class="card-value">{{ counts.entities }}</div>
+    <div class="card-action"><a href="/entities">Browse →</a></div>
+  </div>
+  <div class="card">
+    <div class="card-label">Redactions</div>
+    <div class="card-value">{{ counts.redactions }}</div>
+    <div class="card-action"><a href="/settings#redactions">Audit →</a></div>
+  </div>
+  <div class="card">
+    <div class="card-label">Conversations</div>
+    <div class="card-value">{{ counts.conversations }}</div>
+    <div class="card-action"><a href="/chat">Open chat →</a></div>
+  </div>
+</section>
+
+<section class="today-grid">
+  <article class="today-pane">
+    <h2>Today's digest</h2>
+    {% if nudges %}
+      <ul class="nudge-list">
+        {% for n in nudges %}
+          <li class="nudge nudge-{{ n.kind }}">
+            <header>
+              <strong>{{ n.title }}</strong>
+              <span class="dim">· {{ n.kind.replace("_", " ") }}</span>
+            </header>
+            <p>{{ n.body }}</p>
+            <footer class="nudge-actions">
+              <button onclick="nudgeAct('{{ n.id }}', 'act')">act</button>
+              <button onclick="nudgeAct('{{ n.id }}', 'snooze')">snooze</button>
+              <button onclick="nudgeAct('{{ n.id }}', 'dismiss')">dismiss</button>
+            </footer>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="dim">No open nudges. Run <code>POST /api/nudges/regenerate</code>
+      to refresh.</p>
+    {% endif %}
+  </article>
+
+  <article class="today-pane">
+    <h2>Follow-ups</h2>
+    {% if followups %}
+      <ul class="followup-list">
+        {% for f in followups %}
+          <li>
+            <span class="followup-source">{{ f.source_kind }}</span>
+            <span class="followup-title">{{ f.title }}</span>
+            <button onclick="followupDone('{{ f.id }}')">done</button>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="dim">No open follow-ups.</p>
+    {% endif %}
+    <a class="dim" href="/notes">Add notes →</a>
+  </article>
+
+  <article class="today-pane">
+    <h2>Hot entities (last 7 days)</h2>
+    {% if hot_entities %}
+      <ul class="hot-list">
+        {% for e in hot_entities %}
+          <li>
+            <strong>{{ e.name }}</strong>
+            <span class="dim">{{ e.type }} · {{ e.event_count }} touches</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="dim">Use the KB more and this will fill in.</p>
+    {% endif %}
+  </article>
+
+  <article class="today-pane">
+    <h2>Quick actions</h2>
+    <ul class="quick-actions">
+      <li><a href="/chat">Open chat</a></li>
+      <li><a href="/meeting-prep">Prep for a meeting</a></li>
+      <li><a href="/notes">Capture notes</a></li>
+      <li><a href="/reports">Reports library</a></li>
+    </ul>
+  </article>
+</section>
+
+<script>
+async function nudgeAct(id, action) {
+  await fetch(`/api/nudges/${id}/${action}`, {method: "POST"});
+  window.location.reload();
+}
+async function followupDone(id) {
+  await fetch(`/api/followups/${id}/done`, {method: "POST"});
+  window.location.reload();
+}
+</script>
+{% endblock %}

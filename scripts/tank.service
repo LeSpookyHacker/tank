@@ -1,0 +1,61 @@
+[Unit]
+# systemd --user unit for Tank.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp scripts/tank.service ~/.config/systemd/user/tank.service
+#   # Edit WorkingDirectory + EnvironmentFile to your absolute paths.
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now tank
+#   loginctl enable-linger $USER   # so it survives logout
+#
+# Logs:
+#   journalctl --user -u tank -f
+#
+# This is a USER unit (no root needed) and runs uvicorn under the
+# user's venv. Adapt to a system unit if you want it to start before
+# any user logs in.
+
+Description=Tank — Security Engineer Onboarding Partner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Edit these two lines for your install. Both MUST be absolute paths.
+WorkingDirectory=%h/projects/tank
+EnvironmentFile=%h/projects/tank/.env
+
+# Force production mode regardless of what's in .env — never run
+# --reload under a supervisor (it conflicts with Restart=).
+Environment=TANK_ENV=prod
+Environment=PYTHONUNBUFFERED=1
+
+# Use the venv's uvicorn so we don't depend on the user's PATH.
+ExecStart=%h/projects/tank/.venv/bin/python -m uvicorn app.main:app \
+    --host ${TANK_BIND_HOST:-127.0.0.1} \
+    --port ${TANK_BIND_PORT:-8000}
+
+# Auto-restart on crash / OOM / segfault. Cap at 5 restarts per 60s
+# so we don't busy-loop on a permanent failure.
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Graceful shutdown: send SIGTERM, wait 30s for in-flight requests to
+# drain, then SIGKILL. Tank's lifespan handler stops the scheduler
+# cleanly inside that window.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Resource isolation — tighten as your environment permits.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.tank %h/projects/tank
+
+[Install]
+WantedBy=default.target

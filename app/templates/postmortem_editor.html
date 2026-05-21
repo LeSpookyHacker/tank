@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ pm.title }}{% endblock %}
+
+{% block content %}
+<section class="pm-editor">
+  <header class="page-head">
+    <h1>{{ pm.title }}</h1>
+    <p class="dim">
+      Status: <span class="badge">{{ pm.status }}</span>
+      &nbsp;·&nbsp; Severity: {{ pm.severity or '—' }}
+      &nbsp;·&nbsp; Services: {{ pm.services_affected|length }}
+    </p>
+  </header>
+
+  <article class="markdown-body">{{ pm.body_md | safe }}</article>
+
+  {% if pm.status == 'draft' %}
+  <div class="action-bar">
+    <button class="btn"
+            hx-post="/api/postmortems/{{ pm.id }}/publish"
+            hx-swap="none"
+            hx-on::after-request="window.location.reload()">
+      Publish (creates {{ pm.fields.action_items|length }} followups)
+    </button>
+  </div>
+  {% endif %}
+
+  <details>
+    <summary>Edit structured fields</summary>
+    <form id="edit-form" onsubmit="return saveFields(event);">
+      <label>Summary
+        <textarea name="summary" rows="3">{{ pm.fields.summary or '' }}</textarea>
+      </label>
+      <label>What failed
+        <textarea name="what_failed" rows="3">{{ pm.fields.what_failed or '' }}</textarea>
+      </label>
+      <label>Why
+        <textarea name="why" rows="3">{{ pm.fields.why or '' }}</textarea>
+      </label>
+      <label>Timeline (one bullet per line)
+        <textarea name="timeline" rows="6">{{ pm.fields.timeline | join('\n') }}</textarea>
+      </label>
+      <label>Contributing factors (one per line)
+        <textarea name="contributing_factors" rows="4">{{ pm.fields.contributing_factors | join('\n') }}</textarea>
+      </label>
+      <label>Mitigations applied (one per line)
+        <textarea name="mitigations" rows="4">{{ pm.fields.mitigations | join('\n') }}</textarea>
+      </label>
+      <label>Action items (one per line — each becomes a followup)
+        <textarea name="action_items" rows="6">{{ pm.fields.action_items | join('\n') }}</textarea>
+      </label>
+      <button class="btn">save</button>
+    </form>
+  </details>
+</section>
+
+<script>
+async function saveFields(e) {
+  e.preventDefault();
+  const f = e.target;
+  const splitLines = (s) => (s || "").split("\n")
+    .map(x => x.trim()).filter(Boolean);
+  const payload = {
+    fields: {
+      summary: f.summary.value,
+      what_failed: f.what_failed.value,
+      why: f.why.value,
+      timeline: splitLines(f.timeline.value),
+      contributing_factors: splitLines(f.contributing_factors.value),
+      mitigations: splitLines(f.mitigations.value),
+      action_items: splitLines(f.action_items.value),
+    },
+  };
+  await fetch("/api/postmortems/{{ pm.id }}/fields", {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+  window.location.reload();
+  return false;
+}
+</script>
+{% endblock %}

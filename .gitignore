@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+.env
+.req.hash
+*.log
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local data — must NEVER be committed.
+# Tank stores all ingested content + the redaction map at ~/.tank/.
+# Just in case anyone symlinks it into the repo:
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Local Claude Code settings
+.claude/

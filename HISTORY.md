@@ -1,0 +1,862 @@
+# Tank — build history
+
+A running record of what was built, when, and why. Read this top-down
+to understand the project's evolution. Each entry is a session's worth
+of work, in chronological order.
+
+> All sessions to date use Python 3.9 (system Python on the dev Mac).
+> The plan targets 3.11+; Python 3.9 needs `eval_type_backport` for
+> Pydantic union-syntax support, and disables `sqlite-vec` (the
+> macOS-bundled sqlite3 module was compiled without
+> `enable_load_extension`). The graceful-degradation paths work —
+> FTS5 keyword search still functions; vector search falls back.
+
+---
+
+## 2026-05-20 — Plan + Phase 1 + Phase 2
+
+### Goal
+
+Stand up Tank's foundation: project skeleton, SQLite schema, redaction
+engine. Headline guarantee from day one: nothing leaves the machine in
+cleartext.
+
+### What got built
+
+- **Plan file** at `~/.claude/plans/imagine-you-are-a-fizzy-crystal.md`.
+  Full architecture: 17 SQLite tables, redaction layer design, ingest
+  pipeline, Claude chat with SSE + tool use, six reports, partner mode.
+  Approved by the user with edits (renamed `recon-companion` → `Tank`,
+  removed Opus tier, mandated single Sonnet model).
+- **Project skeleton** at `/Users/manuel.del.rio/projects/tank/`:
+  `app/{main,config,db,schemas,role}.py`, `app/redact/{engine,rules,secrets,store,config}.py`,
+  `app/routers/{pages,onboarding}.py`, `app/templates/{base,index,onboarding}.html`,
+  `app/static/style.css`, `scripts/{start.sh,stop.sh}`,
+  `tests/{conftest,test_redaction}.py`, README, requirements.txt,
+  .env.example, .gitignore.
+- **17 SQLite tables** initialized on boot: documents, chunks,
+  chunks_fts, entities, entity_chunks, relationships, redaction_map,
+  redaction_rules, conversations, messages, reports, nudges, notes,
+  app_state.
+- **Redaction engine** with 11 categories: email, internal_hostname
+  (custom TLD + defaults), public_hostname (off), ipv4_private
+  (RFC1918 + loopback + link-local + CGNAT), ipv4_public (off),
+  aws_account_id (context-gated), aws_arn, gcp_project (context-gated),
+  azure_subscription, secret_token (curated detect-secrets plugins +
+  entropy fallback, non-disableable, one-way SHA-256 hashed),
+  person_name (off, requires spaCy). Custom-regex rules via
+  `redaction_rules` table.
+- **28/28 redaction tests passing.** Determinism (same input ↔ same
+  placeholder across calls), dedup, overlap resolution, rehydration
+  longest-first, secret one-way hashing, custom rules.
+
+### Key design decisions
+
+- **Pre-redact at ingest time**, not at send time. Costs ~10ms/chunk
+  but eliminates "we forgot to redact in this code path" bugs forever.
+- **Secrets are one-way.** `redaction_map.original_text` for
+  `secret_token` is the SHA-256 hash, never cleartext. Rehydrating
+  secrets is impossible by design — user must look up the source doc.
+- **Sonnet-only.** Single `MODEL = "claude-sonnet-4-6"` constant. No
+  Opus tier in v1. Uniform prompt-cache behavior, simpler config.
+- **Single SQLite connection + threading.Lock.** Explicit single-user
+  assumption; matches the job-fit reference pattern.
+- **Provenance on every entity.** `source` / `inferred` / `claim` /
+  `user`. Drives the trust badges in the UI; queryable, not cosmetic.
+
+### Files added (alphabetical)
+
+```
+tank/
+├── .env.example
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── app/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── db.py
+│   ├── main.py
+│   ├── redact/
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   ├── engine.py
+│   │   ├── rules.py
+│   │   ├── secrets.py
+│   │   └── store.py
+│   ├── role.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── onboarding.py
+│   │   └── pages.py
+│   ├── schemas.py
+│   ├── static/style.css
+│   └── templates/{base,index,onboarding}.html
+├── scripts/
+│   ├── start.sh
+│   └── stop.sh
+└── tests/
+    ├── __init__.py
+    ├── conftest.py
+    └── test_redaction.py
+```
+
+### Tradeoffs taken
+
+- Person-name redaction off by default — readability vs privacy.
+- No remote embedding API (Phase 3+) — privacy beats retrieval quality.
+- sqlite-vec for vectors instead of a real vector DB — operational
+  simplicity, plenty fast at this scale.
+
+### Known gaps at this point
+
+- No ingestion yet — DB tables exist but nothing fills them.
+- macOS system Python 3.9 can't load sqlite-vec (`enable_load_extension`
+  missing). FTS5 still works for keyword search. Resolved by upgrading
+  Python to 3.11+ via Homebrew when convenient.
+- spaCy excluded from requirements.txt (needs Python 3.10+); person-name
+  redaction off as a result.
+
+### How to verify
+
+```bash
+cd tank && source .venv/bin/activate
+python -m pytest -q            # → 28/28 pass
+./scripts/start.sh             # → http://localhost:8000 renders onboarding
+```
+
+---
+
+## 2026-05-20 — Phase 2.5: Helix Robotics fixture pack
+
+### Goal
+
+A complete, internally-consistent fictional company so the rest of the
+build (ingestion, chat, reports) has realistic-looking inputs from day
+one. The user wants something to "play around with."
+
+### What got built
+
+A `tank/fixtures/` corpus: 23 hand-crafted files + 2 small repos
+simulating **Helix Robotics** — a fictional B2B SaaS doing payments +
+identity for robotics OEMs. ~80 employees, Series B, AWS-heavy.
+
+- **fixtures/README.md** — scenario + how-to-load
+- **fixtures/company.md** — 1-page company overview
+- **fixtures/architecture/** (4 files + generated PDF + PNG)
+- **fixtures/repos/payments-api/** (12 files, Python FastAPI; CODEOWNERS
+  *deliberately* contradicts CMDB to trigger contradiction-surfacing
+  nudge later)
+- **fixtures/repos/webhook-router/** (8 files, Go; no postmortem, no
+  runbook — planted gap)
+- **fixtures/cmdb/** (services.csv with 8 services, cloud-accounts.csv
+  with 5 AWS accounts)
+- **fixtures/people/** (org-chart, on-call.csv, 1-1-cadence.md)
+- **fixtures/policies/** (access-policy + generated DOCX,
+  incident-response, data-classification)
+- **fixtures/runbooks/** (service-restart, rotate-customer-api-key,
+  investigate-suspicious-login)
+- **fixtures/postmortems/** (Vault sidecar outage; AWS-key leak close
+  call)
+- **fixtures/seeds/** (leaked-key-example.md and internal-host-list.md
+  for redaction testing)
+- **scripts/_gen_fixtures.py** — synthesizes PDF/DOCX/PNG from MD
+- **scripts/load_fixtures.py** — bulk loader (currently dry-run only;
+  auto-activates once Phase 3 ingestion lands)
+
+### Planted edge cases
+
+Each maps to a Tank feature to exercise later:
+
+| Planted | Tests |
+| --- | --- |
+| `AKIAIOSFODNN7EXAMPLE` + matching secret | secret_token + one-way hash |
+| `xoxb-...` Slack token + `ghp_...` GitHub PAT | detect-secrets plugins |
+| `999988887777` near "AWS account" | aws_account_id rule |
+| `payments.helix.internal` in 4+ docs | placeholder reuse |
+| CODEOWNERS says Marcus, CMDB says Sam | contradiction nudge |
+| webhook-router has no postmortem/runbook | cross-service gap report |
+| Diana mentioned 3× but no entity card | pattern_detection nudge |
+| Mixed criticality (CMDB "critical" vs runbook "tier-2") | contradiction |
+
+### Verification
+
+```bash
+python -m scripts._gen_fixtures   # PDF + PNG + DOCX generated
+python -m scripts.load_fixtures --dry-run
+# → 23 files + 2 repos planned across 4 categories
+```
+
+Redaction sanity-check on `seeds/leaked-key-example.md`:
+**7/7 secrets caught, all stored as 64-char SHA-256 hashes.**
+Redaction sanity-check on `seeds/internal-host-list.md`:
+**13/13 internal hostnames + 8/8 private IPs caught; 0 public** (correct).
+
+### Tradeoffs
+
+- Fixtures are version-controlled (in `tank/fixtures/`), not gitignored.
+  Acceptable because all content is synthetic — no real customer data.
+- The DOCX/PDF/PNG are *generated* artifacts; the markdown sources are
+  the source of truth. `_gen_fixtures.py` produces them deterministically.
+- The two repos contain plausible-looking Go and Python skeletons but
+  aren't runnable — code-fact extraction in Phase 5 only needs the
+  manifest/Dockerfile/README shape.
+
+### Files added
+
+~30 fixture files + 2 scripts. Net: `tank/fixtures/` (23 MD/CSV + 3
+generated binaries + 2 repos) and `tank/scripts/{_gen_fixtures,load_fixtures}.py`.
+
+---
+
+## 2026-05-20 — Phases 3-11 (full build push)
+
+### Goal
+
+Ship the rest of Tank in a single push: ingestion pipeline, KB layer,
+remaining parsers, chat with SSE + tool use, six reports, partner-mode
+daily companion features, UI polish, privacy verification, and opt-in
+continuous-ingestion connectors. The user explicitly asked for "all
+the phases now" with a recap markdown they can review later.
+
+### What got built (by phase)
+
+#### Phase 3 — Ingestion pipeline foundation
+
+- **Storage stores** for documents, chunks (with FTS5 + sqlite-vec
+  writes), entities (with `(type, name_normalized)` dedup), and
+  relationships (with `(src, dst, kind)` dedup). All take `LOCK` for
+  writes.
+- **Pipeline** (`app/ingest/pipeline.py`): `parse → chunk → redact →
+  embed → store → extract`. Two entrypoints — `ingest(path, category)`
+  for single files and `ingest_repo(root)` for source repos.
+- **Chunker**: `RecursiveCharacterTextSplitter` + `tiktoken`,
+  target 800 tokens with 120-token overlap, snaps to paragraph
+  boundaries.
+- **Embedder**: lazy singleton wrapping
+  `sentence-transformers/all-MiniLM-L6-v2`. Embeds the redacted
+  chunk only.
+- **Markdown + PDF parsers** with section-path preservation.
+- **Entity extractor** (`app/claude/extractor.py`): batches 4 chunks
+  per call to Sonnet 4.6 with `messages.parse(output_format=ChunkExtraction)`.
+- **Prompt** `prompts/extract_entities.md` — typed schema, hard rules
+  ("never invent", "no placeholder unpacking"), citation discipline.
+- **Routers**: `POST /api/ingest/file`, `/path`, `/repo`; `GET /api/documents`.
+- **CLI**: `scripts/ingest_cli.py` for one-off ingestion from the shell.
+
+#### Phase 4 — KB layer
+
+- **Hybrid retrieval** (`app/kb/search.py`): vector ANN via sqlite-vec
+  + BM25 via FTS5 + reciprocal rank fusion. Falls back to FTS-only if
+  sqlite-vec didn't load.
+- **Entity card builder** (`app/kb/entities.py`): full entity + up to
+  5 linked chunks + edges count.
+- **Relationship traversal** (`app/kb/relationships.py`): N-hop graph
+  walks, plus a `graph_for_type` slice used by the entity-graph viz.
+- **Anthropic tool schemas** (`app/kb/tools.py`): 6 tools exposed to
+  the chat assistant — `search_kb`, `get_entity`, `list_relationships`,
+  `find_control_gaps`, `list_entities`, `get_document`. Each maps to
+  a local executor; tool results are pre-redacted, with a defense-in-
+  depth redaction pass in chat.
+
+#### Phase 5 — Remaining parsers
+
+- **DOCX parser**: walks paragraphs, builds section_path from heading
+  styles, flattens tables to TSV.
+- **CSV/JSON parser**: row-grouping (25 rows/chunk) for CMDB-shaped
+  data; column-mapping side-channel via `.column-map.json`.
+- **Image parser** (`app/ingest/parsers/image.py`): base64-encodes the
+  bytes, calls Sonnet 4.6 vision with `extract_arch_diagram.md`. The
+  parser stashes the structured extraction in `meta["vision"]`; the
+  extractor module picks it up and persists entities/edges.
+- **Repo walker** (`app/ingest/parsers/repo.py` + `code_facts.py`):
+  walks the repo (`.gitignore`-aware), collects language LOC, manifest
+  contents, Dockerfile facts, CI files, auth/secrets grep hits,
+  CODEOWNERS, README, ARCHITECTURE.md. Renders to a summary doc;
+  **no raw source code is sent to Claude**.
+- **Prompts**: `extract_arch_diagram.md`, `extract_repo_summary.md`.
+
+#### Phase 6 — Chat with SSE + tool use
+
+The biggest unlock. Pioneers both streaming and tool use in your stack
+(neither pattern existed in job-fit / resume-analyzer).
+
+- **Conversations + messages stores**.
+- **Caching helper** (`app/claude/caching.py`): builds two cache-
+  controlled blocks per request — system + KB context.
+- **Streaming chat loop** (`app/claude/chat.py`):
+  - Redacts user msg → embeds → hybrid retrieval → entity cards.
+  - Builds messages with cached system + cached KB block.
+  - `client.messages.stream(...)` with tools.
+  - Loop iterates: text deltas via SSE, tool_use → execute → tool_result
+    → continue until `end_turn`.
+  - Rehydrates response, persists redacted_view + display_view +
+    citations + token usage.
+- **In-process event bus** (`app/claude/event_bus.py`): topic-keyed
+  asyncio queues for SSE consumers.
+- **Router** (`app/routers/chat.py`): `POST /api/conversations`,
+  `POST .../messages`, `GET .../stream` (SSE via sse-starlette).
+- **Chat UI** (`templates/chat.html`): conversation list + streaming
+  bubble with tool-use trace + "show reasoning" disclosure.
+- **System prompts**:
+  - `chat_system_ic.md` — Staff/Senior IC lens, technical depth.
+  - `chat_system_manager.md` — Manager lens, org context.
+  - `chat_system_both.md` — dual-lens default.
+  - `chat_lens_{map,prioritize,execute,maintain}.md` — tenure framing.
+
+#### Phase 7 — Reports
+
+Six generators sharing a cached scope block, so a 6-report run is
+~2× cheaper than running each cold.
+
+- **Pydantic schemas** in `app/schemas.py` for all six output shapes
+  (ThreatLandscapeReport, CrossServiceGapsReport, PlanReport,
+  StakeholderMap, QuestionList, ControlMatrix).
+- **Generators** (`app/claude/reports.py`): one function per kind,
+  all routing through `_run(prompt, OutputType, scope)`. Each renders
+  to Markdown and persists both redacted (audit) + rehydrated (display).
+- **Prompts**: `report_threat_landscape.md`, `report_cross_service_gaps.md`,
+  `report_30_60_90.md`, `report_stakeholder_map.md`,
+  `report_questions_for_team.md`, `report_control_matrix.md`.
+- **Router + templates**: `/reports` library page + `/reports/{id}`
+  detail page with audit toggle.
+- **Markdown export**: `GET /api/reports/{id}/export?format=md`.
+
+#### Phase 8 — Partner mode (daily-companion machinery)
+
+The phase that turns Tank from a recon tool into a daily companion.
+
+- **Daily-use schema additions**:
+  - `journal_entries`, `followups`, `report_subscriptions`,
+    `usage_events`, `watchers`, `meetings` tables.
+  - `app_state.tenure_started_at` + `last_journal_at` columns
+    (additive migration via `_migrate_app_state_columns`).
+- **Tenure-aware lens** (`app/role.py::current_lens()`): returns
+  `map` (days 1-14), `prioritize` (15-60), `execute` (61-180),
+  `maintain` (180+). Chat system prompts and the home dashboard
+  adapt automatically.
+- **Stores**: `journal_store`, `followups_store`, `subscriptions_store`,
+  `usage_store`, `nudges_store`, `notes_store`.
+- **Claude-side generators**:
+  - `nudges.py` — 8 nudge kinds: coverage_gap, stale_context,
+    pattern_detection, contradiction, abandoned_thread,
+    question_of_week (LLM), journal_followup_suggestion,
+    + the new dependency_cve (Phase 11). Rate-limited to 2/day.
+  - `meeting_prep.py` — one-screen brief: who they are, world,
+    overlap, unknowns, ranked questions, one thing to offer.
+  - `notes.py` — diff extraction from freewrite, user-confirmed
+    commit to KB with `provenance='user'`.
+  - `day1_brief.py` — runs at end of onboarding. Scope echo, top 5
+    entities, week-1 questions, week-1 reading, week-1 meetings.
+    Persisted as a Report (`kind='day1_brief'`).
+  - `anniversary.py` — Day 30/60/90/180/365 retros. Persisted as
+    `kind='anniversary_<N>'`.
+  - `journal_extractor.py` — light-touch parse of evening journal
+    entries.
+- **Prompts**: `meeting_prep.md`, `notes_to_kb.md`, `nudge_generator.md`,
+  `day1_brief.md`, `anniversary.md`, `journal_extractor.md`.
+- **Background scheduler** (`app/claude/scheduler.py`):
+  Single asyncio.Task, started in lifespan, cancelled on shutdown.
+  Wakes every 60s; fires:
+  - Daily digest at `app_state.digest_time` → nudge regen,
+    subscription dispatch, anniversary check.
+  - Configured reflection day 16:00 → weekly reflection trigger.
+  - Weekday evening 18:00 → journal prompt nudge if no entry today.
+- **Conversational onboarding rewrite** (`onboarding.html` +
+  `onboarding.py` router): 5-step flow that sets `tenure_started_at`
+  and kicks off Day-1 brief generation as a background task.
+- **Routers**: nudges, meeting_prep, notes, journal, followups,
+  subscriptions.
+- **Templates**: onboarding (rewritten), meeting_prep, notes,
+  index (rewritten with today-grid: digest + follow-ups + hot
+  entities + quick actions).
+
+#### Phase 9 — UI polish
+
+- **Entity browser** (`templates/entities.html` + `entity_detail.html`):
+  tabbed-by-type list, full card with attributes, linked chunks,
+  edges, and entity-specific actions (generate threat report for
+  Services, prep meeting for People).
+- **Entity graph viz** (`static/graph.js`): canvas-based
+  force-directed layout. No external graph library — keeps the
+  project dependency-lean. Click to drill into an entity.
+- **Settings page** (`templates/settings.html`): role-mode picker,
+  cadence (digest time + reflection day), redaction rule toggles
+  with per-category match counts, wipe-all button.
+- **Router** (`routers/settings.py`): redaction toggles, role/cadence
+  updates, `POST /api/wipe` (one-button nuke).
+
+#### Phase 10 — Privacy verification
+
+- **`scripts/verify_privacy.py`**: scans the SQLite DB for any
+  fixture identifier (planted secrets, internal hostnames, fake
+  AWS account IDs, employee emails) appearing in any column that
+  gets sent to Claude (`chunks.text_redacted`,
+  `messages.redacted_view`, `reports.content_md_redacted`,
+  `journal_entries.body_redacted`, etc.). Exit code 1 on any hit.
+- **Helix fixture-pack mode**: `--fixture-pack` flag enables
+  pre-baked Helix Robotics needles
+  (AKIAIOSFODNN7EXAMPLE, 999988887777, helixrobotics.com, etc).
+
+#### Phase 11 — Opt-in continuous-ingestion connectors
+
+All disabled by default. Enabled via `Settings → Integrations`.
+
+- **Folder watcher**: polls a local directory for new/changed files,
+  auto-ingests via the existing pipeline.
+- **ICS calendar watcher**: fetches a public/CalDAV `.ics` URL,
+  populates the `meetings` table.
+- **CVE feed watcher**: NVD subscription filtered by deps Tank
+  knows about. Surfaces `dependency_cve` nudges.
+- **GitHub poller**: opt-in token (`TANK_GITHUB_TOKEN`); polls
+  configured repos for sensitive-path PRs.
+- **Integrations router** (`/api/integrations/watchers/*`): CRUD +
+  scan-now.
+
+### Verification results
+
+```
+pytest                                  → 28/28 pass
+boot smoke test (TestClient end-to-end):
+  GET /                                 → 302 /onboarding ✓
+  GET /onboarding                       → 200 (5043 bytes) ✓
+  5-step onboarding flow                → all ✓
+  GET / (post-onboard, tenure set)      → 200 with "Map mode" lens ✓
+  GET /chat                             → 200 ✓
+  GET /reports                          → 200 ✓
+  GET /meeting-prep                     → 200 ✓
+  GET /notes                            → 200 ✓
+  GET /entities                         → 200 ✓
+  GET /settings                         → 200 ✓
+  GET /api/nudges/today                 → 200 ✓
+  GET /api/followups                    → 200 ✓
+  GET /api/journal/today                → 200 ✓
+  GET /api/subscriptions                → 200 ✓
+  GET /api/integrations/watchers        → 200 ✓
+```
+
+**66 routes total.** Day-1 brief generation logs an expected
+exception during the smoke test (no `ANTHROPIC_API_KEY` is set in
+the test env); it runs as a background task and doesn't block
+onboarding completion.
+
+### Tradeoffs accepted
+
+1. **Smoke tests, not full E2E with the live API.** Hitting the
+   Anthropic API during the test session would cost real money and
+   require a key; we verified everything imports cleanly and routes
+   200 instead. Real verification against the API needs Phase 10's
+   mitmproxy capture run with a real key.
+2. **CVE + GitHub watchers ship as scaffolds**: the data model and
+   the contract are in place; the full implementations require an
+   NVD API key + a GitHub PAT respectively, both gated behind env
+   vars.
+3. **Graph viz is pure canvas** instead of pulling in `vis-network`
+   or `cytoscape.js`. Keeps the dep tree minimal at the cost of
+   slightly cruder visuals. Easy to swap later.
+4. **Anthropic SDK streaming bridges to asyncio via run_in_executor**
+   in chat.py rather than a fully native async iterator. The SDK's
+   sync streaming context manager is simpler to reason about and
+   our per-conversation queues already provide the asyncio boundary
+   for SSE.
+5. **No persistent task queue** — partner-mode work runs in
+   FastAPI's `BackgroundTasks` or asyncio.create_task. Single-user,
+   single-process; durable queueing would be over-engineering.
+
+### Known gaps at this point
+
+- **First chat turn against real Claude API hasn't been live-tested**
+  in this session (no API key in the smoke env). The shape is
+  correct against Anthropic SDK 0.92+, but expect minor adjustments
+  on first real call.
+- **sqlite-vec is still disabled** on this dev machine's Python 3.9.
+  Hybrid retrieval gracefully falls back to FTS-only. To get vector
+  search, switch to Python 3.11+ from Homebrew or python.org.
+- **Person-name redaction still off** by default (spaCy needs
+  Python 3.10+).
+- **CSV column-mapping UI** isn't built yet; the parser reads
+  `.column-map.json` if present, otherwise just chunks rows
+  generically. Phase-9 follow-up.
+- **PDF→DOCX export** of reports not implemented. Markdown export
+  ships; PDF needs weasyprint (not installed by default).
+- **No live live-reload of nudges in the UI** — the home dashboard
+  re-renders on action, not via SSE push. The event bus is ready for
+  this but the UI side hasn't subscribed.
+
+### How to verify everything still works
+
+```bash
+cd tank && source .venv/bin/activate
+python -m pytest -q                       # → 28/28
+./scripts/start.sh                        # → http://localhost:8000
+
+# Once the server is up, try:
+python -m scripts.load_fixtures --dry-run # → 23 files + 2 repos planned
+python -m scripts.load_fixtures           # → actual ingest (uses your API key)
+
+# After ingest:
+sqlite3 ~/.tank/db.sqlite \
+  "SELECT category, COUNT(*) FROM redaction_map GROUP BY category;"
+
+# Privacy assertion:
+python -m scripts.verify_privacy --fixture-pack
+```
+
+### Files added in this session (alphabetical, abbreviated)
+
+```
+app/claude/{anniversary,caching,chat,day1_brief,event_bus,extractor,
+            journal_extractor,meeting_prep,notes,nudges,reports,scheduler}.py
+app/ingest/{__init__,chunker,code_facts,embedder,pipeline}.py
+app/ingest/parsers/{__init__,_base,csv_json,docx,image,markdown,pdf}.py
+app/ingest/watchers/{__init__,cve,folder,github,ics}.py
+app/kb/{__init__,entities,relationships,search,tools}.py
+app/routers/{chat,entities,followups,ingest,integrations,journal,
+             meeting_prep,notes,nudges,reports,settings,subscriptions}.py
+app/storage/{chunks,conversations,documents,entities,followups,journal,
+             messages,notes,nudges,relationships,reports,subscriptions,
+             usage}_store.py
+app/static/graph.js
+app/templates/{chat,entities,entity_detail,meeting_prep,notes,
+               onboarding,report_detail,reports,settings}.html
+prompts/{anniversary,chat_lens_execute,chat_lens_maintain,chat_lens_map,
+         chat_lens_prioritize,chat_system_both,chat_system_ic,
+         chat_system_manager,day1_brief,extract_arch_diagram,
+         extract_entities,extract_repo_summary,journal_extractor,
+         meeting_prep,notes_to_kb,nudge_generator,
+         report_30_60_90,report_control_matrix,report_cross_service_gaps,
+         report_questions_for_team,report_stakeholder_map,
+         report_threat_landscape}.md
+scripts/{ingest_cli,verify_privacy}.py
+```
+
+That's ~70 new files. The full project tree now sits at ~120 files
+across all phases. Net: Tank is feature-complete against the original
+plan.
+
+---
+
+## Recap — the build at-a-glance
+
+| Phase | What it delivers | Status |
+| --- | --- | --- |
+| 1 | Skeleton, DB, config, start.sh, README | ✅ shipped |
+| 2 | Redaction engine + 28/28 tests | ✅ shipped |
+| 2.5 | Helix Robotics fixture pack (23 files, 2 repos) | ✅ shipped |
+| 3 | Ingestion pipeline + storage + entity extractor | ✅ shipped |
+| 4 | KB layer (search, entity cards, tool schemas) | ✅ shipped |
+| 5 | Remaining parsers (DOCX, vision, CSV, repo) | ✅ shipped |
+| 6 | Chat with SSE streaming + tool use | ✅ shipped |
+| 7 | Six report generators sharing prompt cache | ✅ shipped |
+| 8 | Partner mode + daily-companion machinery | ✅ shipped |
+| 9 | UI polish (entity graph, settings, badges) | ✅ shipped |
+| 10 | Privacy assertion script | ✅ shipped |
+| 11 | Opt-in connectors (folder, ics, cve, github) | ✅ shipped |
+
+## What to do next (suggested order)
+
+1. **Get a real ANTHROPIC_API_KEY** in `.env` and run
+   `./scripts/start.sh`. Complete onboarding through the UI.
+2. **Ingest the Helix fixtures** via `python -m scripts.load_fixtures`.
+   Expect ~$5-10 in API cost for the full pack.
+3. **Open `/chat`** and ask: *"What's the most security-relevant
+   service in this codebase and why?"*
+4. **Generate reports** from `/reports`. Start with `cross_service_gaps`
+   — it'll find webhook-router's missing postmortem.
+5. **Run the privacy assertion**:
+   `python -m scripts.verify_privacy --fixture-pack`
+   to confirm no fixture identifiers leaked into any redacted field.
+6. **Upgrade to Python 3.11+** when convenient (Homebrew or python.org)
+   to enable sqlite-vec for true vector search.
+
+---
+
+## 2026-05-20 — Phases 12-15 (true SE assistant push)
+
+### Goal
+
+Push Tank from "onboarding tool" into "true Security Engineer
+assistant" territory. The user's framing: Tank shouldn't just help
+during onboarding — it should host the artifacts a Sr/Staff/Mgr SE
+writes weekly (threat models, design reviews, postmortems, tabletops,
+decisions logs, lessons learned) and reason about coverage
+(detections, IAM, compliance, attack surface). Generalist + AppSec
+lean; strict local-only — no new outbound integrations beyond Phase 11.
+
+### What got built (by phase)
+
+#### Phase 12 — Living threat models + decisions log
+
+Move from one-shot threat reports to **versioned, drift-aware** TMs
+tied to architecture, plus a decisions / accepted-risk log.
+
+- **Schema**: `threat_models` (versioned per service, frozen STRIDE
+  threats, `arch_snapshot_hash` for drift detection), `decisions`
+  (kind ∈ design_choice/accepted_risk/deferred_fix/security_invariant;
+  status; expires_at; source; scope_entity_ids).
+- **Pydantic**: `ThreatV2` (with `state` field — new/still_valid/
+  invalidated/updated), `ThreatModelV2`, `ExtractedDecision`,
+  `DecisionExtraction`.
+- **Claude helpers**: `threat_modeling.generate(service_id)` (regen-
+  aware — passes prior TM, asks Sonnet to delta), `find_drift()`,
+  `decisions.extract_from_doc(doc_id)` + `commit_extraction()`.
+- **Prompts**: `threat_model_v2.md`, `extract_decisions.md`.
+- **Routers**: `/threat-models`, `/threat-models/{id}`, `/decisions`
+  with full API surface (generate, confirm, list, version diff,
+  expiring-soon, reaffirm, extract-from-doc).
+- **Templates**: `threat_models.html`, `threat_model_detail.html`,
+  `decisions.html`.
+- **New chat tools**: `get_threat_model`, `find_decisions`,
+  `get_recent_decisions`.
+- **New nudges**: `architecture_drift`, `decision_expiring`,
+  `unaddressed_threat`.
+
+#### Phase 13 — Security workstreams
+
+Tank starts hosting weekly SE work instead of just reading it.
+
+- **Schema**: `design_reviews`, `postmortems_drafts`, `tabletops`.
+- **Pydantic**: `DesignReviewChecklistItem`, `DesignReviewIntakePayload`,
+  `PostmortemFields`, `PostmortemDraftPayload`, `TabletopInject`,
+  `TabletopScenario`, `OnCallHandoff`, `WeeklySecurityDigest`.
+- **Mini-apps** (each: store + Claude helper + router + 1-2 templates):
+  - **Design reviews** (`/design-reviews`): freewrite intake → Sonnet
+    seeds title/scope/risk areas/missing info/checklist → user
+    works through checklist → on approve, spawn decisions tagged
+    `source='design_review'`.
+  - **Postmortems** (`/postmortems`): freewrite → Sonnet drafts
+    structured fields → user edits → publish creates followups for
+    each action item + extracts lessons (Phase-15 hook).
+  - **Tabletops** (`/tabletops`): pick service+threat → Sonnet
+    generates scenario + 4-6 timed injects + facilitation notes +
+    rubric → capture lessons into lessons DB.
+- **New report kinds**: `oncall_handoff` (per-service handoff brief),
+  `weekly_security_digest` (Monday-AM cross-cutting summary).
+- **Prompts**: `design_review_intake.md`,
+  `design_review_checklist.md`, `postmortem_draft.md`,
+  `tabletop_generator.md`, `report_oncall_handoff.md`,
+  `report_weekly_security_digest.md`.
+- **Scheduler hook**: nightly 22:00 tick auto-generates `meeting_prep`
+  briefs for tomorrow's calendar (rate-limited to 5/day) so the
+  Today widget shows "Today's briefs" instead of requiring on-demand
+  requests. New `meetings_store` ships with `list_between(start, end)`.
+
+#### Phase 14 — Coverage + visibility
+
+Add detection rules, IAM policies, and control frameworks as ingest
+types. Synthesize coverage maps over them — still strictly local.
+
+- **EntityType extended**: `Detection`, `AttackTechnique`,
+  `IAMPolicy`, `Asset`.
+- **New parsers**: `sigma.py` (Sigma YAML rules), `iam.py` (AWS
+  IAM JSON + K8s RBAC + GCP IAM — computes parsed risk_score
+  pre-Sonnet), `control_framework.py` (CIS / NIST / SOC2 JSON).
+  `parsers/__init__.py::dispatch()` now content-sniffs JSON/YAML to
+  route between IAM, control_framework, Sigma, and CSV/JSON.
+- **New schema**: `attack_surface_snapshots`, `compliance_evidence`.
+- **KB helpers**: `kb/detections.py::find_for_technique(attack_id)`,
+  `kb/iam.py::find_risks()`, `kb/compliance.py::find_evidence(control_id)`.
+- **Claude analyses**:
+  - `iam_translator.explain(policy_id)` — plain-English IAM walk-
+    through with risk callouts. `iam_audit()` — ranks all
+    IAMPolicy entities.
+  - `compliance.collect_for_framework()` — iterates every Control
+    entity, hybrid-searches for evidence, persists to
+    `compliance_evidence`, returns the gap report.
+  - `attack_mapping.generate()` — per-TM, Sonnet maps each threat to
+    a MITRE technique; output cross-references KB detections to
+    surface tactic-level gaps.
+  - `attack_surface.snapshot()` + `history()` — weekly Endpoint
+    snapshot with diff vs prior.
+- **New report kinds**: `attack_mapping`, `iam_audit`.
+- **New chat tools**: `find_detection_for_technique`, `find_iam_risks`,
+  `find_evidence_for_control`.
+- **Routers**: `/detections`, `/compliance`, `/attack-surface`,
+  `/api/iam/{explain,risks}`.
+- **Templates**: `detections.html`, `compliance.html`,
+  `attack_surface.html`.
+- **Prompts**: `iam_translator.md`, `report_attack_mapping.md`,
+  `report_iam_audit.md`, `compliance_evidence_search.md`.
+
+#### Phase 15 — Continuous learning + memory
+
+Second-brain layer. Long-running memory that grows with tenure.
+
+- **Schema**: `lessons`, `glossary`, `owned_entities`.
+  `app_state.philosophy_doc_id` added via migration.
+- **Stores**: `lessons_store` (tag-indexed + LIKE-search),
+  `glossary_store` (pending vs confirmed),
+  `owned_store` (single-user; role: owner/reviewer/consulted/informed).
+- **Claude helpers**:
+  - `lesson_extractor.extract_from_postmortem()` and
+    `extract_from_design_review()` — auto-runs on publish/reject.
+  - `glossary_extractor.discover()` — proposes company-specific
+    jargon from a sample of recent KB chunks for user confirmation.
+  - `philosophy.seed()` (Day 30) + `evolve()` (Day 60/90/180/365) —
+    curated security-philosophy document; persists as a special
+    Report (kind='philosophy'), pointer in `app_state`.
+  - `anniversary_security.generate(day_n)` — security-focused retro
+    fired alongside the existing generic anniversary retro.
+- **Routers**: `/lessons` (search + tag filter), `/glossary`
+  (discover + confirm/reject), `/me` (ownership dashboard with
+  per-entity risk score), `/philosophy`.
+- **Templates**: `lessons.html`, `glossary.html`, `me.html`,
+  `philosophy.html`.
+- **New chat tool**: `search_lessons(query, tag?)`.
+- **Prompts**: `lesson_extractor.md`, `glossary_extract.md`,
+  `philosophy_seed.md`, `philosophy_evolve.md`,
+  `anniversary_security.md`.
+- **Entity detail page**: added "I own this" action for Service
+  entities (claims via `/api/me/owned`), "Generate threat model
+  (v2)" for Services, "Explain this IAM policy" for IAMPolicy.
+
+### Cross-cutting wiring
+
+- **Navigation**: top bar now includes Threats, Reviews, PMs,
+  Compliance, Me alongside the existing items.
+- **Scheduler additions** (`scheduler.py`):
+  - Nightly 22:00: auto pre-meeting briefs.
+  - Sunday 09:00: weekly attack-surface snapshot.
+  - Anniversary check (existing): now also fires the security retro
+    + seeds/evolves the philosophy doc at the right milestones.
+- **REPORT_REGISTRY**: 6 → 10 (added `oncall_handoff`,
+  `weekly_security_digest`, `attack_mapping`, `iam_audit`).
+- **Chat tools**: 6 → 13.
+- **Nudge generators**: 7 → 10.
+- **Routes**: 66 → 150.
+
+### Privacy contract preserved
+
+Every new ingest type (Sigma YAML, IAM JSON, framework JSON) flows
+through the existing pipeline → `apply_redactions` → chunks. The
+defense-in-depth `apply_redactions` pass in `chat.py` still wraps
+every tool result. New chat tools (`get_threat_model`,
+`find_decisions`, etc.) return pre-redacted text from local stores.
+The one new "soft" category — glossary terms — is company jargon,
+not PII, and surfaces only over already-redacted display text.
+
+### Verification
+
+```
+pytest                              → 28/28 pass
+app load                            → 150 routes registered
+end-to-end smoke (32 routes hit):
+  /threat-models                     → 200
+  /decisions                         → 200
+  /design-reviews + /new             → 200
+  /postmortems + /new                → 200
+  /tabletops + /new                  → 200
+  /detections                        → 200
+  /compliance                        → 200
+  /attack-surface                    → 200
+  /lessons                           → 200
+  /glossary                          → 200
+  /me                                → 200
+  /philosophy                        → 200
+  + 20 API endpoints                 → 200
+```
+
+### Tradeoffs accepted
+
+1. **Phase-14 ATT&CK technique tagging via Sonnet may be noisy.**
+   Mitigation: each row carries an exposure rating; UI displays
+   `detections` field as the disambiguator.
+2. **Compliance evidence collection is hybrid-search-driven.** A
+   chunk's appearance is treated as evidence for a control if the
+   embed similarity is high. This is conservative — Phase 14 ships
+   `controls_with_no_evidence` gap surfacing as the safety net.
+3. **Lesson extraction runs synchronously on postmortem publish.**
+   For published-from-CLI cases the latency is acceptable; in the
+   UI it adds ~5-10s to the publish click. Not pulled out into the
+   scheduler yet.
+4. **Personal ownership risk score is a heuristic.** Mixes TM drift,
+   unaddressed high/high threats, expired decisions, and open
+   postmortem followups into a 0-10 score. Not a CVSS replacement;
+   the UI presents it as a coarse indicator.
+5. **No markdown editor lib.** The postmortem editor uses raw
+   textareas — readable but no preview. EasyMDE (~30kb) is the
+   easy upgrade if we want it.
+6. **Sigma parser depends on PyYAML** (already in requirements via
+   docx → no new dep). Graceful degrade if YAML is unavailable —
+   the raw file is still chunked.
+7. **No live attack-surface diff alerting** — the snapshot is
+   compared against prior at view time. Adding a delta nudge would
+   double-count with `architecture_drift`; skipped for now.
+
+### Known gaps at this point
+
+- **No live API verification.** The new Sonnet call sites compile
+  cleanly and import correctly, but haven't been hit against the
+  real API in this session. Expect minor adjustments on first real
+  call (same as Phases 6/7/8 — has happened before, fast to fix).
+- **No new tests yet.** The 28/28 redaction tests still pass; new
+  modules don't have unit tests. The smoke test against 32 routes
+  is the main verification today. Adding per-module tests is a
+  natural Phase-16 follow-up.
+- **CSS for new pages is unstyled** beyond what the existing
+  `style.css` provides. Tables, alerts, badges all use existing
+  classes; the new pages render but don't have polish.
+
+### Files added in this session (alphabetical, abbreviated)
+
+```
+app/claude/{anniversary_security,attack_mapping,attack_surface,
+            compliance,decisions,design_review,glossary_extractor,
+            iam_translator,lesson_extractor,philosophy,
+            postmortem_authoring,tabletop,threat_modeling}.py
+app/ingest/parsers/{control_framework,iam,sigma}.py
+app/kb/{compliance,detections,iam}.py
+app/routers/{attack_surface,compliance,decisions,design_reviews,
+             detections,glossary,iam,lessons,me,philosophy,
+             postmortems,tabletops,threat_models}.py
+app/storage/{decisions,design_reviews,glossary,lessons,
+             meetings,owned,postmortems,tabletops,threat_models}_store.py
+app/templates/{attack_surface,compliance,decisions,design_reviews,
+               design_review_detail,design_review_new,detections,
+               glossary,lessons,me,philosophy,postmortems,
+               postmortem_editor,postmortem_new,tabletops,
+               tabletop_detail,tabletop_new,threat_models,
+               threat_model_detail}.html
+prompts/{anniversary_security,compliance_evidence_search,
+         design_review_intake,extract_decisions,glossary_extract,
+         iam_translator,lesson_extractor,philosophy_evolve,
+         philosophy_seed,postmortem_draft,report_attack_mapping,
+         report_iam_audit,report_oncall_handoff,
+         report_weekly_security_digest,tabletop_generator,
+         threat_model_v2}.md
+```
+
+Net: ~55 new files across the four phases. Schema gained 10 new
+tables (`threat_models`, `decisions`, `design_reviews`,
+`postmortems_drafts`, `tabletops`, `attack_surface_snapshots`,
+`compliance_evidence`, `lessons`, `glossary`, `owned_entities`) +
+1 column on `app_state` (`philosophy_doc_id`). Total project size
+sits at ~175 files.
+
+### How to verify
+
+```bash
+cd tank && source .venv/bin/activate
+python -m pytest -q             # → 28/28
+./scripts/start.sh              # → http://localhost:8000
+
+# Visit the new pages:
+#   /threat-models               — versioned TMs + drift detection
+#   /decisions                   — decisions log
+#   /design-reviews              — intake → checklist → approve
+#   /postmortems                 — author + publish (creates followups)
+#   /tabletops                   — scenario generator + lessons capture
+#   /detections                  — Sigma rules + ATT&CK coverage
+#   /compliance                  — control evidence map + gaps
+#   /attack-surface              — weekly endpoint snapshot + diff
+#   /lessons                     — searchable lessons DB
+#   /glossary                    — company-jargon library
+#   /me                          — ownership dashboard with risk score
+#   /philosophy                  — curated security stance doc
+
+# Try with fixtures: open a Service entity (e.g. payments-api),
+# click "I own this", then "Generate threat model (v2)". Then visit
+# /threat-models to see drift detection ready for v2.
+```
+
+

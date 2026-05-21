@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Tank — new tabletop{% endblock %}
+
+{% block content %}
+<section class="tt-new">
+  <header class="page-head">
+    <h1>Generate tabletop scenario</h1>
+    <p class="dim">Pick a service + threat. Tank generates a
+      1-paragraph scenario, 4-6 timed injects, facilitation notes,
+      and an evaluation rubric.</p>
+  </header>
+
+  <form id="tt-form" onsubmit="return submitTT(event);">
+    <label>Service ID (optional)
+      <input name="service_id"
+             placeholder="entity id — copy from /entities">
+    </label>
+    <label>Threat / tactic
+      <input name="threat_kind"
+             placeholder="Spoofing, Tampering, T1078, …">
+    </label>
+    <label>Scenario hook (optional)
+      <textarea name="scenario_hook" rows="4"
+                placeholder="Optional: a specific angle, e.g. 'webhook signing key leaked via PR'"></textarea>
+    </label>
+    <button class="btn">generate</button>
+  </form>
+</section>
+
+<script>
+async function submitTT(e) {
+  e.preventDefault();
+  const f = e.target;
+  const resp = await fetch("/api/tabletops/generate", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      service_id: f.service_id.value || null,
+      threat_kind: f.threat_kind.value || null,
+      scenario_hook: f.scenario_hook.value || null,
+    }),
+  });
+  const data = await resp.json();
+  if (data.id) window.location = "/tabletops/" + data.id;
+  else alert("generation failed");
+  return false;
+}
+</script>
+{% endblock %}

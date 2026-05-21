@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Tank — settings{% endblock %}
+
+{% block content %}
+<section class="settings-page">
+  <h1>Settings</h1>
+
+  <h2>Identity</h2>
+  <div class="settings-row">
+    <label>Role mode:
+      <select id="role-mode-select" onchange="setRole(this.value)">
+        <option value="ic" {% if state.role_mode.value == "ic" %}selected{% endif %}>Staff IC</option>
+        <option value="manager" {% if state.role_mode.value == "manager" %}selected{% endif %}>Manager</option>
+        <option value="both" {% if state.role_mode.value == "both" %}selected{% endif %}>Both</option>
+      </select>
+    </label>
+  </div>
+
+  <h2>Cadence</h2>
+  <div class="settings-row">
+    <label>Daily digest time:
+      <input id="digest" type="time" value="{{ state.digest_time }}">
+    </label>
+    <label>Weekly reflection day:
+      <select id="reflect">
+        {% for d in ["mon","tue","wed","thu","fri"] %}
+          <option value="{{ d }}" {% if state.reflection_day == d %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn-secondary" onclick="saveCadence()">save</button>
+  </div>
+
+  <h2 id="redactions">Redaction rules</h2>
+  <p class="dim">Each category controls what gets hidden before Claude
+  sees anything. <code>secret_token</code> is non-disableable by design.</p>
+
+  <table class="rules-table">
+    <thead>
+      <tr><th>Category</th><th>Enabled</th><th>Description</th><th>Map count</th></tr>
+    </thead>
+    <tbody>
+      {% for cr in rules %}
+        <tr>
+          <td><code>{{ cr.rule.category }}</code></td>
+          <td>
+            {% if cr.rule.non_disableable %}
+              <input type="checkbox" checked disabled>
+              <span class="dim">required</span>
+            {% else %}
+              <input type="checkbox"
+                {% if cr.enabled %}checked{% endif %}
+                onchange="toggleCategory('{{ cr.rule.category }}', this.checked)">
+            {% endif %}
+          </td>
+          <td>{{ cr.rule.description }}</td>
+          <td>
+            {% set match = namespace(c=0) %}
+            {% for rc in redaction_counts %}
+              {% if rc.category == cr.rule.category %}
+                {% set match.c = rc.unique_count %}
+              {% endif %}
+            {% endfor %}
+            {{ match.c }}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Data</h2>
+  <div class="settings-row">
+    <span class="dim">SQLite DB at: <code>{{ db_path }}</code></span>
+  </div>
+
+  <details class="danger-zone">
+    <summary>Wipe everything (irreversible)</summary>
+    <p class="dim">
+      This permanently deletes all ingested data, conversations,
+      reports, threat models, decisions, lessons, redaction map,
+      and nudges. Backups under <code>~/.tank/backups/</code> are
+      <em>not</em> touched by this — restore from one if you need to.
+    </p>
+    <form method="post" action="/api/wipe"
+          onsubmit="return confirm('Type the phrase exactly. Last chance.');">
+      <label>
+        Type <code>delete tank</code> to confirm:
+        <input type="text" name="confirm_phrase"
+               autocomplete="off"
+               spellcheck="false"
+               required
+               placeholder="delete tank">
+      </label>
+      <button type="submit" class="btn-secondary danger">Wipe everything</button>
+    </form>
+  </details>
+</section>
+
+<script>
+async function setRole(value) {
+  await fetch("/api/role/mode", {
+    method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({role_mode: value}),
+  });
+}
+async function saveCadence() {
+  await fetch("/api/cadence", {
+    method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      digest_time: document.getElementById("digest").value,
+      reflection_day: document.getElementById("reflect").value,
+    }),
+  });
+  alert("saved");
+}
+async function toggleCategory(cat, enabled) {
+  await fetch("/api/redaction/toggle", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({category: cat, enabled}),
+  });
+}
+</script>
+{% endblock %}

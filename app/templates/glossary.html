@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Tank — glossary{% endblock %}
+
+{% block content %}
+<section class="glossary-page">
+  <header class="page-head">
+    <h1>Glossary</h1>
+    <p class="dim">Company-specific jargon Tank has noticed. Confirmed
+      entries enrich chat answers.</p>
+    <button class="btn"
+            hx-post="/api/glossary/discover"
+            hx-swap="none"
+            hx-on::after-request="window.location.reload()">
+      Discover new candidates
+    </button>
+  </header>
+
+  {% if pending %}
+  <h2>Pending — confirm or reject ({{ pending|length }})</h2>
+  <ul class="pending-list">
+    {% for p in pending %}
+    <li>
+      <strong>{{ p.term }}</strong> — {{ p.definition }}
+      {% if p.aliases %}<span class="dim">(also: {{ p.aliases|join(', ') }})</span>{% endif %}
+      <span class="dim small">· seen {{ p.occurrences }}×</span>
+      <button class="btn-link"
+              hx-post="/api/glossary/{{ p.id }}/confirm"
+              hx-swap="none"
+              hx-on::after-request="window.location.reload()">confirm</button>
+      ·
+      <button class="btn-link"
+              hx-post="/api/glossary/{{ p.id }}/reject"
+              hx-swap="none"
+              hx-on::after-request="window.location.reload()">reject</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h2>Confirmed glossary ({{ confirmed|length }})</h2>
+  <dl class="glossary-list">
+    {% for g in confirmed %}
+      <dt>{{ g.term }}</dt>
+      <dd>{{ g.definition }}
+        {% if g.aliases %}<span class="dim">(aka {{ g.aliases|join(', ') }})</span>{% endif %}
+      </dd>
+    {% else %}
+    <dt class="dim">No confirmed terms yet.</dt>
+    {% endfor %}
+  </dl>
+</section>
+{% endblock %}

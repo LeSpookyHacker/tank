@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Tank — new postmortem{% endblock %}
+
+{% block content %}
+<section class="pm-new">
+  <header class="page-head">
+    <h1>New postmortem</h1>
+    <p class="dim">Freewrite what happened. Tank will draft the
+      structured fields (timeline, what failed, why, mitigations,
+      action items). You'll edit before publishing.</p>
+  </header>
+
+  <form id="pm-form" onsubmit="return submitDraft(event);">
+    <label>Title
+      <input name="title" required
+             placeholder="Payments outage — Vault sidecar OOM">
+    </label>
+    <label>Severity
+      <select name="severity">
+        <option value="">— guess —</option>
+        <option value="sev1">sev1 — customer-visible</option>
+        <option value="sev2">sev2 — partial degradation</option>
+        <option value="sev3">sev3 — internal-only</option>
+      </select>
+    </label>
+    <label>Freewrite
+      <textarea name="freewrite" rows="14" required
+                placeholder="What happened. Use whatever timestamps you
+have. What broke, what made it visible, what the team did, what's still
+open. Plain English."></textarea>
+    </label>
+    <button class="btn">draft postmortem</button>
+  </form>
+</section>
+
+<script>
+async function submitDraft(e) {
+  e.preventDefault();
+  const f = e.target;
+  const resp = await fetch("/api/postmortems/draft", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      title: f.title.value,
+      severity: f.severity.value || null,
+      freewrite: f.freewrite.value,
+    }),
+  });
+  const data = await resp.json();
+  if (data.id) window.location = "/postmortems/" + data.id;
+  else alert("draft failed");
+  return false;
+}
+</script>
+{% endblock %}

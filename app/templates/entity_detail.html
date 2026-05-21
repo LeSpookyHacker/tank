@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ card.name }}{% endblock %}
+
+{% block content %}
+<section class="entity-detail">
+  <a href="/entities?type={{ card.type }}" class="dim">← all {{ card.type }}</a>
+  <h1>{{ card.name }}
+    <span class="badge badge-{{ 'source' if card.provenance in ('source','user') else 'inferred' if card.provenance == 'inferred' else 'claim' }}">
+      {{ card.provenance }}
+    </span>
+  </h1>
+  <p class="dim">type: <code>{{ card.type }}</code> ·
+     confidence: {{ "%.2f" | format(card.confidence) }} ·
+     edges: {{ card.edges_count }}</p>
+
+  {% if card.description %}
+    <p>{{ card.description }}</p>
+  {% endif %}
+
+  {% if card.attrs %}
+    <h2>Attributes</h2>
+    <pre class="attrs">{{ card.attrs }}</pre>
+  {% endif %}
+
+  <h2>Linked chunks ({{ card.linked_chunks | length }})</h2>
+  {% if card.linked_chunks %}
+    <ul class="chunk-list">
+      {% for c in card.linked_chunks %}
+        <li>
+          <span class="dim">{{ c.section_path or "—" }}</span>
+          <span class="chunk-snippet">{{ c.snippet }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="dim">No chunks linked yet.</p>
+  {% endif %}
+
+  <h2>Edges</h2>
+  {% if graph.edges %}
+    <ul class="edge-list">
+      {% for e in graph.edges %}
+        <li>
+          <code>{{ e.kind }}</code>:
+          {{ e.src_id[:8] }} → {{ e.dst_id[:8] }}
+          <span class="dim">confidence {{ "%.2f" | format(e.confidence) }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="dim">No edges.</p>
+  {% endif %}
+
+  <h2>Actions</h2>
+  <div class="entity-actions">
+    <a class="btn-secondary" href="/chat?conv=&scope={{ card.id }}">Ask Tank about this</a>
+    {% if card.type == "Service" %}
+      <button class="btn-secondary"
+        onclick="genThreatModel('{{ card.id }}')">Generate threat model (v2)</button>
+      <button class="btn-secondary"
+        onclick="genThreatReport('{{ card.id }}')">Generate threat landscape (one-shot)</button>
+      <button class="btn-secondary" onclick="claimOwnership('{{ card.id }}')">
+        I own this
+      </button>
+    {% endif %}
+    {% if card.type == "IAMPolicy" %}
+      <button class="btn-secondary" onclick="explainIAM('{{ card.id }}')">
+        Explain this IAM policy
+      </button>
+    {% endif %}
+    {% if card.type == "Person" %}
+      <button class="btn-secondary"
+        onclick="window.location='/meeting-prep?who={{ card.name }}'">Prep meeting with {{ card.name }}</button>
+    {% endif %}
+  </div>
+</section>
+
+<script>
+async function genThreatReport(id) {
+  const r = await fetch("/api/reports/threat_landscape", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({scope: {service_id: id}}),
+  });
+  const j = await r.json();
+  if (j.report_id) window.location = "/reports/" + j.report_id;
+  else alert("Failed to generate.");
+}
+async function genThreatModel(id) {
+  const r = await fetch("/api/threat-models/generate/" + id, {method: "POST"});
+  const j = await r.json();
+  if (j.id) window.location = "/threat-models/" + j.id;
+  else alert("Failed to generate.");
+}
+async function claimOwnership(id) {
+  await fetch("/api/me/owned", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({entity_id: id, role: "owner"}),
+  });
+  alert("Marked as owned. See /me for your ownership dashboard.");
+}
+async function explainIAM(id) {
+  const r = await fetch("/api/iam/explain/" + id);
+  const j = await r.json();
+  if (j.explanation_md) {
+    const w = window.open("", "_blank");
+    w.document.write("<pre>" + j.explanation_md + "</pre>");
+  } else {
+    alert("Failed to explain.");
+  }
+}
+</script>
+{% endblock %}

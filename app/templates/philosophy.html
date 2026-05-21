@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Tank — security philosophy{% endblock %}
+
+{% block content %}
+<section class="philosophy-page">
+  <header class="page-head">
+    <h1>Security philosophy</h1>
+    <p class="dim">A long-running document Tank curates with you. It
+      captures your stances on how security should work here. Seeded
+      at Day-30, evolves at Day-60/90/180/365.</p>
+    <div class="action-bar">
+      <button class="btn"
+              hx-post="/api/philosophy/seed"
+              hx-swap="none"
+              hx-on::after-request="window.location.reload()">
+        Seed now
+      </button>
+      <button class="btn-secondary"
+              hx-post="/api/philosophy/evolve"
+              hx-swap="none"
+              hx-on::after-request="window.location.reload()">
+        Evolve now
+      </button>
+    </div>
+  </header>
+
+  {% if doc and not doc.get('empty') %}
+    <article class="markdown-body">{{ doc.content_md | safe }}</article>
+    <p class="dim small">
+      Generated at {{ "%.0f"|format(doc.created_at) }} (kind: {{ doc.kind }})
+    </p>
+  {% else %}
+    <p class="dim">No philosophy doc yet. Click "Seed now" to draft
+      the initial version from your decisions log + tabletops.</p>
+  {% endif %}
+</section>
+{% endblock %}

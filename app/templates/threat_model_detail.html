@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ tm.title }}{% endblock %}
+
+{% block content %}
+<section class="tm-detail">
+  <header class="page-head">
+    <h1>{{ tm.title }}</h1>
+    <p class="dim">
+      Service: {% if service %}<a href="/entities/{{ service.id }}">{{ service.name }}</a>{% else %}(deleted){% endif %}
+      &nbsp;·&nbsp; Version {{ tm.version }} of {{ versions|length }}
+      &nbsp;·&nbsp; arch hash <code>{{ tm.arch_snapshot_hash[:12] }}…</code>
+    </p>
+  </header>
+
+  <div class="action-bar">
+    <button class="btn"
+            hx-post="/api/threat-models/generate/{{ tm.service_entity_id }}"
+            hx-swap="none"
+            hx-on::after-request="window.location.reload()">
+      Regenerate against current arch
+    </button>
+    {% if not tm.confirmed_by_user %}
+    <button class="btn btn-secondary"
+            hx-post="/api/threat-models/{{ tm.id }}/confirm"
+            hx-swap="none"
+            hx-on::after-request="window.location.reload()">
+      Confirm this version
+    </button>
+    {% endif %}
+  </div>
+
+  <article class="markdown-body">
+    {{ tm.body_md | safe }}
+  </article>
+
+  <details class="versions">
+    <summary>Version history ({{ versions|length }})</summary>
+    <ul>
+      {% for v in versions %}
+        <li>
+          <a href="/threat-models/{{ v.id }}">v{{ v.version }}</a>
+          — {{ v.threats|length }} threats
+          — generated {{ "%.0f"|format(v.generated_at) }}
+        </li>
+      {% endfor %}
+    </ul>
+  </details>
+</section>
+{% endblock %}

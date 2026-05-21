@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ review.title }}{% endblock %}
+
+{% block content %}
+<section class="dr-detail">
+  <header class="page-head">
+    <h1>{{ review.title }}</h1>
+    <p class="dim">
+      Status: <span class="badge">{{ review.status }}</span>
+      &nbsp;·&nbsp; Requester: {{ review.requester or '—' }}
+      &nbsp;·&nbsp; Decisions spawned: {{ review.decisions|length }}
+    </p>
+  </header>
+
+  <article class="markdown-body">{{ review.body_md | safe }}</article>
+
+  <section class="checklist">
+    <h2>Review checklist</h2>
+    <form id="checklist-form" onsubmit="return saveChecklist(event);">
+      {% for item in review.checklist %}
+        <div class="check-row">
+          <label>
+            <input type="checkbox" data-idx="{{ loop.index0 }}"
+                   {% if item.checked %}checked{% endif %}>
+            <span class="check-item">{{ item.item }}</span>
+            {% if item.category %}<code>{{ item.category }}</code>{% endif %}
+          </label>
+          <input class="check-notes" placeholder="notes (optional)"
+                 data-idx="{{ loop.index0 }}"
+                 value="{{ item.notes or '' }}">
+        </div>
+      {% endfor %}
+      <button class="btn">save checklist</button>
+    </form>
+  </section>
+
+  <section class="status-bar">
+    <h2>Move to:</h2>
+    {% for s in ["reviewing","approved","rejected","withdrawn"] %}
+      {% if s != review.status %}
+      <button class="btn-secondary"
+              hx-put="/api/design-reviews/{{ review.id }}/status"
+              hx-ext="json-enc"
+              hx-vals='{"status":"{{ s }}"}'
+              hx-swap="none"
+              hx-on::after-request="window.location.reload()">
+        {{ s }}
+      </button>
+      {% endif %}
+    {% endfor %}
+  </section>
+
+  <section class="spawn-decision">
+    <h2>Spawn a decision from this review</h2>
+    <form onsubmit="return spawnDecision(event);">
+      <label>Title <input name="title" required></label>
+      <label>Body
+        <textarea name="body_md" rows="3" required></textarea>
+      </label>
+      <label>Kind
+        <select name="kind">
+          <option>design_choice</option>
+          <option>accepted_risk</option>
+          <option>deferred_fix</option>
+          <option>security_invariant</option>
+        </select>
+      </label>
+      <button class="btn">create decision</button>
+    </form>
+  </section>
+</section>
+
+<script>
+async function saveChecklist(e) {
+  e.preventDefault();
+  const rows = document.querySelectorAll(".check-row");
+  const out = [];
+  rows.forEach((r, i) => {
+    const cb = r.querySelector("input[type=checkbox]");
+    const nt = r.querySelector(".check-notes");
+    const item = r.querySelector(".check-item").textContent.trim();
+    out.push({
+      item: item,
+      checked: cb.checked,
+      notes: nt.value,
+    });
+  });
+  await fetch("/api/design-reviews/{{ review.id }}/checklist", {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({checklist: out}),
+  });
+  alert("saved");
+  return false;
+}
+async function spawnDecision(e) {
+  e.preventDefault();
+  const f = e.target;
+  await fetch("/api/design-reviews/{{ review.id }}/decisions", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      title: f.title.value,
+      body_md: f.body_md.value,
+      kind: f.kind.value,
+    }),
+  });
+  window.location.reload();
+  return false;
+}
+</script>
+{% endblock %}

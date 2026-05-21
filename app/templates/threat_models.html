@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Tank — threat models{% endblock %}
+
+{% block content %}
+<section class="tm-page">
+  <header class="page-head">
+    <h1>Threat models</h1>
+    <p class="dim">One TM per service. Tank flags drift when the
+      contributing chunks change.</p>
+  </header>
+
+  {% if drifted %}
+  <div class="alert alert-warn">
+    <strong>{{ drifted|length }}</strong> threat model(s) have drifted —
+    the architecture they describe has changed since generation.
+    Regenerate to bring them current.
+  </div>
+  {% endif %}
+
+  <table class="tm-table">
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Version</th>
+        <th>Threats</th>
+        <th>Generated</th>
+        <th>State</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tm in threat_models %}
+      <tr>
+        <td>{{ tm.title }}</td>
+        <td>v{{ tm.version }}</td>
+        <td>{{ tm.threats|length }}</td>
+        <td>{{ "%.0f"|format(tm.generated_at) }}</td>
+        <td>
+          {% if tm.service_entity_id in drifted %}
+            <span class="badge badge-warn">drift</span>
+          {% else %}
+            <span class="badge badge-ok">current</span>
+          {% endif %}
+          {% if tm.confirmed_by_user %}
+            <span class="badge">confirmed</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="/threat-models/{{ tm.id }}">view</a>
+          &nbsp;·&nbsp;
+          <button class="btn-link"
+                  hx-post="/api/threat-models/generate/{{ tm.service_entity_id }}"
+                  hx-swap="none"
+                  hx-on::after-request="window.location.reload()">
+            regenerate
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="dim">
+        No threat models yet. Open any Service entity and click
+        "Generate threat model."
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

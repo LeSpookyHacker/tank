@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Tank — meeting prep{% endblock %}
+
+{% block content %}
+<section class="meeting-prep">
+  <h1>Meeting prep</h1>
+  <p class="lede">One-screen briefs: who they are, where you overlap,
+  what you don't know yet, questions to ask, one thing to offer.</p>
+
+  <form class="prep-form" onsubmit="return prep(event)">
+    <label>Who you're meeting:
+      <input id="who" type="text" placeholder="e.g. Alice Tanaka" required>
+    </label>
+    <label>When (optional):
+      <input id="when" type="text" placeholder="e.g. tomorrow 10am">
+    </label>
+    <label>Extra context (optional):
+      <textarea id="extras" rows="2"
+        placeholder="anything else you want me to consider"></textarea>
+    </label>
+    <button type="submit" class="btn-primary">Prepare brief</button>
+  </form>
+
+  <article id="brief" class="prep-brief" hidden>
+    <h2 id="brief-title">Brief</h2>
+    <div id="brief-body"></div>
+  </article>
+</section>
+
+<script>
+async function prep(ev) {
+  ev.preventDefault();
+  const who = document.getElementById("who").value.trim();
+  if (!who) return false;
+  const when = document.getElementById("when").value.trim();
+  const extras = document.getElementById("extras").value.trim();
+
+  const btn = ev.target.querySelector("button");
+  btn.disabled = true;
+  btn.textContent = "preparing…";
+
+  try {
+    const r = await fetch("/api/meeting-prep", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({who, when, extras}),
+    });
+    const j = await r.json();
+    if (j.error) {
+      alert("Failed: " + j.error);
+      return false;
+    }
+    renderBrief(who, j);
+  } catch (e) {
+    alert("Failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Prepare brief";
+  }
+  return false;
+}
+
+function renderBrief(who, b) {
+  document.getElementById("brief").hidden = false;
+  document.getElementById("brief-title").textContent = "Brief: " + who;
+  const body = document.getElementById("brief-body");
+  body.innerHTML = `
+    <h3>Who</h3><p>${escapeHtml(b.who_summary || "")}</p>
+    <h3>Their world</h3><p>${escapeHtml(b.their_world || "")}</p>
+    <h3>Where you overlap</h3><p>${escapeHtml(b.overlap || "")}</p>
+    <h3>What I don't know</h3>
+    <ul>${(b.unknowns || []).map(u =>
+        `<li>${escapeHtml(u)}</li>`).join("")}</ul>
+    <h3>Questions to ask (ranked)</h3>
+    <ol>${(b.ranked_questions || []).map(q =>
+        `<li><strong>${escapeHtml(q.question)}</strong><br>
+         <small class="dim">${escapeHtml(q.why)}</small></li>`).join("")}</ol>
+    <h3>One thing to offer</h3>
+    <p>${escapeHtml(b.one_thing_to_offer || "")}</p>`;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+</script>
+{% endblock %}

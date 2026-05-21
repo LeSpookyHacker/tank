@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Tank — tabletops{% endblock %}
+
+{% block content %}
+<section class="tt-page">
+  <header class="page-head">
+    <h1>Tabletop exercises</h1>
+    <p class="dim">Generate a runnable security exercise scoped to a
+      service + threat. Capture lessons after running it.</p>
+    <a href="/tabletops/new" class="btn">+ new tabletop</a>
+  </header>
+
+  <table class="tt-table">
+    <thead><tr>
+      <th>Scenario</th><th>Threat</th><th>Created</th><th>Ran</th>
+    </tr></thead>
+    <tbody>
+      {% for tt in tabletops %}
+      <tr>
+        <td><a href="/tabletops/{{ tt.id }}">
+          {{ tt.scenario_md.split('\n')[0][:80] }}
+        </a></td>
+        <td>{{ tt.threat_kind or '—' }}</td>
+        <td>{{ "%.0f"|format(tt.created_at) }}</td>
+        <td>{% if tt.ran_at %}{{ "%.0f"|format(tt.ran_at) }}{% else %}—{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="dim">No tabletops yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

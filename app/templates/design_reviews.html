@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Tank — design reviews{% endblock %}
+
+{% block content %}
+<section class="dr-page">
+  <header class="page-head">
+    <h1>Design reviews</h1>
+    <p class="dim">Hosted security design review workflow. Intake →
+      checklist → approve/reject. Spawn decisions on approval.</p>
+    <a href="/design-reviews/new" class="btn">+ new review</a>
+  </header>
+
+  <form class="filter-bar" method="get">
+    <label>Status:
+      <select name="status">
+        {% for s in ["intake","reviewing","approved","rejected","withdrawn"] %}
+          <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn-secondary" type="submit">filter</button>
+  </form>
+
+  <table class="dr-table">
+    <thead><tr>
+      <th>Title</th><th>Requester</th><th>Status</th><th>Created</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for r in reviews %}
+      <tr>
+        <td><a href="/design-reviews/{{ r.id }}">{{ r.title }}</a></td>
+        <td>{{ r.requester or '—' }}</td>
+        <td><span class="badge">{{ r.status }}</span></td>
+        <td>{{ "%.0f"|format(r.created_at) }}</td>
+        <td><a href="/design-reviews/{{ r.id }}">view</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="dim">No design reviews in this filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

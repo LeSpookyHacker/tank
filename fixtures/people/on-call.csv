@@ -1,0 +1,6 @@
+rotation_name,service_coverage,primary_email,secondary_email,handoff_day,paging_window
+platform-on-call,identity-svc;orders-api;webhook-router;device-registry;EKS,alice.tanaka@helixrobotics.com,yui@helix.internal,Monday,24/7
+payments-on-call,payments-api;pii-vault,sam.liu@helixrobotics.com,marcus.chen@helixrobotics.com,Monday,24/7
+frontend-on-call,dashboard-web,lukas.bauer@helixrobotics.com,frontend-eng-1@helixrobotics.com,Monday,business-hours-pacific
+data-pipeline-watch,analytics-pipeline,vendor-snowflake-support,priya.shah@helixrobotics.com,n/a-vendor-managed,business-hours-pacific
+security-watch,Datadog SIEM;incident response,diana.okoro@helixrobotics.com,,Monday,business-hours-pacific

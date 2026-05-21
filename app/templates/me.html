@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Tank — me{% endblock %}
+
+{% block content %}
+<section class="me-page">
+  <header class="page-head">
+    <h1>What I own</h1>
+    <p class="dim">Entities you've marked as your responsibility, with
+      a current risk score weighted by threat-model freshness,
+      unaddressed threats, expired decisions, and open postmortem
+      action items.</p>
+  </header>
+
+  <table class="me-table">
+    <thead><tr>
+      <th>Service / Entity</th><th>Role</th><th>Risk</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for row in owned %}
+      <tr>
+        <td>
+          <a href="/entities/{{ row.entity.id }}">{{ row.entity.name }}</a>
+          <span class="dim">— {{ row.entity.type }}</span>
+        </td>
+        <td><span class="badge">{{ row.role }}</span></td>
+        <td>
+          <span class="risk-bar"
+                style="--score: {{ row.risk_score }}">
+            {{ "%.1f"|format(row.risk_score) }}/10
+          </span>
+        </td>
+        <td>
+          <button class="btn-link"
+                  hx-delete="/api/me/owned/{{ row.entity.id }}"
+                  hx-swap="none"
+                  hx-on::after-request="window.location.reload()">
+            release
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="dim">
+        You haven't claimed ownership of anything yet. Open an entity
+        and click "I own this."
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

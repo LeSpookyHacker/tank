@@ -1,0 +1,11 @@
+# CODEOWNERS for payments-api
+#
+# NOTE: deliberately inconsistent with cmdb/services.csv — that file
+# lists Sam Liu as owner. The two should match; the discrepancy is what
+# triggers Tank's contradiction-surfacing nudge.
+
+*                                       @helix-robotics/identity-team
+/src/payments_api/auth.py               @marcus.chen
+/src/payments_api/stripe_client.py      @sam.liu
+/migrations/                            @sam.liu @marcus.chen
+/.github/                               @helix-robotics/platform-team

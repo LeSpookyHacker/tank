@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Tank — Welcome aboard{% endblock %}
+
+{% block content %}
+<section class="onboarding">
+  <h1>Welcome aboard.</h1>
+  <p class="lede">
+    Tank is your operator — like Tank in <em>The Matrix</em>, but for
+    a new security job. The goal: get you from "lost in a sea of docs"
+    to "I have a map" in your first few weeks.
+  </p>
+
+  <p>Before anything else, the deal:</p>
+  <ul class="promise">
+    <li>Nothing leaves this machine in cleartext.</li>
+    <li>Internal hostnames, emails, IPs, AWS account IDs, and secrets
+        are redacted locally <strong>before</strong> any Claude API call.</li>
+    <li>Secrets are one-way hashed — Tank can't rehydrate them.</li>
+    <li>Wipe everything with one button in Settings.</li>
+  </ul>
+
+  <h2>Step 1 — Your role</h2>
+  <div class="role-pick">
+    <button class="role-btn" data-role="ic" onclick="pickRole('ic')">Staff/Sr IC</button>
+    <button class="role-btn" data-role="manager" onclick="pickRole('manager')">Manager</button>
+    <button class="role-btn" data-role="both" onclick="pickRole('both')">Both</button>
+  </div>
+
+  <h2>Step 2 — Your scope (paste anything; we'll extract the shape)</h2>
+  <textarea id="scope-input" rows="6"
+    placeholder="Paste your offer letter, JD, or a short paragraph: what's the team, who's your manager, what are you supposed to focus on?"></textarea>
+
+  <h2>Step 3 — Internal TLD (optional)</h2>
+  <input id="tld-input" type="text"
+    placeholder="e.g. helix.internal — hostnames here get redacted as INTERNAL_HOST_*">
+
+  <h2>Step 4 — Cadence</h2>
+  <div class="cadence">
+    <label>Digest time:
+      <input id="digest-input" type="time" value="08:00">
+    </label>
+    <label>Reflection day:
+      <select id="reflect-input">
+        <option value="mon">Monday</option>
+        <option value="tue">Tuesday</option>
+        <option value="wed">Wednesday</option>
+        <option value="thu">Thursday</option>
+        <option value="fri" selected>Friday</option>
+      </select>
+    </label>
+  </div>
+
+  <h2>Step 5 — Ready</h2>
+  <p class="dim">Hitting <em>finish</em> sets your tenure start date,
+  generates your Day-1 brief, and drops you on the home dashboard.
+  You can ingest docs anytime from the Ingest panel.</p>
+
+  <div class="onboarding-actions">
+    <button class="btn-primary" onclick="completeOnboarding()">Finish & generate Day-1 brief</button>
+    <form method="post" action="/api/onboarding/skip" style="display:inline">
+      <button type="submit" class="btn-secondary">Skip for now</button>
+    </form>
+  </div>
+</section>
+
+<script>
+let chosenRole = "both";
+
+function pickRole(role) {
+  chosenRole = role;
+  document.querySelectorAll(".role-btn").forEach(b => {
+    b.classList.toggle("selected", b.dataset.role === role);
+  });
+}
+
+async function completeOnboarding() {
+  const scope = document.getElementById("scope-input").value.trim();
+  const tld = document.getElementById("tld-input").value.trim();
+  const digest = document.getElementById("digest-input").value || "08:00";
+  const reflect = document.getElementById("reflect-input").value || "fri";
+
+  await fetch("/api/onboarding/role", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({role_mode: chosenRole}),
+  });
+  if (scope) {
+    await fetch("/api/onboarding/scope", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({freewrite: scope}),
+    });
+  }
+  if (tld) {
+    await fetch("/api/onboarding/internal-tld", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({internal_tld: tld}),
+    });
+  }
+  await fetch("/api/onboarding/cadence", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({digest_time: digest, reflection_day: reflect}),
+  });
+  await fetch("/api/onboarding/complete", {method: "POST"});
+  window.location = "/";
+}
+
+// Pre-select "Both" by default.
+pickRole("both");
+</script>
+{% endblock %}

@@ -1,0 +1,552 @@
+"""SQLite persistence for Tank.
+
+Single global connection guarded by a `threading.Lock` for write safety.
+WAL mode permits concurrent readers while a writer holds the lock.
+Schema is initialized on first connection via `CREATE TABLE IF NOT EXISTS`.
+
+Path defaults to `~/.tank/db.sqlite`; override with `TANK_DB_PATH`.
+
+The full data model is documented in the architecture plan. Key invariants:
+- `chunks.text_redacted` is what's sent to Claude; `chunks.text_original`
+  never leaves the machine and exists only for local rehydration.
+- `redaction_map.original_text` is cleartext EXCEPT for category='secret_token'
+  where it is overwritten with a SHA-256 hash at insert time (one-way).
+- All entities and relationships carry a `provenance` ∈ {source, inferred,
+  claim, user} that drives the trust badge in the UI.
+"""
+
+from __future__ import annotations
+
+import os
+import sqlite3
+import threading
+from pathlib import Path
+
+LOCK = threading.Lock()
+_CONN: sqlite3.Connection | None = None
+
+
+def db_path() -> Path:
+    raw = os.environ.get("TANK_DB_PATH", "").strip()
+    p = Path(raw).expanduser() if raw else Path.home() / ".tank" / "db.sqlite"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def get_conn() -> sqlite3.Connection:
+    global _CONN
+    if _CONN is None:
+        _CONN = sqlite3.connect(
+            db_path(), check_same_thread=False, isolation_level=None,
+        )
+        _CONN.row_factory = sqlite3.Row
+        _CONN.execute("PRAGMA journal_mode=WAL")
+        _CONN.execute("PRAGMA foreign_keys=ON")
+        _load_extensions(_CONN)
+        _init_schema(_CONN)
+    return _CONN
+
+
+def _load_extensions(conn: sqlite3.Connection) -> None:
+    """Load sqlite-vec for the chunks_vec virtual table.
+
+    If sqlite-vec is unavailable (e.g. during initial setup or on a system
+    where extension loading is disabled), we degrade to keyword-only search
+    via FTS5. Vector search will raise at query time.
+    """
+    try:
+        import sqlite_vec
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+    except Exception:
+        # Logged at first query attempt; non-fatal at boot.
+        pass
+
+
+def _init_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        -- ----- documents: raw ingested artifacts -----
+        CREATE TABLE IF NOT EXISTS documents (
+            id           TEXT PRIMARY KEY,
+            kind         TEXT NOT NULL,
+            source_path  TEXT NOT NULL,
+            title        TEXT,
+            sha256       TEXT NOT NULL,
+            size_bytes   INTEGER,
+            category     TEXT NOT NULL,
+            meta_json    TEXT NOT NULL DEFAULT '{}',
+            ingested_at  REAL NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'pending'
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_sha ON documents(sha256);
+        CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category);
+        CREATE INDEX IF NOT EXISTS idx_documents_ingested_at ON documents(ingested_at);
+
+        -- ----- chunks: post-split, post-redaction units -----
+        CREATE TABLE IF NOT EXISTS chunks (
+            id            TEXT PRIMARY KEY,
+            document_id   TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+            ordinal       INTEGER NOT NULL,
+            text_redacted TEXT NOT NULL,
+            text_original TEXT NOT NULL,
+            token_count   INTEGER NOT NULL,
+            section_path  TEXT,
+            meta_json     TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id, ordinal);
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+            chunk_id UNINDEXED,
+            text_redacted,
+            section_path,
+            content=''
+        );
+
+        -- ----- entities: typed graph nodes -----
+        CREATE TABLE IF NOT EXISTS entities (
+            id              TEXT PRIMARY KEY,
+            type            TEXT NOT NULL,
+            name            TEXT NOT NULL,
+            name_normalized TEXT NOT NULL,
+            description     TEXT,
+            attrs_json      TEXT NOT NULL DEFAULT '{}',
+            confidence      REAL NOT NULL DEFAULT 1.0,
+            provenance      TEXT NOT NULL DEFAULT 'inferred',
+            first_seen_doc  TEXT REFERENCES documents(id),
+            created_at      REAL NOT NULL,
+            updated_at      REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_entities_type_name
+            ON entities(type, name_normalized);
+        CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type);
+
+        CREATE TABLE IF NOT EXISTS entity_chunks (
+            entity_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+            chunk_id  TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+            PRIMARY KEY (entity_id, chunk_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_entity_chunks_chunk
+            ON entity_chunks(chunk_id);
+
+        -- ----- relationships: typed graph edges -----
+        CREATE TABLE IF NOT EXISTS relationships (
+            id              TEXT PRIMARY KEY,
+            src_id          TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+            dst_id          TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+            kind            TEXT NOT NULL,
+            attrs_json      TEXT NOT NULL DEFAULT '{}',
+            confidence      REAL NOT NULL DEFAULT 1.0,
+            provenance      TEXT NOT NULL DEFAULT 'inferred',
+            first_seen_doc  TEXT REFERENCES documents(id),
+            created_at      REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_rel_dedup
+            ON relationships(src_id, dst_id, kind);
+        CREATE INDEX IF NOT EXISTS idx_rel_src ON relationships(src_id, kind);
+        CREATE INDEX IF NOT EXISTS idx_rel_dst ON relationships(dst_id, kind);
+        CREATE INDEX IF NOT EXISTS idx_rel_kind ON relationships(kind);
+
+        -- ----- redaction (never leaves machine) -----
+        CREATE TABLE IF NOT EXISTS redaction_map (
+            placeholder       TEXT PRIMARY KEY,
+            category          TEXT NOT NULL,
+            sha256            TEXT NOT NULL,
+            original_text     TEXT NOT NULL,
+            first_seen_at     REAL NOT NULL,
+            occurrence_count  INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_redaction_sha_cat
+            ON redaction_map(sha256, category);
+        CREATE INDEX IF NOT EXISTS idx_redaction_category
+            ON redaction_map(category);
+
+        CREATE TABLE IF NOT EXISTS redaction_rules (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            category        TEXT NOT NULL,
+            enabled         INTEGER NOT NULL DEFAULT 1,
+            pattern         TEXT,
+            placeholder_fmt TEXT,
+            description     TEXT,
+            created_at      REAL NOT NULL
+        );
+
+        -- ----- chat -----
+        CREATE TABLE IF NOT EXISTS conversations (
+            id          TEXT PRIMARY KEY,
+            title       TEXT,
+            role_mode   TEXT NOT NULL,
+            model       TEXT NOT NULL,
+            scope_json  TEXT NOT NULL DEFAULT '{}',
+            created_at  REAL NOT NULL,
+            updated_at  REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_conv_updated ON conversations(updated_at);
+
+        CREATE TABLE IF NOT EXISTS messages (
+            id              TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+            ordinal         INTEGER NOT NULL,
+            role            TEXT NOT NULL,
+            content_json    TEXT NOT NULL,
+            redacted_view   TEXT,
+            display_view    TEXT,
+            tokens_in       INTEGER,
+            tokens_out      INTEGER,
+            cache_read_in   INTEGER,
+            cache_create_in INTEGER,
+            citations_json  TEXT NOT NULL DEFAULT '[]',
+            created_at      REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_conv_ord
+            ON messages(conversation_id, ordinal);
+
+        -- ----- reports -----
+        CREATE TABLE IF NOT EXISTS reports (
+            id                  TEXT PRIMARY KEY,
+            kind                TEXT NOT NULL,
+            scope_json          TEXT NOT NULL DEFAULT '{}',
+            role_mode           TEXT NOT NULL,
+            model               TEXT NOT NULL,
+            title               TEXT NOT NULL,
+            content_md          TEXT NOT NULL,
+            content_md_redacted TEXT NOT NULL,
+            tokens_in           INTEGER,
+            tokens_out          INTEGER,
+            created_at          REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_reports_kind_created
+            ON reports(kind, created_at);
+
+        -- ----- partner-mode state -----
+        CREATE TABLE IF NOT EXISTS nudges (
+            id            TEXT PRIMARY KEY,
+            kind          TEXT NOT NULL,
+            title         TEXT NOT NULL,
+            body          TEXT NOT NULL,
+            payload_json  TEXT NOT NULL DEFAULT '{}',
+            priority      INTEGER NOT NULL DEFAULT 50,
+            status        TEXT NOT NULL DEFAULT 'open',
+            snoozed_until REAL,
+            created_at    REAL NOT NULL,
+            updated_at    REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_nudges_status_priority
+            ON nudges(status, priority DESC);
+
+        CREATE TABLE IF NOT EXISTS notes (
+            id                      TEXT PRIMARY KEY,
+            body                    TEXT NOT NULL,
+            body_redacted           TEXT NOT NULL,
+            meeting_with_entity_id  TEXT REFERENCES entities(id),
+            extracted_json          TEXT NOT NULL DEFAULT '{}',
+            confirmed               INTEGER NOT NULL DEFAULT 0,
+            created_at              REAL NOT NULL
+        );
+
+        -- ----- single-row app state -----
+        CREATE TABLE IF NOT EXISTS app_state (
+            id               INTEGER PRIMARY KEY CHECK (id = 1),
+            role_mode        TEXT NOT NULL DEFAULT 'both',
+            internal_tld     TEXT,
+            user_scope_json  TEXT NOT NULL DEFAULT '{}',
+            digest_time      TEXT NOT NULL DEFAULT '08:00',
+            reflection_day   TEXT NOT NULL DEFAULT 'fri',
+            onboarded        INTEGER NOT NULL DEFAULT 0,
+            updated_at       REAL NOT NULL
+        );
+
+        -- ----- daily-use tables (Phase 8) -----
+
+        CREATE TABLE IF NOT EXISTS journal_entries (
+            id              TEXT PRIMARY KEY,
+            body            TEXT NOT NULL,
+            body_redacted   TEXT NOT NULL,
+            date_label      TEXT NOT NULL,         -- YYYY-MM-DD (local)
+            tenure_day      INTEGER NOT NULL,
+            extracted_json  TEXT NOT NULL DEFAULT '{}',
+            created_at      REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_date
+            ON journal_entries(date_label);
+
+        CREATE TABLE IF NOT EXISTS followups (
+            id                  TEXT PRIMARY KEY,
+            title               TEXT NOT NULL,
+            body                TEXT,
+            status              TEXT NOT NULL DEFAULT 'open',
+            due_at              REAL,
+            source_kind         TEXT NOT NULL,
+            source_id           TEXT,
+            related_entity_id   TEXT REFERENCES entities(id),
+            created_at          REAL NOT NULL,
+            updated_at          REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_followups_status_due
+            ON followups(status, due_at);
+
+        CREATE TABLE IF NOT EXISTS report_subscriptions (
+            id              TEXT PRIMARY KEY,
+            kind            TEXT NOT NULL,
+            scope_json      TEXT NOT NULL DEFAULT '{}',
+            role_mode       TEXT NOT NULL,
+            cadence         TEXT NOT NULL,         -- daily|weekly|monthly|quarterly
+            last_run_at     REAL,
+            last_report_id  TEXT REFERENCES reports(id),
+            enabled         INTEGER NOT NULL DEFAULT 1,
+            created_at      REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS usage_events (
+            id               TEXT PRIMARY KEY,
+            kind             TEXT NOT NULL,
+            entity_id        TEXT REFERENCES entities(id),
+            chunk_id         TEXT REFERENCES chunks(id),
+            conversation_id  TEXT REFERENCES conversations(id),
+            report_id        TEXT REFERENCES reports(id),
+            created_at       REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_entity
+            ON usage_events(entity_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_usage_kind_time
+            ON usage_events(kind, created_at);
+
+        CREATE TABLE IF NOT EXISTS watchers (
+            id            TEXT PRIMARY KEY,
+            kind          TEXT NOT NULL,           -- folder|ics_url|cve_feed|github_repo
+            target        TEXT NOT NULL,
+            category      TEXT,
+            config_json   TEXT NOT NULL DEFAULT '{}',
+            last_scan_at  REAL,
+            enabled       INTEGER NOT NULL DEFAULT 1,
+            created_at    REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS meetings (
+            id            TEXT PRIMARY KEY,
+            external_id   TEXT,
+            title         TEXT NOT NULL,
+            starts_at     REAL NOT NULL,
+            ends_at       REAL,
+            attendees_json TEXT NOT NULL DEFAULT '[]',
+            source        TEXT NOT NULL DEFAULT 'manual',  -- manual|ics
+            created_at    REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_meetings_starts ON meetings(starts_at);
+
+        -- ----- Phase 12: living threat models + decisions log -----
+
+        CREATE TABLE IF NOT EXISTS threat_models (
+            id                  TEXT PRIMARY KEY,
+            service_entity_id   TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+            version             INTEGER NOT NULL,
+            title               TEXT NOT NULL,
+            body_md             TEXT NOT NULL,
+            body_md_redacted    TEXT NOT NULL,
+            threats_json        TEXT NOT NULL,         -- frozen STRIDEThreat[] at gen time
+            arch_snapshot_hash  TEXT NOT NULL,
+            generated_at        REAL NOT NULL,
+            confirmed_by_user   INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tm_service_ver
+            ON threat_models(service_entity_id, version);
+        CREATE INDEX IF NOT EXISTS idx_tm_generated_at
+            ON threat_models(generated_at);
+
+        CREATE TABLE IF NOT EXISTS decisions (
+            id                TEXT PRIMARY KEY,
+            title             TEXT NOT NULL,
+            body_md           TEXT NOT NULL,
+            body_md_redacted  TEXT NOT NULL,
+            kind              TEXT NOT NULL,
+              -- design_choice|accepted_risk|deferred_fix|security_invariant
+            status            TEXT NOT NULL DEFAULT 'open',
+              -- open|withdrawn|expired|reaffirmed
+            scope_entity_ids  TEXT NOT NULL DEFAULT '[]',
+            rationale         TEXT,
+            expires_at        REAL,
+            owner_entity_id   TEXT REFERENCES entities(id),
+            source            TEXT NOT NULL,
+              -- manual|extracted|postmortem|design_review
+            source_doc_id     TEXT REFERENCES documents(id),
+            created_at        REAL NOT NULL,
+            updated_at        REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_decisions_kind_status
+            ON decisions(kind, status);
+        CREATE INDEX IF NOT EXISTS idx_decisions_expires
+            ON decisions(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_decisions_source
+            ON decisions(source);
+
+        -- ----- Phase 13: workstream artifacts -----
+
+        CREATE TABLE IF NOT EXISTS design_reviews (
+            id                TEXT PRIMARY KEY,
+            title             TEXT NOT NULL,
+            status            TEXT NOT NULL DEFAULT 'intake',
+              -- intake|reviewing|approved|rejected|withdrawn
+            requester         TEXT,
+            scope_entity_ids  TEXT NOT NULL DEFAULT '[]',
+            body_md           TEXT NOT NULL,
+            body_md_redacted  TEXT NOT NULL,
+            checklist_json    TEXT NOT NULL DEFAULT '[]',
+            decisions_json    TEXT NOT NULL DEFAULT '[]',
+            created_at        REAL NOT NULL,
+            updated_at        REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dr_status_created
+            ON design_reviews(status, created_at);
+
+        CREATE TABLE IF NOT EXISTS postmortems_drafts (
+            id                  TEXT PRIMARY KEY,
+            title               TEXT NOT NULL,
+            incident_date       REAL,
+            severity            TEXT,                  -- sev1|sev2|sev3
+            status              TEXT NOT NULL DEFAULT 'draft',
+              -- draft|published|withdrawn
+            fields_json         TEXT NOT NULL,
+              -- {summary,timeline,what_failed,why,contributing,mitigations,action_items}
+            body_md             TEXT,
+            body_md_redacted    TEXT,
+            services_affected   TEXT NOT NULL DEFAULT '[]',
+            created_at          REAL NOT NULL,
+            updated_at          REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_status_created
+            ON postmortems_drafts(status, created_at);
+
+        CREATE TABLE IF NOT EXISTS tabletops (
+            id                TEXT PRIMARY KEY,
+            scenario_md       TEXT NOT NULL,
+            scope_service_id  TEXT REFERENCES entities(id),
+            threat_kind       TEXT,
+            injects_json      TEXT NOT NULL DEFAULT '[]',
+            participants      TEXT,
+            ran_at            REAL,
+            lessons_md        TEXT,
+            created_at        REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tt_created
+            ON tabletops(created_at);
+
+        -- ----- Phase 14: coverage + visibility -----
+
+        CREATE TABLE IF NOT EXISTS attack_surface_snapshots (
+            id              TEXT PRIMARY KEY,
+            snapshot_at     REAL NOT NULL,
+            endpoints_json  TEXT NOT NULL,
+            summary_md      TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_ass_snapshot_at
+            ON attack_surface_snapshots(snapshot_at);
+
+        CREATE TABLE IF NOT EXISTS compliance_evidence (
+            control_id     TEXT NOT NULL,
+            evidence_kind  TEXT NOT NULL,
+              -- document|decision|policy|runbook|threat_model
+            evidence_id    TEXT NOT NULL,
+            confidence     REAL NOT NULL DEFAULT 1.0,
+            captured_at    REAL NOT NULL,
+            PRIMARY KEY (control_id, evidence_kind, evidence_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ce_control
+            ON compliance_evidence(control_id);
+
+        -- ----- Phase 15: lessons + glossary + ownership -----
+
+        CREATE TABLE IF NOT EXISTS lessons (
+            id                TEXT PRIMARY KEY,
+            title             TEXT NOT NULL,
+            body_md           TEXT NOT NULL,
+            body_md_redacted  TEXT NOT NULL,
+            source_kind       TEXT NOT NULL,
+              -- postmortem|design_review|tabletop|incident|user
+            source_id         TEXT NOT NULL,
+            tags              TEXT NOT NULL DEFAULT '[]',
+            scope_entity_ids  TEXT NOT NULL DEFAULT '[]',
+            captured_at       REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_lessons_captured
+            ON lessons(captured_at);
+        CREATE INDEX IF NOT EXISTS idx_lessons_source
+            ON lessons(source_kind, source_id);
+
+        CREATE TABLE IF NOT EXISTS glossary (
+            id                  TEXT PRIMARY KEY,
+            term                TEXT NOT NULL,
+            term_normalized     TEXT NOT NULL,
+            definition          TEXT NOT NULL,
+            aliases             TEXT NOT NULL DEFAULT '[]',
+            confirmed           INTEGER NOT NULL DEFAULT 0,
+            first_seen_doc_id   TEXT REFERENCES documents(id),
+            occurrences         INTEGER NOT NULL DEFAULT 1,
+            updated_at          REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_glossary_term
+            ON glossary(term_normalized);
+
+        CREATE TABLE IF NOT EXISTS owned_entities (
+            user_id    INTEGER NOT NULL DEFAULT 1,
+            entity_id  TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+            role       TEXT NOT NULL,    -- owner|reviewer|consulted|informed
+            set_at     REAL NOT NULL,
+            PRIMARY KEY (user_id, entity_id)
+        );
+
+        -- ----- Ops: scheduler durability + backup ledger -----
+
+        -- Last-fired markers for the cron-ish scheduler. Replaces the
+        -- previous in-memory _LAST_FIRED dict so restarts don't double-
+        -- fire (or skip) daily jobs.
+        CREATE TABLE IF NOT EXISTS scheduler_state (
+            job_name      TEXT PRIMARY KEY,   -- digest|reflection|journal_prompt|auto_briefs|attack_surface_snapshot|weekly_backup
+            last_fired_at REAL NOT NULL,
+            last_label    TEXT NOT NULL       -- YYYY-MM-DD (local) or YYYY-Www for weekly jobs
+        );
+
+        -- Backup ledger so we can prune old files when retention overflows.
+        CREATE TABLE IF NOT EXISTS backup_log (
+            id          TEXT PRIMARY KEY,
+            path        TEXT NOT NULL,
+            size_bytes  INTEGER,
+            created_at  REAL NOT NULL,
+            status      TEXT NOT NULL DEFAULT 'ok'  -- ok|failed
+        );
+        CREATE INDEX IF NOT EXISTS idx_backup_log_created
+            ON backup_log(created_at);
+        """
+    )
+    _migrate_app_state_columns(conn)
+    _init_vec_table(conn)
+
+
+def _migrate_app_state_columns(conn: sqlite3.Connection) -> None:
+    """Additive migration for Phase-8+ columns on app_state."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(app_state)")}
+    if "tenure_started_at" not in cols:
+        conn.execute("ALTER TABLE app_state ADD COLUMN tenure_started_at REAL")
+    if "last_journal_at" not in cols:
+        conn.execute("ALTER TABLE app_state ADD COLUMN last_journal_at REAL")
+    # Phase 15: pointer to the curated security-philosophy document.
+    if "philosophy_doc_id" not in cols:
+        conn.execute("ALTER TABLE app_state ADD COLUMN philosophy_doc_id TEXT")
+
+
+def _init_vec_table(conn: sqlite3.Connection) -> None:
+    """Create the sqlite-vec virtual table if the extension loaded.
+
+    Separated from the main executescript because vec0 requires the loaded
+    extension and we want a clean degradation when it's missing.
+    """
+    try:
+        conn.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0("
+            "  chunk_id TEXT PRIMARY KEY,"
+            "  embedding FLOAT[384]"
+            ")"
+        )
+    except sqlite3.OperationalError:
+        # sqlite-vec not loaded; FTS5 still works for keyword-only search.
+        pass

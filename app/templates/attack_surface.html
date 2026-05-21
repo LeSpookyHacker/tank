@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Tank — attack surface{% endblock %}
+
+{% block content %}
+<section class="as-page">
+  <header class="page-head">
+    <h1>Attack-surface ledger</h1>
+    <p class="dim">Weekly snapshot of all Endpoint entities. Diffs
+      against the prior snapshot surface new exposures.</p>
+    <button class="btn"
+            hx-post="/api/attack-surface/snapshot"
+            hx-swap="none"
+            hx-on::after-request="window.location.reload()">
+      Snapshot now
+    </button>
+  </header>
+
+  {% if latest %}
+  <div class="snapshot-card">
+    <h2>Latest snapshot</h2>
+    <p class="dim">Taken {{ "%.0f"|format(latest.snapshot_at) }} ·
+      {{ latest.endpoints|length }} endpoints</p>
+    <p>{{ latest.summary_md }}</p>
+    <details>
+      <summary>Endpoints in this snapshot</summary>
+      <ul class="dim">
+        {% for e in latest.endpoints %}
+          <li>{{ e.name }}{% if e.description %} — {{ e.description[:120] }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </details>
+  </div>
+  {% else %}
+  <p class="dim">No snapshots yet. Run the first one above.</p>
+  {% endif %}
+
+  {% if history %}
+  <h2>History</h2>
+  <ol>
+    {% for h in history %}
+      <li>{{ "%.0f"|format(h.snapshot_at) }} —
+        {{ h.endpoints|length }} endpoints —
+        {{ h.summary_md }}</li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Tank — decisions log{% endblock %}
+
+{% block content %}
+<section class="decisions-page">
+  <header class="page-head">
+    <h1>Decisions log</h1>
+    <p class="dim">Design choices, accepted risks, deferred fixes, and
+      security invariants. The record of what you (or the org)
+      deliberately decided.</p>
+  </header>
+
+  {% if expiring %}
+  <div class="alert alert-warn">
+    <strong>{{ expiring|length }}</strong> decision(s) expire within 7
+    days. Reaffirm or withdraw before they go stale.
+  </div>
+  {% endif %}
+
+  <form class="filter-bar" method="get">
+    <label>Kind:
+      <select name="kind">
+        <option value="">all</option>
+        {% for k in ["design_choice","accepted_risk","deferred_fix","security_invariant"] %}
+          <option value="{{ k }}" {% if kind == k %}selected{% endif %}>{{ k }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Status:
+      <select name="status">
+        {% for s in ["open","reaffirmed","withdrawn","expired"] %}
+          <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn-secondary" type="submit">filter</button>
+  </form>
+
+  <details class="add-decision">
+    <summary>+ add a decision</summary>
+    <form id="add-decision" onsubmit="return submitDecision(event);">
+      <label>Title<input name="title" required></label>
+      <label>Body
+        <textarea name="body_md" rows="3" required
+                  placeholder="One paragraph: what is the decision?"></textarea>
+      </label>
+      <label>Kind
+        <select name="kind">
+          {% for k in ["design_choice","accepted_risk","deferred_fix","security_invariant"] %}
+            <option value="{{ k }}">{{ k }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Rationale (optional)
+        <input name="rationale">
+      </label>
+      <label>Expires (epoch seconds, optional)
+        <input name="expires_at" type="number" step="any">
+      </label>
+      <button class="btn">save</button>
+    </form>
+  </details>
+
+  <table class="decisions-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Kind</th>
+        <th>Status</th>
+        <th>Source</th>
+        <th>Expires</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in decisions %}
+      <tr>
+        <td>
+          <strong>{{ d.title }}</strong>
+          <div class="dim small">{{ (d.body_md or '')[:160] }}</div>
+        </td>
+        <td><code>{{ d.kind }}</code></td>
+        <td><span class="badge">{{ d.status }}</span></td>
+        <td>{{ d.source }}</td>
+        <td>
+          {% if d.expires_at %}{{ "%.0f"|format(d.expires_at) }}{% else %}—{% endif %}
+        </td>
+        <td>
+          {% if d.status == 'open' %}
+          <button class="btn-link"
+                  hx-post="/api/decisions/{{ d.id }}/reaffirm"
+                  hx-swap="none"
+                  hx-on::after-request="window.location.reload()">
+            reaffirm 90d
+          </button>
+          ·
+          <button class="btn-link"
+                  hx-put="/api/decisions/{{ d.id }}/status"
+                  hx-vals='{"status":"withdrawn"}'
+                  hx-ext="json-enc"
+                  hx-swap="none"
+                  hx-on::after-request="window.location.reload()">
+            withdraw
+          </button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="dim">No decisions in this filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+async function submitDecision(e) {
+  e.preventDefault();
+  const f = e.target;
+  const expRaw = f.expires_at.value.trim();
+  const payload = {
+    title: f.title.value,
+    body_md: f.body_md.value,
+    kind: f.kind.value,
+    rationale: f.rationale.value || null,
+    expires_at: expRaw ? parseFloat(expRaw) : null,
+  };
+  await fetch("/api/decisions", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+  window.location.reload();
+  return false;
+}
+</script>
+{% endblock %}

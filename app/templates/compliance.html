@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Tank — compliance{% endblock %}
+
+{% block content %}
+<section class="cmp-page">
+  <header class="page-head">
+    <h1>Compliance</h1>
+    <p class="dim">Controls ingested from a framework (CIS, NIST,
+      SOC2). Tank attempts to map each control to ingested evidence
+      from the KB.</p>
+    <button class="btn"
+            hx-post="/api/compliance/collect-evidence"
+            hx-swap="none"
+            hx-on::after-request="window.location.reload()">
+      Re-collect evidence
+    </button>
+  </header>
+
+  {% if gaps %}
+  <div class="alert alert-warn">
+    <strong>{{ gaps|length }}</strong> control(s) have no evidence in
+    Tank yet. These are gaps — either Tank doesn't have the right docs
+    ingested, or the evidence doesn't exist.
+  </div>
+  {% endif %}
+
+  <table class="cmp-table">
+    <thead><tr>
+      <th>Control</th><th>Family</th><th>Evidence?</th>
+    </tr></thead>
+    <tbody>
+      {% for c in controls %}
+      <tr>
+        <td><strong>{{ c.name }}</strong>
+          {% if c.description %}
+          <div class="dim small">{{ c.description[:160] }}</div>
+          {% endif %}
+        </td>
+        <td>{{ c.attrs.get('family', '—') if c.attrs else '—' }}</td>
+        <td>
+          {% if c.id in gaps %}
+            <span class="badge badge-warn">none</span>
+          {% else %}
+            <span class="badge badge-ok">yes</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="dim">
+        No control framework ingested. Ingest a JSON dump of CIS
+        Controls v8 (or similar) to populate this table.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

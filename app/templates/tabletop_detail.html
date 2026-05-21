@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Tank — tabletop{% endblock %}
+
+{% block content %}
+<section class="tt-detail">
+  <header class="page-head">
+    <h1>Tabletop scenario</h1>
+    <p class="dim">
+      Threat: {{ tabletop.threat_kind or '—' }}
+      &nbsp;·&nbsp;
+      {% if tabletop.ran_at %}Ran at {{ "%.0f"|format(tabletop.ran_at) }}
+      {% else %}Not yet run{% endif %}
+    </p>
+  </header>
+
+  <article class="markdown-body">{{ tabletop.scenario_md | safe }}</article>
+
+  <details open>
+    <summary>Capture lessons (after running)</summary>
+    <form onsubmit="return capture(event);">
+      <label>Lessons (one bullet per line, starting with "- ")
+        <textarea name="lessons" rows="6"
+                  placeholder="- We didn't have an alert for X&#10;- Runbook step Y was wrong"></textarea>
+      </label>
+      <label>Tags (comma-separated)
+        <input name="tags" placeholder="authn, runbook, on-call">
+      </label>
+      <button class="btn">save lessons</button>
+    </form>
+  </details>
+</section>
+
+<script>
+async function capture(e) {
+  e.preventDefault();
+  const f = e.target;
+  const tags = (f.tags.value || "")
+    .split(",").map(s => s.trim()).filter(Boolean);
+  await fetch("/api/tabletops/{{ tabletop.id }}/capture", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({lessons_md: f.lessons.value, tags}),
+  });
+  window.location.reload();
+  return false;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Tank — reports{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Reports</h1>
+  <p class="lede">Six generators sharing prompt cache. Each report records
+  both the redacted form (audit) and the rehydrated form (display).</p>
+</section>
+
+<section class="reports-grid">
+  {% for kind in kinds %}
+    <article class="report-kind-card">
+      <header>
+        <h2>{{ kind.replace("_", " ").title() }}</h2>
+        <button class="btn-primary" onclick="genReport('{{ kind }}')">Generate</button>
+      </header>
+      <ul class="report-list">
+        {% for r in by_kind[kind] %}
+          <li><a href="/reports/{{ r.id }}">
+            <span class="dim">{{ r.created_at | int }}</span>
+            {{ r.title }}
+          </a></li>
+        {% else %}
+          <li class="dim">none yet</li>
+        {% endfor %}
+      </ul>
+    </article>
+  {% endfor %}
+</section>
+
+<script>
+async function genReport(kind) {
+  let scope = {};
+  if (kind === "threat_landscape") {
+    const id = prompt("Service entity_id to analyze:");
+    if (!id) return;
+    scope.service_id = id;
+  } else if (kind === "questions_for_team") {
+    const who = prompt("Team or person name:");
+    if (!who) return;
+    scope.team_or_person = who;
+  }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = "generating…";
+  try {
+    const r = await fetch(`/api/reports/${kind}`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({scope}),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    window.location = `/reports/${j.report_id}`;
+  } catch (e) {
+    alert("Failed: " + e.message);
+    btn.disabled = false;
+    btn.textContent = "Generate";
+  }
+}
+</script>
+{% endblock %}
