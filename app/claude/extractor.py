@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from typing import Iterable
 
 from app.config import MODEL, get_client, load_prompt
@@ -27,6 +29,14 @@ log = logging.getLogger("tank.extractor")
 # How many chunks per Claude call. Picking 4 keeps a single call under
 # ~6k input tokens (4 chunks × ~800 tokens + prompt + schema).
 _BATCH_SIZE = 4
+
+# Limit concurrent extraction calls so bulk folder ingests don't blow the
+# rate limit. Two slots means at most 2 Claude calls in flight at once
+# across all background ingest tasks.
+_SEM = threading.Semaphore(2)
+
+# Seconds to wait before each retry attempt (1st through 5th).
+_RETRY_DELAYS = [5, 15, 30, 60, 120]
 
 
 def _system_prompt() -> dict:
@@ -69,27 +79,37 @@ def _safe_parse(api_resp) -> ChunkExtraction:
 
 def _call_claude(batch_text: str) -> ChunkExtraction:
     client = get_client()
-    try:
-        resp = client.messages.parse(
-            model=MODEL,
-            max_tokens=4096,
-            thinking={"type": "adaptive"},
-            system=[_system_prompt()],
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text",
-                     "text": "Extract entities and relationships from "
-                             "these redacted chunks. Return JSON only.\n\n"
-                             + batch_text},
-                ],
-            }],
-            output_format=ChunkExtraction,
-        )
-        return _safe_parse(resp)
-    except Exception as exc:
-        log.warning("extractor batch failed: %s", exc)
-        return ChunkExtraction()
+    with _SEM:
+        for attempt in range(len(_RETRY_DELAYS) + 1):
+            try:
+                resp = client.messages.parse(
+                    model=MODEL,
+                    max_tokens=4096,
+                    thinking={"type": "adaptive"},
+                    system=[_system_prompt()],
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text",
+                             "text": "Extract entities and relationships from "
+                                     "these redacted chunks. Return JSON only.\n\n"
+                                     + batch_text},
+                        ],
+                    }],
+                    output_format=ChunkExtraction,
+                )
+                return _safe_parse(resp)
+            except Exception as exc:
+                is_rate_limit = "429" in str(exc) or "rate_limit" in str(exc)
+                if is_rate_limit and attempt < len(_RETRY_DELAYS):
+                    delay = _RETRY_DELAYS[attempt]
+                    log.warning("extractor 429 — waiting %ds before retry %d/%d",
+                                delay, attempt + 1, len(_RETRY_DELAYS))
+                    time.sleep(delay)
+                    continue
+                log.warning("extractor batch failed: %s", exc)
+                return ChunkExtraction()
+    return ChunkExtraction()
 
 
 def extract_entities_for_doc(doc_id: str, chunks: list[dict],
