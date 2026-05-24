@@ -282,10 +282,9 @@
       }
 
       function createConv() {
-        return fetch('/api/conversations', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({}),
-        })
+        // Use the active (scratch) conversation instead of always creating a
+        // new one — this prevents a pile of untitled empty chats.
+        return fetch('/api/conversations/active')
           .then(function (r) { return r.json(); })
           .then(function (d) {
             panelConvId = d.id;
@@ -293,6 +292,7 @@
             if (fullscreenLink) fullscreenLink.href = '/chat?conv=' + panelConvId;
           });
       }
+
 
       initConv().catch(function () {});
 

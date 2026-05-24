@@ -71,6 +71,21 @@ async def list_conversations() -> dict:
     return {"conversations": conversations_store.list_recent(50)}
 
 
+@router.get("/api/conversations/active")
+async def get_active_conversation() -> dict:
+    """Return the ID of the canonical side-panel scratch conversation.
+
+    Reuses the most-recent untitled, empty conversation instead of creating
+    a new one every time. Called by the side panel on every page load so
+    navigating between pages doesn't produce a pile of untitled chats.
+    """
+    state = get_state()
+    conv_id = conversations_store.get_or_create_empty(
+        role_mode=state.role_mode.value, model=MODEL,
+    )
+    return {"id": conv_id}
+
+
 @router.get("/api/conversations/{conv_id}")
 async def get_conversation(conv_id: str) -> dict:
     conv = conversations_store.get(conv_id)
@@ -78,6 +93,7 @@ async def get_conversation(conv_id: str) -> dict:
         raise HTTPException(404, "no such conversation")
     msgs = messages_store.list_for_conv(conv_id)
     return {"conversation": conv, "messages": msgs}
+
 
 
 @router.post("/api/conversations/{conv_id}/messages")

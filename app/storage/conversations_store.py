@@ -40,6 +40,34 @@ def list_recent(limit: int = 50) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_or_create_empty(*, role_mode: str, model: str) -> str:
+    """Return the ID of an existing empty, untitled conversation to reuse,
+    or create a fresh one.
+
+    'Empty' means: no title set AND zero messages. This is the canonical
+    'scratch' conversation the side panel attaches to. A user creating a
+    named chat (via the full /chat page) never touches this path, so their
+    named conversations are left alone.
+    """
+    conn = get_conn()
+    # Look for the most-recently-updated conversation that is untitled and
+    # has no messages. JOIN is cheaper than a subquery on indexed columns.
+    row = conn.execute(
+        """
+        SELECT c.id FROM conversations c
+        WHERE c.title IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM messages m WHERE m.conversation_id = c.id
+          )
+        ORDER BY c.updated_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if row:
+        return row["id"]
+    return create(role_mode=role_mode, model=model)
+
+
 def touch(conv_id: str, title: str | None = None) -> None:
     conn = get_conn()
     with LOCK:
