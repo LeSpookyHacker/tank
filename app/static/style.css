@@ -1101,3 +1101,25 @@ html.theme-light .cost-badge {
   color: #f59e0b;
   font-size: 0.875rem;
 }
+
+/* ── Digest refresh button ───────────────────────────────────── */
+.btn-refresh {
+  margin-left: 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--fg-dim, #a0aec0);
+  font-size: 1rem;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: color 0.15s;
+}
+.btn-refresh:hover { color: var(--nyx-purple, #a78bfa); }
+.btn-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Folder pick label (ingest page) ────────────────────────── */
+.folder-pick-label {
+  display: inline-block;
+  cursor: pointer;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.875rem;
+}

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import TEMPLATES_DIR
@@ -21,6 +21,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 async def entities_page(request: Request, type: str | None = None):
     state = get_state()
     counts = entities_store.count_by_type()
+    if not type and counts:
+        first = sorted(counts.keys())[0]
+        return RedirectResponse(f"/entities?type={first}")
     ents = kb_entities.list_by_type(type, limit=200) if type else []
     return templates.TemplateResponse(
         request=request, name="entities.html",

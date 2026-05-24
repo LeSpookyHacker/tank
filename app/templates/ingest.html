@@ -10,18 +10,23 @@
 
   <div class="ingest-panels">
 
-    <!-- File upload -->
+    <!-- File / folder upload -->
     <div class="ingest-panel">
-      <h3>Upload a file</h3>
-      <p class="field-help">Supports PDF, Markdown, DOCX, CSV, JSON, YAML, PNG/JPG (vision). Sigma rules and IAM policies are auto-detected.</p>
+      <h3>Upload files or a folder</h3>
+      <p class="field-help">
+        Supports PDF, Markdown, DOCX, CSV, JSON, YAML, PNG/JPG.
+        Pick individual files <em>or</em> an entire folder — categories are auto-detected
+        from file names and content.
+      </p>
       <div class="field-row">
-        <input type="file" id="file-input" accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt">
-        <select id="file-category">
-          <option value="architecture">architecture</option>
-          <option value="code">code</option>
-          <option value="cmdb">cmdb</option>
-          <option value="people_process">people_process</option>
-        </select>
+        <input type="file" id="file-input"
+               accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt"
+               multiple>
+        <label class="btn-secondary folder-pick-label" title="Pick a folder to upload all files inside it">
+          Pick folder
+          <input type="file" id="folder-input" webkitdirectory multiple
+                 style="display:none" onchange="uploadFolder(this)">
+        </label>
         <button class="btn-primary" onclick="uploadFile()">Upload</button>
       </div>
       <div class="ingest-status" id="file-status"></div>
@@ -30,15 +35,13 @@
     <!-- Local path -->
     <div class="ingest-panel">
       <h3>Local path</h3>
-      <p class="field-help">Point at a directory or file already on this machine. Tank will walk it recursively and ingest everything it can parse.</p>
+      <p class="field-help">
+        Point at a file or directory already on this machine. Directories are walked
+        recursively — categories are auto-detected. Useful when Tank is on a VM and the
+        docs live on the same filesystem.
+      </p>
       <div class="field-row">
-        <input type="text" id="path-input" placeholder="/home/you/docs/runbooks">
-        <select id="path-category">
-          <option value="architecture">architecture</option>
-          <option value="code">code</option>
-          <option value="cmdb">cmdb</option>
-          <option value="people_process">people_process</option>
-        </select>
+        <input type="text" id="path-input" placeholder="/home/you/docs  or  /home/you/docs/runbook.md">
         <button class="btn-primary" onclick="ingestPath()">Ingest</button>
       </div>
       <div class="ingest-status" id="path-status"></div>
@@ -95,44 +98,98 @@ function setStatus(id, msg, cls) {
   el.className = "ingest-status " + (cls || "");
 }
 
-async function uploadFile() {
-  const fileInput = document.getElementById("file-input");
-  const category = document.getElementById("file-category").value;
-  const file = fileInput.files[0];
-  if (!file) { setStatus("file-status", "Select a file first.", "error"); return; }
-  setStatus("file-status", "Uploading…", "busy");
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("category", category);
-  try {
-    const r = await fetch("/api/ingest/file", {method: "POST", body: fd});
-    const j = await r.json();
-    if (r.ok) {
-      setStatus("file-status", `Queued: ${j.document_id || "ok"}. Ingestion runs in background.`, "ok");
-      fileInput.value = "";
-      setTimeout(() => window.location.reload(), 2000);
-    } else {
-      setStatus("file-status", j.detail || "Upload failed.", "error");
-    }
-  } catch (e) {
-    setStatus("file-status", "Network error: " + e.message, "error");
-  }
+// ---- Category heuristics (mirrors app/ingest/auto_categorize.py) ----
+const _PATH_RULES = [
+  ["architect","architecture"],["design","architecture"],["diagram","architecture"],
+  ["infra","architecture"],["detection","architecture"],["sigma","architecture"],
+  ["cmdb","cmdb"],["inventor","cmdb"],["asset","cmdb"],["iam","cmdb"],
+  ["cloud","cmdb"],["service","cmdb"],
+  ["runbook","people_process"],["playbook","people_process"],
+  ["polic","people_process"],["compliance","people_process"],
+  ["people","people_process"],["org","people_process"],
+  ["postmortem","people_process"],["process","people_process"],
+  ["onboard","people_process"],
+];
+const _EXT_DEFAULTS = {
+  pdf:"architecture",png:"architecture",jpg:"architecture",jpeg:"architecture",
+  docx:"people_process",csv:"cmdb",
+};
+
+function guessCategory(relPath) {
+  const low = relPath.toLowerCase();
+  for (const [kw, cat] of _PATH_RULES) { if (low.includes(kw)) return cat; }
+  const ext = low.split(".").pop();
+  return _EXT_DEFAULTS[ext] || "people_process";
 }
 
+// ---- Upload individual file(s) ----
+async function uploadFile() {
+  const fileInput = document.getElementById("file-input");
+  const files = [...fileInput.files];
+  if (!files.length) { setStatus("file-status", "Select at least one file.", "error"); return; }
+  setStatus("file-status", `Uploading 0/${files.length}…`, "busy");
+  let ok = 0;
+  for (const file of files) {
+    const cat = guessCategory(file.name);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("category", cat);
+    try {
+      await fetch("/api/ingest/file", {method: "POST", body: fd});
+      ok++;
+      setStatus("file-status", `Uploading ${ok}/${files.length}…`, "busy");
+    } catch (e) {
+      setStatus("file-status", "Network error: " + e.message, "error");
+      return;
+    }
+  }
+  setStatus("file-status", `Queued ${ok} file(s). Ingestion runs in background.`, "ok");
+  fileInput.value = "";
+  setTimeout(() => window.location.reload(), 2500);
+}
+
+// ---- Upload a whole folder ----
+async function uploadFolder(input) {
+  const files = [...input.files];
+  if (!files.length) return;
+  setStatus("file-status", `Uploading 0/${files.length}…`, "busy");
+  let ok = 0;
+  for (const file of files) {
+    const cat = guessCategory(file.webkitRelativePath || file.name);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("category", cat);
+    try {
+      await fetch("/api/ingest/file", {method: "POST", body: fd});
+      ok++;
+      setStatus("file-status", `Uploading ${ok}/${files.length}…`, "busy");
+    } catch (e) {
+      setStatus("file-status", "Network error: " + e.message, "error");
+      return;
+    }
+  }
+  setStatus("file-status",
+    `Queued ${ok} file(s) — categories auto-detected. Ingestion runs in background.`, "ok");
+  setTimeout(() => window.location.reload(), 2500);
+}
+
+// ---- Local path (file or directory) ----
 async function ingestPath() {
   const path = document.getElementById("path-input").value.trim();
-  const category = document.getElementById("path-category").value;
   if (!path) { setStatus("path-status", "Enter a path first.", "error"); return; }
   setStatus("path-status", "Queuing…", "busy");
   try {
     const r = await fetch("/api/ingest/path", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({path, category}),
+      body: JSON.stringify({path}),
     });
     const j = await r.json();
     if (r.ok) {
-      setStatus("path-status", `Queued. Ingestion runs in background.`, "ok");
+      const msg = j.queued
+        ? `Queued ${j.queued} file(s) — categories auto-detected.`
+        : "Queued. Ingestion runs in background.";
+      setStatus("path-status", msg, "ok");
     } else {
       setStatus("path-status", j.detail || "Failed.", "error");
     }
@@ -141,6 +198,7 @@ async function ingestPath() {
   }
 }
 
+// ---- Git repo ----
 async function ingestRepo() {
   const path = document.getElementById("repo-input").value.trim();
   if (!path) { setStatus("repo-status", "Enter a repo path first.", "error"); return; }
@@ -153,7 +211,7 @@ async function ingestRepo() {
     });
     const j = await r.json();
     if (r.ok) {
-      setStatus("repo-status", `Queued. Repo summary runs in background.`, "ok");
+      setStatus("repo-status", "Queued. Repo summary runs in background.", "ok");
     } else {
       setStatus("repo-status", j.detail || "Failed.", "error");
     }

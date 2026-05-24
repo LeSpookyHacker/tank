@@ -52,7 +52,10 @@
 
 <section class="today-grid">
   <article class="today-pane">
-    <h2>Today's digest</h2>
+    <h2>Today's digest
+      <button class="btn-refresh" id="digest-refresh-btn"
+              onclick="refreshDigest()" title="Regenerate digest">↺</button>
+    </h2>
     {% if nudges %}
       <ul class="nudge-list">
         {% for n in nudges %}
@@ -71,8 +74,7 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="dim">No open nudges. Run <code>POST /api/nudges/regenerate</code>
-      to refresh.</p>
+      <p class="dim">No open nudges yet.</p>
     {% endif %}
   </article>
 
@@ -124,6 +126,13 @@
 <script>
 async function nudgeAct(id, action) {
   await fetch(`/api/nudges/${id}/${action}`, {method: "POST"});
+  window.location.reload();
+}
+async function refreshDigest() {
+  const btn = document.getElementById("digest-refresh-btn");
+  btn.disabled = true;
+  btn.textContent = "…";
+  await fetch("/api/nudges/regenerate", {method: "POST"});
   window.location.reload();
 }
 async function followupDone(id) {

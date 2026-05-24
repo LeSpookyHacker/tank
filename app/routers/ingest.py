@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api")
 
 class IngestPathRequest(BaseModel):
     path: str
-    category: str        # 'architecture'|'code'|'cmdb'|'people_process'
+    category: str = "auto"   # 'auto' triggers smart categorization
 
 
 class IngestRepoRequest(BaseModel):
@@ -68,7 +68,24 @@ async def ingest_path(req: IngestPathRequest,
     p = Path(req.path).expanduser()
     if not p.exists():
         raise HTTPException(404, f"no such path: {req.path}")
-    background_tasks.add_task(_do_ingest_file, p, req.category)
+
+    if p.is_dir():
+        from app.ingest.auto_categorize import walk_directory
+        pairs = walk_directory(p)
+        if not pairs:
+            raise HTTPException(422, "no parseable files found in directory")
+        queued_files = []
+        for file_path, auto_cat in pairs:
+            cat = auto_cat if req.category == "auto" else req.category
+            background_tasks.add_task(_do_ingest_file, file_path, cat)
+            queued_files.append({"path": str(file_path.relative_to(p)), "category": cat})
+        return {"status": "queued", "queued": len(pairs), "files": queued_files}
+
+    cat = req.category
+    if cat == "auto":
+        from app.ingest.auto_categorize import suggest_category
+        cat = suggest_category(p)
+    background_tasks.add_task(_do_ingest_file, p, cat)
     return {"status": "queued", "path": str(p)}
 
 

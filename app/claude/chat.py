@@ -314,7 +314,13 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
         cache_read_in=cache_read_in or None,
         cache_create_in=cache_create_in or None,
     )
-    conversations_store.touch(conversation_id)
+    conv = conversations_store.get(conversation_id)
+    if conv and not conv.get("title"):
+        raw = user_text.strip().replace("\n", " ")
+        auto_title = (raw[:60].rsplit(" ", 1)[0] if len(raw) > 60 else raw) or "New chat"
+        conversations_store.touch(conversation_id, title=auto_title)
+    else:
+        conversations_store.touch(conversation_id)
 
     publish(topic, "done", {
         "message_id": msg_id,
