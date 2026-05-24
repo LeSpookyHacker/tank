@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Tank — Projects{% endblock %}
+
+{% block content %}
+<section style="max-width:720px">
+  <div class="page-head">
+    <h1>Projects</h1>
+    <p class="lede">Organise your knowledge base, threat models, design reviews, and conversations by project.</p>
+  </div>
+
+  <div id="project-list">
+    {% for p in projects %}
+    <div class="card" style="display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;padding:1rem 1.25rem;">
+      <span style="font-size:1.5rem;flex-shrink:0">{{ p.emoji }}</span>
+      <div style="flex:1;min-width:0">
+        <strong>{{ p.name }}</strong>
+        {% if p.id == active_id %}<span class="badge badge-source" style="margin-left:0.4rem">active</span>{% endif %}
+        {% if p.description %}<p class="dim" style="margin:0.2rem 0 0;font-size:0.88rem">{{ p.description }}</p>{% endif %}
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-shrink:0">
+        {% if p.id != active_id %}
+        <button class="btn-secondary" onclick="activateProject('{{ p.id }}')">Switch to</button>
+        {% endif %}
+        {% if p.id != 'default' %}
+        <button class="btn-secondary danger" onclick="deleteProject('{{ p.id }}', '{{ p.name }}')">Delete</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2 style="margin-top:2rem">New project</h2>
+  <div class="ingest-panel" style="max-width:560px">
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end">
+      <input type="text" id="new-emoji" value="🔐" style="width:56px;text-align:center;padding:0.45rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:1.2rem">
+      <input type="text" id="new-name" placeholder="Project name" style="flex:1;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
+      <button class="btn-primary" onclick="createProject()">Create</button>
+    </div>
+    <input type="text" id="new-desc" placeholder="Description (optional)" style="margin-top:0.6rem;width:100%;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
+    <div class="ingest-status" id="create-status"></div>
+  </div>
+</section>
+
+<script>
+function setStatus(msg, cls) {
+  const el = document.getElementById("create-status");
+  el.textContent = msg;
+  el.className = "ingest-status " + (cls || "");
+}
+
+async function createProject() {
+  const name  = document.getElementById("new-name").value.trim();
+  const emoji = document.getElementById("new-emoji").value.trim() || "🔐";
+  const desc  = document.getElementById("new-desc").value.trim();
+  if (!name) { setStatus("Enter a project name.", "error"); return; }
+  const r = await fetch("/api/projects", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name, emoji, description: desc}),
+  });
+  const j = await r.json();
+  if (r.ok) { window.location.reload(); }
+  else { setStatus(j.detail || "Failed.", "error"); }
+}
+
+async function activateProject(id) {
+  await fetch(`/api/projects/${id}/activate`, {method: "POST"});
+  window.location.reload();
+}
+
+async function deleteProject(id, name) {
+  if (!confirm(`Delete project "${name}"? Its documents will be moved to Default.`)) return;
+  const r = await fetch(`/api/projects/${id}`, {method: "DELETE"});
+  if (r.ok) { window.location.reload(); }
+  else { const j = await r.json(); alert(j.detail || "Failed."); }
+}
+</script>
+{% endblock %}

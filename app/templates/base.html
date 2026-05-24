@@ -46,6 +46,7 @@
       <a href="/chat">Chat</a>
       <a href="/me">Me</a>
       <a href="/settings">Settings</a>
+      <a href="/ingest">Ingest</a>
     </nav>
     {% if state %}
     <div class="role-toggle" data-current="{{ state.role_mode.value }}">
@@ -54,6 +55,17 @@
       <span class="role-pill" data-role="both">Both</span>
     </div>
     {% endif %}
+
+    <div class="project-switcher" id="project-switcher">
+      <button class="project-btn" onclick="toggleProjectMenu(event)" title="Switch project" id="project-switcher-btn">
+        <span id="active-project-emoji">🔐</span>
+        <span class="project-name" id="active-project-name">…</span>
+        ▾
+      </button>
+      <div class="project-menu" id="project-menu" hidden></div>
+    </div>
+
+    <span id="cost-badge" class="cost-badge" title="Lifetime API cost (claude-sonnet-4-6)">$<span id="cost-value">—</span></span>
     <button id="theme-toggle"
             class="theme-toggle"
             type="button"
@@ -81,6 +93,67 @@
       root.classList.toggle("theme-light", next === "light");
       try { localStorage.setItem("tank-theme", next); } catch (e) {}
     }
+
+    // Cost badge — fetch on every page load; fail silently.
+    (function () {
+      fetch("/api/usage/cost")
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var v = d.total_usd;
+          var el = document.getElementById("cost-value");
+          if (el) el.textContent = v < 0.01 ? v.toFixed(4) : v.toFixed(2);
+        })
+        .catch(function () {});
+    })();
+
+    // Project switcher — load projects and wire up dropdown.
+    (function () {
+      var menu = document.getElementById("project-menu");
+      var switcher = document.getElementById("project-switcher");
+      if (!menu || !switcher) return;
+
+      function renderMenu(projects, activeId) {
+        var active = projects.find(function (p) { return p.id === activeId; }) || projects[0];
+        if (active) {
+          document.getElementById("active-project-emoji").textContent = active.emoji;
+          document.getElementById("active-project-name").textContent = active.name;
+        }
+        menu.innerHTML = "";
+        projects.forEach(function (p) {
+          var btn = document.createElement("button");
+          btn.className = "project-menu-item" + (p.id === activeId ? " active" : "");
+          btn.innerHTML = "<span>" + p.emoji + "</span><span>" + p.name + "</span>";
+          btn.onclick = function () {
+            fetch("/api/projects/" + p.id + "/activate", {method: "POST"})
+              .then(function () { window.location.reload(); });
+          };
+          menu.appendChild(btn);
+        });
+        var div = document.createElement("div");
+        div.className = "project-menu-divider";
+        menu.appendChild(div);
+        var footer = document.createElement("div");
+        footer.className = "project-menu-footer";
+        footer.innerHTML = "<a href='/projects'>Manage projects →</a>";
+        menu.appendChild(footer);
+      }
+
+      fetch("/api/projects")
+        .then(function (r) { return r.json(); })
+        .then(function (d) { renderMenu(d.projects, d.active_id); })
+        .catch(function () {
+          document.getElementById("active-project-name").textContent = "Default";
+        });
+
+      window.toggleProjectMenu = function (ev) {
+        ev.stopPropagation();
+        menu.hidden = !menu.hidden;
+      };
+
+      document.addEventListener("click", function (e) {
+        if (!switcher.contains(e.target)) menu.hidden = true;
+      });
+    })();
   </script>
 </body>
 </html>

@@ -32,7 +32,14 @@
 
   <h2>Step 3 — Internal TLD (optional)</h2>
   <input id="tld-input" type="text"
-    placeholder="e.g. helix.internal — hostnames here get redacted as INTERNAL_HOST_*">
+    placeholder="e.g. helix.internal">
+  <p class="field-help">
+    <strong>TLD (Top-Level Domain)</strong> is the suffix shared by all your internal hostnames.
+    If your services live at <code>api.helix.internal</code> and <code>db01.helix.internal</code>,
+    your TLD is <code>helix.internal</code>. Every hostname ending in this domain is replaced
+    with <code>INTERNAL_HOST_*</code> before any data reaches the AI.
+    Leave blank if your infrastructure uses a public domain or you're not sure.
+  </p>
 
   <h2>Step 4 — Cadence</h2>
   <div class="cadence">
@@ -49,11 +56,26 @@
       </select>
     </label>
   </div>
+  <p class="field-help">
+    <strong>Digest time</strong> — when Tank runs your daily brief: nudges, open follow-ups,
+    and any scheduled reports land at this hour.<br>
+    <strong>Reflection day</strong> — which weekday triggers your weekly review and
+    security digest (generated locally by Tank, not sent anywhere externally).
+  </p>
 
   <h2>Step 5 — Ready</h2>
-  <p class="dim">Hitting <em>finish</em> sets your tenure start date,
-  generates your Day-1 brief, and drops you on the home dashboard.
-  You can ingest docs anytime from the Ingest panel.</p>
+  <p class="dim">Hitting <em>finish</em> sets your tenure start date, generates your
+  Day-1 brief, and drops you on the home dashboard.</p>
+  <p class="dim"><strong>Your first move after this screen:</strong> head to
+  <a href="/ingest">Ingest docs →</a> and upload what you have:</p>
+  <ul class="ingest-guide">
+    <li><strong>Architecture diagrams, runbooks, design docs</strong> → category <code>architecture</code></li>
+    <li><strong>Source repos or code summaries</strong> → category <code>code</code></li>
+    <li><strong>CMDB exports, service inventory</strong> → category <code>cmdb</code></li>
+    <li><strong>Org charts, team wikis, process docs</strong> → category <code>people_process</code></li>
+    <li><strong>Sigma rules (.yml), IAM policies (.json), control frameworks</strong> → auto-detected</li>
+  </ul>
+  <p class="dim">The more you feed Tank, the richer chat, threat models, and reports become.</p>
 
   <div class="onboarding-actions">
     <button class="btn-primary" onclick="completeOnboarding()">Finish & generate Day-1 brief</button>

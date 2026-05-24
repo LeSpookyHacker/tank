@@ -208,13 +208,15 @@ python -m pytest -q
 
 ---
 
-## Ingesting the demo fixtures
+## Ingesting the sample data
 
-Tank ships with a synthetic company ("Helix Robotics") so you can
-play without exposing real data:
+Tank ships with synthetic "Helix Robotics" sample data in `sample_data/`
+so you can test all features without exposing real data. First generate
+the binary artifacts (PDF, DOCX, PNG) from their markdown sources:
 
 ```bash
 source .venv/bin/activate
+python -m scripts._gen_fixtures             # generate PDF/DOCX/PNG
 python -m scripts.load_fixtures --dry-run   # show what would happen
 python -m scripts.load_fixtures             # actual ingest — costs ~$5-10
 ```

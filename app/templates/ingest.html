@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Tank — Ingest{% endblock %}
+
+{% block content %}
+<section class="ingest-page">
+  <div class="page-head">
+    <h1>Ingest documents</h1>
+    <p class="lede">Feed Tank your docs, repos, and data. Everything is redacted locally before touching the AI.</p>
+  </div>
+
+  <div class="ingest-panels">
+
+    <!-- File upload -->
+    <div class="ingest-panel">
+      <h3>Upload a file</h3>
+      <p class="field-help">Supports PDF, Markdown, DOCX, CSV, JSON, YAML, PNG/JPG (vision). Sigma rules and IAM policies are auto-detected.</p>
+      <div class="field-row">
+        <input type="file" id="file-input" accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt">
+        <select id="file-category">
+          <option value="architecture">architecture</option>
+          <option value="code">code</option>
+          <option value="cmdb">cmdb</option>
+          <option value="people_process">people_process</option>
+        </select>
+        <button class="btn-primary" onclick="uploadFile()">Upload</button>
+      </div>
+      <div class="ingest-status" id="file-status"></div>
+    </div>
+
+    <!-- Local path -->
+    <div class="ingest-panel">
+      <h3>Local path</h3>
+      <p class="field-help">Point at a directory or file already on this machine. Tank will walk it recursively and ingest everything it can parse.</p>
+      <div class="field-row">
+        <input type="text" id="path-input" placeholder="/home/you/docs/runbooks">
+        <select id="path-category">
+          <option value="architecture">architecture</option>
+          <option value="code">code</option>
+          <option value="cmdb">cmdb</option>
+          <option value="people_process">people_process</option>
+        </select>
+        <button class="btn-primary" onclick="ingestPath()">Ingest</button>
+      </div>
+      <div class="ingest-status" id="path-status"></div>
+    </div>
+
+    <!-- Repo -->
+    <div class="ingest-panel">
+      <h3>Git repository</h3>
+      <p class="field-help">Provide a local repo path. Tank reads manifests, CI, Dockerfile, grep hits and README — <strong>never raw source files</strong>. Privacy-safe by design.</p>
+      <div class="field-row">
+        <input type="text" id="repo-input" placeholder="/home/you/src/my-service">
+        <button class="btn-primary" onclick="ingestRepo()">Ingest repo</button>
+      </div>
+      <div class="ingest-status" id="repo-status"></div>
+    </div>
+  </div>
+
+  <!-- Recent ingestions -->
+  <div class="recent-docs">
+    <h2>Recently ingested</h2>
+    {% if docs %}
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Kind</th>
+          <th>Category</th>
+          <th>Size</th>
+          <th>Ingested</th>
+        </tr>
+      </thead>
+      <tbody id="docs-table-body">
+        {% for d in docs %}
+        <tr>
+          <td>{{ d.title or d.id[:12] + "…" }}</td>
+          <td><code>{{ d.kind }}</code></td>
+          <td><code>{{ d.category }}</code></td>
+          <td>{{ (d.size_bytes // 1024) if d.size_bytes else "—" }}{% if d.size_bytes %} KB{% endif %}</td>
+          <td class="dim" title="{{ d.ingested_at }}">{{ d.ingested_at | int }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="dim">Nothing ingested yet. Use the panels above to get started.</p>
+    {% endif %}
+  </div>
+</section>
+
+<script>
+function setStatus(id, msg, cls) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = "ingest-status " + (cls || "");
+}
+
+async function uploadFile() {
+  const fileInput = document.getElementById("file-input");
+  const category = document.getElementById("file-category").value;
+  const file = fileInput.files[0];
+  if (!file) { setStatus("file-status", "Select a file first.", "error"); return; }
+  setStatus("file-status", "Uploading…", "busy");
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("category", category);
+  try {
+    const r = await fetch("/api/ingest/file", {method: "POST", body: fd});
+    const j = await r.json();
+    if (r.ok) {
+      setStatus("file-status", `Queued: ${j.document_id || "ok"}. Ingestion runs in background.`, "ok");
+      fileInput.value = "";
+      setTimeout(() => window.location.reload(), 2000);
+    } else {
+      setStatus("file-status", j.detail || "Upload failed.", "error");
+    }
+  } catch (e) {
+    setStatus("file-status", "Network error: " + e.message, "error");
+  }
+}
+
+async function ingestPath() {
+  const path = document.getElementById("path-input").value.trim();
+  const category = document.getElementById("path-category").value;
+  if (!path) { setStatus("path-status", "Enter a path first.", "error"); return; }
+  setStatus("path-status", "Queuing…", "busy");
+  try {
+    const r = await fetch("/api/ingest/path", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({path, category}),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      setStatus("path-status", `Queued. Ingestion runs in background.`, "ok");
+    } else {
+      setStatus("path-status", j.detail || "Failed.", "error");
+    }
+  } catch (e) {
+    setStatus("path-status", "Network error: " + e.message, "error");
+  }
+}
+
+async function ingestRepo() {
+  const path = document.getElementById("repo-input").value.trim();
+  if (!path) { setStatus("repo-status", "Enter a repo path first.", "error"); return; }
+  setStatus("repo-status", "Queuing…", "busy");
+  try {
+    const r = await fetch("/api/ingest/repo", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({path}),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      setStatus("repo-status", `Queued. Repo summary runs in background.`, "ok");
+    } else {
+      setStatus("repo-status", j.detail || "Failed.", "error");
+    }
+  } catch (e) {
+    setStatus("repo-status", "Network error: " + e.message, "error");
+  }
+}
+</script>
+{% endblock %}

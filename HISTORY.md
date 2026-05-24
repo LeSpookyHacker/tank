@@ -137,32 +137,32 @@ one. The user wants something to "play around with."
 
 ### What got built
 
-A `tank/fixtures/` corpus: 23 hand-crafted files + 2 small repos
+A `tank/sample_data/` corpus: 23 hand-crafted files + 2 small repos
 simulating **Helix Robotics** — a fictional B2B SaaS doing payments +
 identity for robotics OEMs. ~80 employees, Series B, AWS-heavy.
+(Later expanded to 26 files + 3 new subfolders to cover all parser types.)
 
-- **fixtures/README.md** — scenario + how-to-load
-- **fixtures/company.md** — 1-page company overview
-- **fixtures/architecture/** (4 files + generated PDF + PNG)
-- **fixtures/repos/payments-api/** (12 files, Python FastAPI; CODEOWNERS
+- **sample_data/README.md** — scenario + how-to-load
+- **sample_data/company.md** — 1-page company overview
+- **sample_data/architecture/** (4 files + generated PDF + PNG)
+- **sample_data/repos/payments-api/** (12 files, Python FastAPI; CODEOWNERS
   *deliberately* contradicts CMDB to trigger contradiction-surfacing
   nudge later)
-- **fixtures/repos/webhook-router/** (8 files, Go; no postmortem, no
+- **sample_data/repos/webhook-router/** (8 files, Go; no postmortem, no
   runbook — planted gap)
-- **fixtures/cmdb/** (services.csv with 8 services, cloud-accounts.csv
+- **sample_data/cmdb/** (services.csv with 8 services, cloud-accounts.csv
   with 5 AWS accounts)
-- **fixtures/people/** (org-chart, on-call.csv, 1-1-cadence.md)
-- **fixtures/policies/** (access-policy + generated DOCX,
+- **sample_data/people/** (org-chart, on-call.csv, 1-1-cadence.md)
+- **sample_data/policies/** (access-policy + generated DOCX,
   incident-response, data-classification)
-- **fixtures/runbooks/** (service-restart, rotate-customer-api-key,
+- **sample_data/runbooks/** (service-restart, rotate-customer-api-key,
   investigate-suspicious-login)
-- **fixtures/postmortems/** (Vault sidecar outage; AWS-key leak close
+- **sample_data/postmortems/** (Vault sidecar outage; AWS-key leak close
   call)
-- **fixtures/seeds/** (leaked-key-example.md and internal-host-list.md
+- **sample_data/seeds/** (leaked-key-example.md and internal-host-list.md
   for redaction testing)
 - **scripts/_gen_fixtures.py** — synthesizes PDF/DOCX/PNG from MD
-- **scripts/load_fixtures.py** — bulk loader (currently dry-run only;
-  auto-activates once Phase 3 ingestion lands)
+- **scripts/load_fixtures.py** — bulk loader
 
 ### Planted edge cases
 
@@ -184,7 +184,7 @@ Each maps to a Tank feature to exercise later:
 ```bash
 python -m scripts._gen_fixtures   # PDF + PNG + DOCX generated
 python -m scripts.load_fixtures --dry-run
-# → 23 files + 2 repos planned across 4 categories
+# → 26 files + 2 repos planned across 4 categories
 ```
 
 Redaction sanity-check on `seeds/leaked-key-example.md`:
@@ -194,7 +194,7 @@ Redaction sanity-check on `seeds/internal-host-list.md`:
 
 ### Tradeoffs
 
-- Fixtures are version-controlled (in `tank/fixtures/`), not gitignored.
+- Sample data is version-controlled (in `tank/sample_data/`), not gitignored.
   Acceptable because all content is synthetic — no real customer data.
 - The DOCX/PDF/PNG are *generated* artifacts; the markdown sources are
   the source of truth. `_gen_fixtures.py` produces them deterministically.
@@ -204,8 +204,9 @@ Redaction sanity-check on `seeds/internal-host-list.md`:
 
 ### Files added
 
-~30 fixture files + 2 scripts. Net: `tank/fixtures/` (23 MD/CSV + 3
-generated binaries + 2 repos) and `tank/scripts/{_gen_fixtures,load_fixtures}.py`.
+~30 sample files + 2 scripts. Net: `tank/sample_data/` (23 MD/CSV + 3
+generated binaries + 2 repos, later expanded to 26 files) and
+`tank/scripts/{_gen_fixtures,load_fixtures}.py`.
 
 ---
 
@@ -491,7 +492,7 @@ python -m pytest -q                       # → 28/28
 ./scripts/start.sh                        # → http://localhost:8000
 
 # Once the server is up, try:
-python -m scripts.load_fixtures --dry-run # → 23 files + 2 repos planned
+python -m scripts.load_fixtures --dry-run # → 26 files + 2 repos planned
 python -m scripts.load_fixtures           # → actual ingest (uses your API key)
 
 # After ingest:
@@ -557,7 +558,7 @@ plan.
 
 1. **Get a real ANTHROPIC_API_KEY** in `.env` and run
    `./scripts/start.sh`. Complete onboarding through the UI.
-2. **Ingest the Helix fixtures** via `python -m scripts.load_fixtures`.
+2. **Ingest the Helix Robotics sample data** via `python -m scripts.load_fixtures`.
    Expect ~$5-10 in API cost for the full pack.
 3. **Open `/chat`** and ask: *"What's the most security-relevant
    service in this codebase and why?"*
@@ -854,7 +855,7 @@ python -m pytest -q             # → 28/28
 #   /me                          — ownership dashboard with risk score
 #   /philosophy                  — curated security stance doc
 
-# Try with fixtures: open a Service entity (e.g. payments-api),
+# Try with sample data: open a Service entity (e.g. payments-api),
 # click "I own this", then "Generate threat model (v2)". Then visit
 # /threat-models to see drift detection ready for v2.
 ```

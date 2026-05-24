@@ -1,6 +1,6 @@
-"""Bulk-load the Helix Robotics fixture pack into Tank.
+"""Bulk-load the Helix Robotics sample data pack into Tank.
 
-Walks `fixtures/` and pushes each artifact through the ingestion
+Walks `sample_data/` and pushes each artifact through the ingestion
 pipeline with the right category. Idempotent: anything already in
 `documents` (by sha256) is skipped.
 
@@ -9,7 +9,7 @@ works — it lists what would be ingested. Once Phase 3 is in, drop
 the `--dry-run` flag (or call without it) to actually ingest.
 
 Run with the tank venv activated:
-    python -m scripts.load_fixtures              # ingest (Phase 3+)
+    python -m scripts.load_fixtures              # ingest
     python -m scripts.load_fixtures --dry-run    # just list what we'd do
 """
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURES = ROOT / "fixtures"
+FIXTURES = ROOT / "sample_data"
 
 
 # ---------------- category mapping ----------------
@@ -45,6 +45,12 @@ def categorize(path: Path) -> str | None:
     if top == "cmdb":
         return "cmdb"
     if top in {"people", "policies", "runbooks", "postmortems", "seeds"}:
+        return "people_process"
+    if top == "detections":
+        return "architecture"
+    if top == "iam":
+        return "cmdb"
+    if top == "compliance":
         return "people_process"
     return None
 
@@ -79,7 +85,7 @@ def plan_files(fixtures_root: Path) -> list[tuple[Path, str]]:
 
 
 def plan_repos(fixtures_root: Path) -> list[Path]:
-    """Return the list of repo roots under fixtures/repos/."""
+    """Return the list of repo roots under sample_data/repos/."""
     repos_root = fixtures_root / "repos"
     if not repos_root.exists():
         return []

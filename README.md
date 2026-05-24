@@ -351,20 +351,23 @@ rm -rf ~/.tank/
 
 ---
 
-## Demo fixtures
+## Sample data
 
-Tank ships with a synthetic company ("Helix Robotics") so you can play
-without real data:
+Tank ships with a synthetic company ("Helix Robotics") in `sample_data/`
+so you can test everything without exposing real data:
 
 ```bash
 source .venv/bin/activate
+python -m scripts._gen_fixtures             # generate PDF/DOCX/PNG from sources
 python -m scripts.load_fixtures --dry-run   # show what would happen
 python -m scripts.load_fixtures             # ingest — ~$5-10 in Anthropic spend
 ```
 
-23 hand-crafted files + 2 small repos (Python FastAPI + Go) with planted
-edge cases that exercise every redaction category, contradiction surfacing,
-gap detection, and coverage feature.
+26 files + 2 small repos (Python FastAPI + Go) covering every parser type
+(Markdown, PDF, DOCX, PNG/vision, CSV, Sigma, IAM policy, control framework,
+and code repo summarization), with planted edge cases that exercise every
+redaction category, contradiction surfacing, gap detection, and coverage feature.
+See `sample_data/README.md` for the full scenario and file list.
 
 ---
 
@@ -373,7 +376,7 @@ gap detection, and coverage feature.
 | Phase | Status | What |
 | --- | --- | --- |
 | 1-2 | ✅ | Skeleton + redaction engine (28/28 tests) |
-| 2.5 | ✅ | Helix Robotics fixtures |
+| 2.5 | ✅ | Helix Robotics sample data (26 files + 2 repos, full parser coverage) |
 | 3-7 | ✅ | Ingest, KB, chat, 6 reports |
 | 8 | ✅ | Partner mode (daily companion) |
 | 9-10 | ✅ | UI polish + privacy assertion |

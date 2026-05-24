@@ -49,7 +49,7 @@ python -m pytest -q                 # whole suite (28 redaction tests today)
 python -m pytest tests/test_redaction.py::test_email_redacted -v   # one test
 python -m pytest -k "secret" -v     # match by name
 
-# Ingest fixtures (after start.sh once + .env has ANTHROPIC_API_KEY)
+# Ingest sample data (after start.sh once + .env has ANTHROPIC_API_KEY)
 python -m scripts._gen_fixtures     # synthesize PDF/DOCX/PNG from MD sources
 python -m scripts.load_fixtures --dry-run   # print plan, no ingest
 python -m scripts.load_fixtures             # actual ingest (uses API key)
@@ -80,6 +80,9 @@ sqlite3 ~/.tank/db.sqlite \
 
 # Ops: manually trigger a backup (otherwise Sun 03:00)
 python -c "from app.claude.scheduler import _take_backup; _take_backup()"
+
+# Stop the server (graceful shutdown via SIGTERM)
+./scripts/stop.sh
 
 # Ops: install as a systemd --user unit (Linux only)
 ./scripts/install-systemd.sh
@@ -128,7 +131,12 @@ Parsers are dispatched by extension in `app/ingest/parsers/__init__.py`
 to `markdown.py | pdf.py | docx.py | csv_json.py | image.py`. The
 image parser calls Sonnet vision (`app/claude/extractor.py::extract_from_diagram`)
 and stashes the result in `meta["vision"]`; the extractor module
-persists it without re-prompting.
+persists it without re-prompting. All parsers extend `_base.py`.
+
+Every extracted entity carries `provenance ∈ {source, inferred, claim,
+user}` — set at upsert time, shown as a trust badge in the UI, and
+queryable. `source` = stated in a doc; `inferred` = Sonnet concluded
+it; `claim` = unverified assertion; `user` = manually added.
 
 **2. Chat with SSE + tool use** (`app/claude/chat.py`,
 `app/routers/chat.py`) — pioneers both patterns in this codebase.
@@ -199,6 +207,8 @@ lens.**
 | Add a coverage / visibility analysis | Pattern in Phase 14: `app/kb/<kind>.py` for in-process queries + `app/claude/<analysis>.py` for Sonnet-driven synthesis + dedicated parser if the artifact is a new ingest type |
 | Capture a lesson from an artifact | `app/claude/lesson_extractor.py::extract_from_<source>()` — runs synchronously on publish/reject; persisted to `lessons` table |
 | Add ownership / personal-dashboard signal | `app/routers/me.py::_risk_score_for(entity_id)` — append to the heuristic mix |
+| Add a continuous-ingestion connector | `app/ingest/watchers/<kind>.py` implementing `scan(watcher_row) -> ScanResult` + register in `watchers/__init__.py::dispatch`. Kinds: `folder`, `ics_url`, `cve_feed`, `github_repo`. Users enable via Settings → Integrations. |
+| Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt) and `build_kb_block(hits, entity_cards)` (retrieved context). Both return `{"cache_control": {"type": "ephemeral"}}` blocks. |
 
 ## Living artifacts pattern (Phase 12+)
 
@@ -289,6 +299,9 @@ on a laptop that sleeps. Key durable + operational pieces:
 - **TZ-aware scheduler**: `app/claude/scheduler.py::_now()` honors
   `TANK_TIMEZONE` (IANA name). Hosted VMs are usually UTC, which
   is almost never what the user wants for `digest_time = 08:00`.
+  Other env vars: `TANK_DIGEST_TIME` (default `08:00`), `TANK_DB_PATH`
+  (default `~/.tank/db.sqlite`), `TANK_ENV` (`dev` enables uvicorn
+  `--reload`; `prod` disables it — systemd unit forces `prod`).
 - **Weekly SQLite backup**: Sunday 03:00 job uses
   `sqlite3.Connection.backup()` (WAL-safe, online) to write
   `~/.tank/backups/db-YYYY-MM-DD.sqlite`. The `backup_log` table

@@ -13,7 +13,7 @@ from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
     entities, followups, glossary, iam, ingest, integrations, journal,
     lessons, me, meeting_prep, notes, nudges, onboarding, pages, philosophy,
-    postmortems, reports, settings, subscriptions, tabletops, threat_models,
+    postmortems, projects, reports, settings, subscriptions, tabletops, threat_models,
 )
 
 log = logging.getLogger("tank.main")
@@ -115,3 +115,6 @@ app.include_router(lessons.router)
 app.include_router(glossary.router)
 app.include_router(me.router)
 app.include_router(philosophy.router)
+
+# Phase 16: project compartmentalization
+app.include_router(projects.router)

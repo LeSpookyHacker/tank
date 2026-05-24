@@ -131,4 +131,59 @@ async function followupDone(id) {
   window.location.reload();
 }
 </script>
+
+{# ---- contextual hints popup ---- #}
+{% if hints %}
+<button class="hints-btn" id="hints-btn" onclick="toggleHints()" title="Tips &amp; hints" aria-label="Show hints">
+  ?
+  <span class="hints-dot" id="hints-dot"></span>
+</button>
+
+<div class="hints-panel" id="hints-panel" hidden>
+  <h4>
+    Tips for where you are now
+    <button class="hints-close" onclick="dismissHints()" aria-label="Close hints">✕</button>
+  </h4>
+  <ul>
+    {% for h in hints %}
+    <li>
+      <span class="hint-icon">{{ h.icon }}</span>
+      <span>
+        {{ h.text }}
+        {% if h.link %}<br><a href="{{ h.link }}">{{ h.link_label }} →</a>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<script>
+(function () {
+  const HINTS_KEY = "tank-hints-v1";
+  const dot = document.getElementById("hints-dot");
+  const panel = document.getElementById("hints-panel");
+
+  // Compute a simple hash of tip texts to detect when tips change.
+  const tipHash = {{ hints | map(attribute="text") | list | tojson }}.join("|").length.toString();
+  const seen = localStorage.getItem(HINTS_KEY);
+  if (seen === tipHash) {
+    dot.style.display = "none";
+  }
+
+  window.toggleHints = function () {
+    const hidden = panel.hidden;
+    panel.hidden = !hidden;
+    if (!hidden) return;
+    dot.style.display = "none";
+    localStorage.setItem(HINTS_KEY, tipHash);
+  };
+
+  window.dismissHints = function () {
+    panel.hidden = true;
+    dot.style.display = "none";
+    localStorage.setItem(HINTS_KEY, tipHash);
+  };
+})();
+</script>
+{% endif %}
 {% endblock %}

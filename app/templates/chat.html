@@ -58,9 +58,9 @@
 
       <form class="composer" onsubmit="return sendMessage(event)">
         <textarea id="composer-input"
-                  placeholder="Ask Tank about your KB. Use shift+enter for newline."
+                  placeholder="Ask Tank about your KB. Shift+Enter for newline."
                   rows="3"></textarea>
-        <button type="submit" class="btn-primary">Send</button>
+        <button type="submit" class="btn-primary" id="send-btn">Send</button>
       </form>
     {% else %}
       <div class="empty-state">
@@ -73,7 +73,7 @@
 </section>
 
 <script>
-const ACTIVE_CONV = {{ (active.id if active else "null") | tojson }};
+let _activeConv = {{ (active.id if active else "null") | tojson }};
 
 async function newConversation() {
   const r = await fetch("/api/conversations", {
@@ -85,12 +85,35 @@ async function newConversation() {
   window.location = "/chat?conv=" + j.id;
 }
 
+function _setSending(on) {
+  const btn = document.getElementById("send-btn");
+  const ta  = document.getElementById("composer-input");
+  if (btn) { btn.disabled = on; btn.textContent = on ? "…" : "Send"; }
+  if (ta)  { ta.style.cursor = on ? "wait" : ""; }
+}
+
 async function sendMessage(ev) {
   ev.preventDefault();
   const ta = document.getElementById("composer-input");
   const content = ta.value.trim();
   if (!content) return false;
+
+  // Auto-create a conversation if none is active (fresh install).
+  let convId = _activeConv;
+  if (!convId) {
+    const cr = await fetch("/api/conversations", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({}),
+    });
+    const cj = await cr.json();
+    convId = cj.id;
+    _activeConv = convId;
+    history.replaceState({}, "", "/chat?conv=" + convId);
+  }
+
   ta.value = "";
+  _setSending(true);
 
   // Echo the user message immediately.
   const msgs = document.getElementById("messages");
@@ -100,24 +123,23 @@ async function sendMessage(ev) {
     <header class="bubble-meta"><span class="bubble-role">user</span></header>
     <div class="bubble-body"></div>`;
   userBubble.querySelector(".bubble-body").textContent = content;
-  msgs.insertBefore(userBubble,
-    document.getElementById("streaming-bubble"));
+  msgs.insertBefore(userBubble, document.getElementById("streaming-bubble"));
 
   // Show streaming bubble.
-  const sb = document.getElementById("streaming-bubble");
+  const sb   = document.getElementById("streaming-bubble");
   const body = document.getElementById("streaming-body");
   const tools = document.getElementById("streaming-tools");
   body.textContent = "";
   tools.textContent = "";
   sb.hidden = false;
 
-  await fetch(`/api/conversations/${ACTIVE_CONV}/messages`, {
+  await fetch(`/api/conversations/${convId}/messages`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({content}),
   });
 
-  const es = new EventSource(`/api/conversations/${ACTIVE_CONV}/stream`);
+  const es = new EventSource(`/api/conversations/${convId}/stream`);
   es.addEventListener("text_delta", e => {
     const d = JSON.parse(e.data);
     body.textContent += d.text;
@@ -133,15 +155,28 @@ async function sendMessage(ev) {
   });
   es.addEventListener("done", () => {
     es.close();
-    // Reload to pick up the persisted message with full styling.
     window.location.reload();
   });
   es.addEventListener("error", () => {
     body.textContent += "\n[connection closed]";
     es.close();
+    _setSending(false);
   });
 
   return false;
 }
+
+// Enter sends; Shift+Enter inserts a newline.
+document.addEventListener("DOMContentLoaded", () => {
+  const ta = document.getElementById("composer-input");
+  if (ta) {
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        document.querySelector(".composer").requestSubmit();
+      }
+    });
+  }
+});
 </script>
 {% endblock %}

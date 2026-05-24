@@ -495,6 +495,16 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (user_id, entity_id)
         );
 
+        -- ----- Phase 16: project compartmentalization -----
+
+        CREATE TABLE IF NOT EXISTS projects (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT,
+            emoji       TEXT NOT NULL DEFAULT '🔐',
+            created_at  REAL NOT NULL
+        );
+
         -- ----- Ops: scheduler durability + backup ledger -----
 
         -- Last-fired markers for the cron-ish scheduler. Replaces the
@@ -519,7 +529,17 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         """
     )
     _migrate_app_state_columns(conn)
+    _migrate_project_columns(conn)
+    _seed_default_project(conn)
     _init_vec_table(conn)
+
+
+def _add_col_safe(conn: sqlite3.Connection, table: str, col_def: str) -> None:
+    """Add a column to an existing table if it doesn't already exist."""
+    existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+    col_name = col_def.split()[0]
+    if col_name not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
 
 
 def _migrate_app_state_columns(conn: sqlite3.Connection) -> None:
@@ -532,6 +552,29 @@ def _migrate_app_state_columns(conn: sqlite3.Connection) -> None:
     # Phase 15: pointer to the curated security-philosophy document.
     if "philosophy_doc_id" not in cols:
         conn.execute("ALTER TABLE app_state ADD COLUMN philosophy_doc_id TEXT")
+    # Phase 16: active project context.
+    if "active_project_id" not in cols:
+        conn.execute("ALTER TABLE app_state ADD COLUMN active_project_id TEXT REFERENCES projects(id)")
+
+
+def _migrate_project_columns(conn: sqlite3.Connection) -> None:
+    """Add project_id to key artifact tables (Phase 16)."""
+    for table in ("documents", "conversations", "reports",
+                  "threat_models", "design_reviews", "postmortems_drafts", "tabletops"):
+        _add_col_safe(conn, table, "project_id TEXT REFERENCES projects(id)")
+
+
+def _seed_default_project(conn: sqlite3.Connection) -> None:
+    """Create the Default project if the projects table is empty."""
+    import time as _t
+    row = conn.execute("SELECT id FROM projects LIMIT 1").fetchone()
+    if row:
+        return
+    conn.execute(
+        "INSERT INTO projects (id, name, description, emoji, created_at) "
+        "VALUES ('default', 'Default', 'Default project for all existing data.', '🔐', ?)",
+        (_t.time(),),
+    )
 
 
 def _init_vec_table(conn: sqlite3.Connection) -> None:

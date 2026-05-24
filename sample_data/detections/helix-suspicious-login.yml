@@ -1,0 +1,26 @@
+title: Helix Robotics — Suspicious Login from Unusual Country
+status: experimental
+description: >
+  Detects Okta login attempts from countries outside Helix's primary operating
+  locations (United States and Portugal). Low signal on its own; correlate with
+  other indicators such as impossible travel or off-hours access.
+logsource:
+  product: okta
+  category: authentication
+detection:
+  selection:
+    event.type: user.session.start
+    actor.alternateId|contains: "@helixrobotics.com"
+  filter:
+    client.geographicalContext.country|contains:
+      - United States
+      - Portugal
+  condition: selection and not filter
+falsepositives:
+  - Employee travelling abroad
+  - VPN exit node in an unexpected region
+  - Contractor working from a third country
+level: medium
+tags:
+  - attack.initial_access
+  - attack.t1078

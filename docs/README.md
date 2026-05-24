@@ -76,7 +76,7 @@ Tank ships in phases. The current state:
 | --- | --- | --- |
 | 1 | Skeleton, DB schema, config, start.sh, README | ✅ |
 | 2 | Redaction engine + 28/28 unit tests | ✅ |
-| 2.5 | Helix Robotics fixture pack (23 files, 2 repos) | ✅ |
+| 2.5 | Helix Robotics sample data pack (26 files, 2 repos, full parser coverage) | ✅ |
 | 3 | Ingestion pipeline (parse → chunk → redact → embed → store) | ✅ |
 | 4 | KB layer (hybrid retrieval + 6 chat tools) | ✅ |
 | 5 | Remaining parsers (DOCX, vision, CSV, repo summary) | ✅ |

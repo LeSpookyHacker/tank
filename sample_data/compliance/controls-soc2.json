@@ -1,0 +1,43 @@
+{
+  "framework": "SOC 2 Type II — Helix Robotics scope",
+  "version": "2024-Q1",
+  "controls": [
+    {
+      "control_id": "CC6.1",
+      "title": "Logical and Physical Access Controls",
+      "description": "Logical access security measures restrict access to information assets to authorized personnel. MFA is enforced for all privileged access to the AWS console and Okta.",
+      "family": "Common Criteria",
+      "subcontrols": [
+        {"id": "CC6.1.1", "title": "MFA enforcement on AWS console and Okta admin"},
+        {"id": "CC6.1.2", "title": "Quarterly access reviews tracked in Vanta"}
+      ]
+    },
+    {
+      "control_id": "CC6.2",
+      "title": "New User Registration and Authorization",
+      "description": "New user accounts require manager approval via Okta Workflows. Offboarding deprovisioning completes within 24 hours of the HR event.",
+      "family": "Common Criteria",
+      "subcontrols": [
+        {"id": "CC6.2.1", "title": "Okta Workflows for joiner/mover/leaver lifecycle"},
+        {"id": "CC6.2.2", "title": "Weekly orphaned-account audit script in payments-api/scripts/"}
+      ]
+    },
+    {
+      "control_id": "CC7.2",
+      "title": "System Monitoring",
+      "description": "Security monitoring covers authentication anomalies, privilege escalation, and data exfiltration indicators. Sigma rules are deployed to the Elastic SIEM. Alerting SLA is 15 minutes for P1 events.",
+      "family": "Common Criteria",
+      "subcontrols": []
+    },
+    {
+      "control_id": "CC9.2",
+      "title": "Vendor and Business Partner Risk",
+      "description": "Third-party vendors with access to production data undergo annual security assessments. Stripe (payment processor) and AWS are the primary critical vendors.",
+      "family": "Common Criteria",
+      "subcontrols": [
+        {"id": "CC9.2.1", "title": "Stripe annual SOC 2 report review"},
+        {"id": "CC9.2.2", "title": "AWS Shared Responsibility Model documentation maintained"}
+      ]
+    }
+  ]
+}

@@ -17,7 +17,7 @@ filename below.
 - Standard resolution: ~1400px wide. PNG. Reasonable file size
   (≤ 500KB each — `oxipng -o4` if you need to shrink).
 - Anonymize: don't include real coworker names / hostnames / IPs.
-  Use the Helix Robotics fixtures as test data instead — they're
+  Use the Helix Robotics sample data (`sample_data/`) as test data instead — they're
   synthetic by design.
 
 ## Filename list

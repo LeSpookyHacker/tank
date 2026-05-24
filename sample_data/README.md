@@ -1,4 +1,4 @@
-# Helix Robotics — Tank Demo Fixtures
+# Helix Robotics — Tank Sample Data
 
 A synthetic corpus that simulates **what a new Sr/Staff/Manager Security
 Engineer might be handed in their first week** at a mid-size B2B SaaS
@@ -16,15 +16,17 @@ Use this corpus to:
 
 ## Quickstart
 
-Once Phase 3 (ingestion) is built, load the entire corpus with:
+Load the entire corpus with:
 
 ```bash
 python -m scripts.load_fixtures
 ```
 
-Until then, the artifacts are still useful for browsing — they describe
-a coherent fictional company in enough detail to make the design
-decisions concrete.
+To preview what would be ingested without touching the API:
+
+```bash
+python -m scripts.load_fixtures --dry-run
+```
 
 ## Scenario
 
@@ -42,7 +44,7 @@ TLD is `helix.internal`. AWS prod account is `999988887777`, staging
 ## What's here
 
 ```
-fixtures/
+sample_data/
 ├── company.md                                # 1-page overview
 ├── architecture/                             # high-level system docs
 │   ├── 01-platform-overview.md               # → PDF via _gen_fixtures
@@ -70,9 +72,38 @@ fixtures/
 ├── postmortems/
 │   ├── 2026-02-payments-outage.md
 │   └── 2026-04-credential-leak-close-call.md
-└── seeds/                                    # planted to test redaction
-    ├── leaked-key-example.md                 # fake AKIA + Slack token
-    └── internal-host-list.md                 # internal hosts + IPs
+├── seeds/                                    # planted to test redaction
+│   ├── leaked-key-example.md                 # fake AKIA + Slack token
+│   └── internal-host-list.md                 # internal hosts + IPs
+├── detections/                               # Sigma rules (auto-detected)
+│   └── helix-suspicious-login.yml
+├── iam/                                      # IAM policies (auto-detected)
+│   └── prod-s3-policy.json
+└── compliance/                               # Control frameworks (auto-detected)
+    └── controls-soc2.json
+```
+
+## Parser coverage
+
+Every parser type Tank ships is exercised by this sample data:
+
+| Parser | Sample file(s) | How dispatched |
+| --- | --- | --- |
+| MarkdownParser | `architecture/*.md`, `policies/*.md`, etc. | extension `.md` |
+| PDFParser | `architecture/01-platform-overview.pdf` | extension `.pdf` |
+| DocxParser | `policies/access-policy.docx` | extension `.docx` |
+| ImageParser (vision) | `architecture/02-auth-flow.png` | extension `.png` |
+| CSVJSONParser | `cmdb/*.csv`, `people/on-call.csv` | extension `.csv` |
+| Code summary | `repos/payments-api/`, `repos/webhook-router/` | directory walk |
+| SigmaParser | `detections/helix-suspicious-login.yml` | content-sniff: `logsource`+`detection` |
+| IAMParser | `iam/prod-s3-policy.json` | content-sniff: `Version`+`Statement` |
+| ControlFrameworkParser | `compliance/controls-soc2.json` | content-sniff: `framework`+`controls` |
+
+The PDF, DOCX, and PNG files are generated from their markdown sources by
+`scripts/_gen_fixtures.py`. Run it once before ingesting:
+
+```bash
+python -m scripts._gen_fixtures
 ```
 
 ## Deliberately-planted edge cases
@@ -101,7 +132,10 @@ Each item below maps to a Tank feature it stresses:
 | `architecture/`, `repos/*/README.md`, `repos/*/docs/*` | `architecture` |
 | `repos/*/` (rest of tree) | `code` (single doc per repo, summarized) |
 | `cmdb/*.csv`, `cmdb/*.json` | `cmdb` |
+| `detections/*.yml` | `architecture` (Sigma rules, auto-detected) |
+| `iam/*.json` | `cmdb` (IAM policies, auto-detected) |
 | `people/`, `policies/`, `runbooks/`, `postmortems/`, `seeds/` | `people_process` |
+| `compliance/*.json` | `people_process` (control frameworks, auto-detected) |
 
 ## Safety
 
@@ -112,6 +146,6 @@ Each item below maps to a Tank feature it stresses:
   test key.
 - No real customer names, no real service URLs, no real people.
 
-If you want to point Tank at your actual employer, **wipe these
-fixtures first** (`rm -rf fixtures/`) and re-set `TANK_INTERNAL_TLD` in
+If you want to point Tank at your actual employer, **wipe this sample data
+first** (`rm -rf sample_data/`) and re-set `TANK_INTERNAL_TLD` in
 `.env` to your real internal TLD.
