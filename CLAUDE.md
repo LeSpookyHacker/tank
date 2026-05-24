@@ -133,6 +133,12 @@ image parser calls Sonnet vision (`app/claude/extractor.py::extract_from_diagram
 and stashes the result in `meta["vision"]`; the extractor module
 persists it without re-prompting. All parsers extend `_base.py`.
 
+Entity extraction (`app/claude/extractor.py`) is rate-limited by a
+module-level `threading.Semaphore(2)` — at most 2 Claude calls in
+flight across all concurrent background ingest tasks. On 429 responses
+it retries with delays `[5, 15, 30, 60, 120]` seconds before giving up.
+This is especially important during bulk folder ingests.
+
 Every extracted entity carries `provenance ∈ {source, inferred, claim,
 user}` — set at upsert time, shown as a trust badge in the UI, and
 queryable. `source` = stated in a doc; `inferred` = Sonnet concluded
@@ -209,6 +215,9 @@ lens.**
 | Add ownership / personal-dashboard signal | `app/routers/me.py::_risk_score_for(entity_id)` — append to the heuristic mix |
 | Add a continuous-ingestion connector | `app/ingest/watchers/<kind>.py` implementing `scan(watcher_row) -> ScanResult` + register in `watchers/__init__.py::dispatch`. Kinds: `folder`, `ics_url`, `cve_feed`, `github_repo`. Users enable via Settings → Integrations. |
 | Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt) and `build_kb_block(hits, entity_cards)` (retrieved context). Both return `{"cache_control": {"type": "ephemeral"}}` blocks. |
+| Change smart auto-categorization rules | `app/ingest/auto_categorize.py` — `suggest_category(path)` (path-keyword + content-sniff heuristics) and `walk_directory(root)` (returns `(path, category)` pairs, skipping hidden/.git/node_modules). Mirrors these heuristics in `app/templates/ingest.html` JS (`guessCategory`). |
+| Add or switch projects | `app/storage/projects_store.py` + `app/routers/projects.py`. `project_id TEXT` FK added to 7 tables (documents, chunks, entities, relationships, reports, conversations, messages). Active project set in `app_state`; the project switcher in the topnav reads it from `/api/projects`. |
+| Change the side-panel chat UI | `app/templates/base.html` — the entire panel markup + ~180-line JS IIFE lives at the bottom of the `<script>` block. Panel is suppressed on `/chat` and `/onboarding` via `SUPPRESS_PATHS`. Width (240–600px), open/closed state, and `panelConvId` persist in `localStorage`. `--topbar-h` and `--footer-h` are set at runtime so the panel height fits exactly between them. CSS in `app/static/style.css` under `/* ── Side panel layout ──`. |
 
 ## Living artifacts pattern (Phase 12+)
 
@@ -325,7 +334,7 @@ on a laptop that sleeps. Key durable + operational pieces:
   reads `.env`. Forces `TANK_ENV=prod` regardless of `.env` to
   disable `--reload` under a supervisor.
 
-## Theme
+## Theme + client-side state
 
 Nyx-inspired theme in `app/static/style.css` — purple-tinted dark
 default + light override via `html.theme-light` class. Toggle button
@@ -334,6 +343,16 @@ in the navbar (`app/templates/base.html`) sets `localStorage`
 `<head>` reads the saved preference before body renders to prevent
 flash. Loads Inter + JetBrains Mono from Google Fonts; falls back
 gracefully if blocked.
+
+Other `localStorage` keys used across the UI:
+
+| Key | Purpose |
+| --- | --- |
+| `tank-theme` | `"dark"` \| `"light"` |
+| `tank-panel-open` | `"true"` \| `"false"` — side panel open/closed |
+| `tank-panel-width` | integer px (240–600) — side panel width |
+| `tank-panel-conv` | conversation ID for the persistent side panel |
+| `tank-hints-dismissed` | `"1"` — contextual hints popup on Today page |
 
 ## Hard rules
 
