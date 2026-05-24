@@ -19,6 +19,17 @@
     <li>Wipe everything with one button in Settings.</li>
   </ul>
 
+  <div class="sample-callout" id="sample-callout">
+    <span class="sample-callout-label">Testing?</span>
+    Load the <strong>Helix Robotics</strong> synthetic dataset — a fictional
+    company invented for testing purposes only. No real data.
+    <button class="btn-sample" onclick="loadSampleData()">Load sample data →</button>
+  </div>
+  <div class="sample-loaded-notice" id="sample-loaded-notice" hidden>
+    ⚠ Helix Robotics sample data loaded — entirely fictional, for testing only.
+    Fields are pre-filled; adjust anything you like before finishing.
+  </div>
+
   <h2>Step 1 — Your role</h2>
   <div class="role-pick">
     <button class="role-btn" data-role="ic" onclick="pickRole('ic')">Staff/Sr IC</button>
@@ -123,6 +134,22 @@ async function completeOnboarding() {
   });
   await fetch("/api/onboarding/complete", {method: "POST"});
   window.location = "/";
+}
+
+const SAMPLE_SCOPE = `I'm joining Helix Robotics as a Senior Security Engineer on the Detection & Response team. Helix builds payments and identity infrastructure for the robotics OEM market — Stripe + Auth0 for industrial automation customers. Around 80 employees, Series B (closed Q3 2025).
+
+My manager is Priya Shah (Director of Engineering, Platform). Key collaborators: Marcus Chen (Staff Eng, Identity team), Sam Liu (Payments), Alice Tanaka (SRE Lead), Raj Patel (FinOps).
+
+90-day focus: (1) stand up vulnerability management on Snyk, (2) audit IAM in prod AWS account and kill long-lived keys, (3) build a threat model for the payments path. Stack: AWS EKS (us-west-2), RDS PostgreSQL, DynamoDB, S3, Okta SSO, Vault for secrets. Internal TLD is helix.internal.`;
+
+function loadSampleData() {
+  pickRole("ic");
+  document.getElementById("scope-input").value = SAMPLE_SCOPE;
+  document.getElementById("tld-input").value = "helix.internal";
+  document.getElementById("digest-input").value = "08:00";
+  document.getElementById("reflect-input").value = "fri";
+  document.getElementById("sample-callout").hidden = true;
+  document.getElementById("sample-loaded-notice").hidden = false;
 }
 
 // Pre-select "Both" by default.

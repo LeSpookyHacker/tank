@@ -1059,3 +1059,45 @@ html.theme-light .cost-badge {
   font-size: 0.8rem; color: var(--text-mute);
 }
 .project-menu-footer a { color: var(--link); }
+
+/* ── Sample-data onboarding callout ─────────────────────────── */
+.sample-callout {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed rgb(139 92 246 / 0.45);
+  border-radius: 8px;
+  background: rgb(139 92 246 / 0.06);
+  font-size: 0.875rem;
+  color: var(--fg-dim, #a0aec0);
+}
+.sample-callout-label {
+  font-weight: 600;
+  color: var(--nyx-purple, #a78bfa);
+  margin-right: 0.25rem;
+}
+.btn-sample {
+  margin-left: auto;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid rgb(139 92 246 / 0.5);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nyx-purple, #a78bfa);
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn-sample:hover { background: rgb(139 92 246 / 0.15); }
+.sample-loaded-notice {
+  margin-bottom: 1.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  background: rgb(245 158 11 / 0.12);
+  border: 1px solid rgb(245 158 11 / 0.35);
+  color: #f59e0b;
+  font-size: 0.875rem;
+}
