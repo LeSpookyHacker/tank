@@ -43,7 +43,7 @@
       <a href="/postmortems">PMs</a>
       <a href="/compliance">Compliance</a>
       <a href="/reports">Reports</a>
-      <a href="/chat">Chat</a>
+      <a href="/chat" id="chat-nav-link" onclick="return panelNavClick(event)">Chat</a>
       <a href="/me">Me</a>
       <a href="/settings">Settings</a>
       <a href="/ingest">Ingest</a>
@@ -77,9 +77,30 @@
     </button>
   </header>
 
-  <main class="main">
-    {% block content %}{% endblock %}
-  </main>
+  <div class="app-layout" id="app-layout">
+    <main class="main" id="main-content">
+      {% block content %}{% endblock %}
+    </main>
+    <aside class="side-panel" id="side-panel">
+      <div class="panel-resize-handle" id="panel-resize-handle"></div>
+      <div class="panel-header">
+        <span class="panel-title">▰ Chat</span>
+        <a class="panel-fullscreen" id="panel-fullscreen" href="/chat" title="Open full chat">⤢</a>
+        <button class="panel-close-btn" onclick="panelToggle()" title="Collapse panel">✕</button>
+      </div>
+      <div class="panel-messages" id="panel-messages"></div>
+      <div class="panel-stream" id="panel-stream" hidden>
+        <div class="panel-stream-body" id="panel-stream-body"></div>
+      </div>
+      <form class="panel-composer" id="panel-composer" onsubmit="return panelSend(event)">
+        <textarea id="panel-input" rows="2" placeholder="Ask Tank anything…"></textarea>
+        <button type="submit" id="panel-send-btn" class="panel-send-btn">↑</button>
+      </form>
+    </aside>
+  </div>
+  <button class="panel-reopen-tab" id="panel-reopen-tab" onclick="panelToggle()" hidden>
+    Chat ▰
+  </button>
 
   <footer class="footer">
     <span>Tank · local-first · {{ "claude-sonnet-4-6" }}</span>
@@ -152,6 +173,195 @@
 
       document.addEventListener("click", function (e) {
         if (!switcher.contains(e.target)) menu.hidden = true;
+      });
+    })();
+
+    // ---- Side panel ----
+    // Always define panelNavClick/panelToggle so the Chat nav link's onclick
+    // never throws a ReferenceError, even on suppressed pages.
+    window.panelNavClick = function () { return true; };
+    window.panelToggle = function () {};
+
+    (function () {
+      var SUPPRESS_PATHS = ['/chat', '/onboarding'];
+      var panel = document.getElementById('side-panel');
+      var reopenTab = document.getElementById('panel-reopen-tab');
+      var handle = document.getElementById('panel-resize-handle');
+      var msgs = document.getElementById('panel-messages');
+      var stream = document.getElementById('panel-stream');
+      var streamBody = document.getElementById('panel-stream-body');
+      var input = document.getElementById('panel-input');
+      var sendBtn = document.getElementById('panel-send-btn');
+      var fullscreenLink = document.getElementById('panel-fullscreen');
+
+      if (!panel) return;
+
+      var suppressed = SUPPRESS_PATHS.some(function (p) { return location.pathname.startsWith(p); });
+      if (suppressed) { panel.classList.add('panel-suppressed'); if (reopenTab) reopenTab.hidden = true; return; }
+
+      var topbar = document.querySelector('.topbar');
+      if (topbar) {
+        document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
+      }
+      var footer = document.querySelector('.footer');
+      if (footer) {
+        document.documentElement.style.setProperty('--footer-h', footer.offsetHeight + 'px');
+      }
+
+      var savedOpen = localStorage.getItem('tank-panel-open') !== 'false';
+      var savedW = parseInt(localStorage.getItem('tank-panel-width') || '340', 10);
+      panel.style.setProperty('--panel-w', savedW + 'px');
+      if (!savedOpen) { panel.classList.add('collapsed'); if (reopenTab) reopenTab.hidden = false; }
+
+      var panelConvId = localStorage.getItem('tank-panel-conv');
+      var panelSending = false;
+
+      function appendMsg(role, text) {
+        var el = document.createElement('div');
+        el.className = 'panel-msg panel-msg-' + role;
+        var body = document.createElement('div');
+        body.className = 'panel-msg-body';
+        body.textContent = text;
+        el.appendChild(body);
+        msgs.appendChild(el);
+        msgs.scrollTop = msgs.scrollHeight;
+      }
+
+      function scrollMsgs() { msgs.scrollTop = msgs.scrollHeight; }
+
+      window.panelToggle = function () {
+        var isCollapsed = panel.classList.toggle('collapsed');
+        if (reopenTab) reopenTab.hidden = !isCollapsed;
+        localStorage.setItem('tank-panel-open', String(!isCollapsed));
+      };
+
+      window.panelNavClick = function (e) {
+        if (suppressed) return true;
+        e.preventDefault();
+        panelToggle();
+        return false;
+      };
+
+      handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        var startX = e.clientX;
+        var startW = panel.offsetWidth;
+        function onMove(ev) {
+          var newW = Math.max(240, Math.min(600, startW - (ev.clientX - startX)));
+          panel.style.setProperty('--panel-w', newW + 'px');
+          localStorage.setItem('tank-panel-width', String(newW));
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      function initConv() {
+        if (panelConvId) {
+          return fetch('/api/conversations/' + panelConvId)
+            .then(function (r) {
+              if (!r.ok) throw new Error('gone');
+              return r.json();
+            })
+            .then(function (d) {
+              (d.messages || []).forEach(function (m) {
+                var text = m.display_view || m.redacted_view || '';
+                if (text) appendMsg(m.role, text);
+              });
+              if (fullscreenLink) fullscreenLink.href = '/chat?conv=' + panelConvId;
+            })
+            .catch(function () {
+              panelConvId = null;
+              return createConv();
+            });
+        }
+        return createConv();
+      }
+
+      function createConv() {
+        return fetch('/api/conversations', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({}),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            panelConvId = d.id;
+            localStorage.setItem('tank-panel-conv', panelConvId);
+            if (fullscreenLink) fullscreenLink.href = '/chat?conv=' + panelConvId;
+          });
+      }
+
+      initConv().catch(function () {});
+
+      window.panelSend = function (e) {
+        e.preventDefault();
+        var content = input.value.trim();
+        if (!content || panelSending) return false;
+
+        panelSending = true;
+        input.value = '';
+        input.disabled = true;
+        sendBtn.disabled = true;
+
+        appendMsg('user', content);
+        streamBody.textContent = '';
+        stream.hidden = false;
+        scrollMsgs();
+
+        fetch('/api/conversations/' + panelConvId + '/messages', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: content}),
+        }).then(function () {
+          var es = new EventSource('/api/conversations/' + panelConvId + '/stream');
+
+          es.addEventListener('text_delta', function (ev) {
+            streamBody.textContent += JSON.parse(ev.data).text;
+            scrollMsgs();
+          });
+
+          es.addEventListener('done', function () {
+            es.close();
+            var finalText = streamBody.textContent;
+            stream.hidden = true;
+            streamBody.textContent = '';
+            if (finalText) appendMsg('assistant', finalText);
+            panelSending = false;
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+          });
+
+          es.addEventListener('error', function () {
+            es.close();
+            stream.hidden = true;
+            appendMsg('assistant', '[Connection error — try again]');
+            panelSending = false;
+            input.disabled = false;
+            sendBtn.disabled = false;
+          });
+        }).catch(function () {
+          stream.hidden = true;
+          appendMsg('assistant', '[Error sending message]');
+          panelSending = false;
+          input.disabled = false;
+          sendBtn.disabled = false;
+        });
+
+        return false;
+      };
+
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          document.getElementById('panel-composer').requestSubmit();
+        }
+      });
+      input.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = Math.min(120, this.scrollHeight) + 'px';
       });
     })();
   </script>

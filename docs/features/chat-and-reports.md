@@ -5,10 +5,23 @@ report kinds that get re-runnable across your tenure.
 
 ---
 
-## Chat (`/chat`)
+## Chat
 
-A streaming chat interface with full tool use. The chat loop sees
-your KB through 13 tools (see below); Sonnet picks which to call.
+Tank's chat is available two ways:
+
+**Side panel** — a persistent panel pinned to the right of every page
+(except `/chat` and `/onboarding`, where it's suppressed). Collapsible
+to a "Chat ▰" pill, resizable by dragging the left edge (240–600px),
+and the conversation is preserved in `localStorage` across navigation.
+Click "⤢" in the panel header to jump to the full-screen chat with the
+same conversation.
+
+**Full-screen** (`/chat`) — dedicated chat page for longer sessions.
+The side panel is hidden here since the page IS the chat.
+
+Both surfaces use the same streaming chat interface with full tool use.
+The chat loop sees your KB through 13 tools (see below); Sonnet picks
+which to call.
 
 ### What makes it work
 

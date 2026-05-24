@@ -63,6 +63,10 @@ them even if asked.
 
 ### Chat over the KB
 
+- **Persistent side panel** on every page — always accessible without leaving
+  your current view, collapsible to a pill, resizable by dragging the left
+  edge, conversation preserved across navigation. Full-screen chat available
+  at `/chat` for focused sessions.
 - SSE-streamed chat with 13 tools (search KB, get entity, list relationships,
   find control gaps, get threat model, find decisions, find detections,
   find IAM risks, search lessons, …).

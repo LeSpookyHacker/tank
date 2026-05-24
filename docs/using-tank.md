@@ -222,7 +222,17 @@ Each bullet becomes a lesson; tags make them retrievable.
 
 ## Asking Tank a question (anytime)
 
-`/chat` is the universal interface. Tank has 13 tools:
+Tank's chat is available two ways:
+
+- **Side panel** (default) — a persistent panel on the right of every page.
+  Click ✕ to collapse it to a "Chat ▰" pill at the bottom-right; click the
+  pill to reopen. Drag the left edge to resize. The conversation persists
+  across page navigation. Click "⤢" in the panel header to pop into the
+  full-screen chat with that same conversation.
+- **Full-screen** (`/chat`) — dedicated chat page; the side panel is
+  suppressed here.
+
+Tank has 13 tools:
 
 - `search_kb(query)` — hybrid retrieval over your KB
 - `get_entity(type, name)` / `list_entities(type)` — graph access
