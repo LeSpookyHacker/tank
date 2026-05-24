@@ -55,6 +55,7 @@ async def ingest_file(background_tasks: BackgroundTasks,
     # Persist upload to a temp file; ingest reads it from there.
     tmpdir = tempfile.mkdtemp(prefix="tank-upload-")
     target = Path(tmpdir) / (file.filename or "upload")
+    target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
 
