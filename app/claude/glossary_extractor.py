@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.search import hybrid_search
 from app.schemas import GlossaryExtraction
 from app.storage import glossary_store
@@ -59,6 +59,7 @@ def discover(sample_size: int = 30) -> list[str]:
             ]}],
             output_format=GlossaryExtraction,
         )
+        log_token_usage("glossary.discover", MODEL, getattr(resp, "usage", None))
         parsed = getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.warning("glossary discover failed: %s", exc)

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import get_card
 from app.redact.engine import rehydrate
 from app.redact.store import load_rehydration_map
@@ -82,6 +82,7 @@ def _generate(service_id: str | None, threat_kind: str | None,
                        ]}],
             output_format=TabletopScenario,
         )
+        log_token_usage("tabletop.generate", MODEL, getattr(resp, "usage", None))
         return getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.warning("tabletop generation failed: %s", exc)

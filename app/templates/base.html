@@ -28,6 +28,7 @@
 
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -35,19 +36,7 @@
       <span class="brand-mark">▰</span>
       <span class="brand-name">Tank</span>
     </a>
-    <nav class="topnav">
-      <a href="/">Today</a>
-      <a href="/entities">Entities</a>
-      <a href="/threat-models">Threats</a>
-      <a href="/design-reviews">Reviews</a>
-      <a href="/postmortems">PMs</a>
-      <a href="/compliance">Compliance</a>
-      <a href="/reports">Reports</a>
-      <a href="/chat" id="chat-nav-link" onclick="return panelNavClick(event)">Chat</a>
-      <a href="/me">Me</a>
-      <a href="/settings">Settings</a>
-      <a href="/ingest">Ingest</a>
-    </nav>
+    <span class="topbar-spacer"></span>
     {% if state %}
     <div class="role-toggle" data-current="{{ state.role_mode.value }}">
       <span class="role-pill" data-role="ic">Staff IC</span>
@@ -65,7 +54,6 @@
       <div class="project-menu" id="project-menu" hidden></div>
     </div>
 
-    <span id="cost-badge" class="cost-badge" title="Lifetime API cost (claude-sonnet-4-6)">$<span id="cost-value">—</span></span>
     <button id="theme-toggle"
             class="theme-toggle"
             type="button"
@@ -78,6 +66,42 @@
   </header>
 
   <div class="app-layout" id="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <nav class="sidebar-nav">
+        <div class="nav-group">
+          <div class="nav-group-label">Workspace</div>
+          <a class="nav-item" href="/">Today</a>
+          <a class="nav-item" href="/entities">Entities</a>
+          <a class="nav-item" href="/chat" id="chat-nav-link" onclick="return panelNavClick(event)">Chat</a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">Pipeline</div>
+          <a class="nav-item" href="/ingest">Ingest</a>
+          <a class="nav-item" href="/reports">Reports</a>
+          <a class="nav-item" href="/dfd">DFD Analysis</a>
+          <a class="nav-item" href="/threat-models">Threat Models</a>
+          <a class="nav-item" href="/attack-surface">Attack Surface</a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">Workstreams</div>
+          <a class="nav-item" href="/design-reviews">Design Reviews</a>
+          <a class="nav-item" href="/postmortems">Postmortems</a>
+          <a class="nav-item" href="/tabletops">Tabletops</a>
+          <a class="nav-item" href="/compliance">Compliance</a>
+          <a class="nav-item" href="/decisions">Decisions</a>
+          <a class="nav-item" href="/lessons">Lessons</a>
+          <a class="nav-item" href="/glossary">Glossary</a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">System</div>
+          <a class="nav-item" href="/me">Me</a>
+          <a class="nav-item" href="/settings">Settings</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="cost-badge" class="cost-badge" title="Lifetime API cost (claude-sonnet-4-6)">$<span id="cost-value">—</span></span>
+      </div>
+    </aside>
     <main class="main" id="main-content">
       {% block content %}{% endblock %}
     </main>
@@ -362,6 +386,16 @@
       input.addEventListener('input', function () {
         this.style.height = 'auto';
         this.style.height = Math.min(120, this.scrollHeight) + 'px';
+      });
+    })();
+
+    // Sidebar active state — highlight the current page link.
+    (function () {
+      var path = location.pathname.replace(/\/$/, '') || '/';
+      document.querySelectorAll('.sidebar-nav .nav-item').forEach(function (a) {
+        var href = a.getAttribute('href').replace(/\/$/, '') || '/';
+        var isActive = href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+        if (isActive) a.classList.add('active');
       });
     })();
   </script>

@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import HAIKU_MODEL, get_client, load_prompt, log_token_usage
 from app.schemas import LessonExtraction
 from app.storage import lessons_store
 
@@ -75,7 +75,7 @@ def _run(*, scope_label: str, body: str,
         return None
     try:
         resp = client.messages.parse(
-            model=MODEL,
+            model=HAIKU_MODEL,
             max_tokens=2048,
             system=[{"type": "text", "text": prompt,
                      "cache_control": {"type": "ephemeral"}}],
@@ -86,6 +86,7 @@ def _run(*, scope_label: str, body: str,
             ]}],
             output_format=LessonExtraction,
         )
+        log_token_usage("lessons.extract", HAIKU_MODEL, getattr(resp, "usage", None))
         return getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.warning("lesson extraction failed for %s: %s", scope_label, exc)

@@ -12,7 +12,9 @@ def insert(*, kind: str, title: str, content_md: str,
            content_md_redacted: str, role_mode: str, model: str,
            scope: dict | None = None,
            tokens_in: int | None = None,
-           tokens_out: int | None = None) -> str:
+           tokens_out: int | None = None,
+           cache_read_in: int | None = None,
+           cache_create_in: int | None = None) -> str:
     rid = uuid.uuid4().hex
     conn = get_conn()
     with LOCK:
@@ -20,11 +22,12 @@ def insert(*, kind: str, title: str, content_md: str,
             "INSERT INTO reports "
             "(id, kind, scope_json, role_mode, model, title, "
             " content_md, content_md_redacted, tokens_in, tokens_out, "
-            " created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " cache_read_in, cache_create_in, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (rid, kind, json.dumps(scope or {}), role_mode, model,
              title, content_md, content_md_redacted,
-             tokens_in, tokens_out, time.time()),
+             tokens_in, tokens_out, cache_read_in, cache_create_in,
+             time.time()),
         )
     return rid
 

@@ -506,6 +506,33 @@ class PhilosophyDoc(BaseModel):
     open_questions: list[str] = Field(default_factory=list)
 
 
+# ---------- DFD Threat Modeling (STRIDE) ----------
+
+class DFDElement(BaseModel):
+    id: str
+    kind: str  # process | datastore | external_entity | dataflow | trust_boundary
+    label: str
+
+
+class STRIDEThreat(BaseModel):
+    element_id: str
+    stride_category: str  # Spoofing | Tampering | Repudiation | Information Disclosure | Denial of Service | Elevation of Privilege
+    severity: str  # Critical | High | Medium | Low
+    description: str
+    mitigation: str
+
+
+class DFDAnalysis(BaseModel):
+    elements: list[DFDElement] = Field(default_factory=list)
+    threats: list[STRIDEThreat] = Field(default_factory=list)
+    annotated_mermaid: str = ""
+
+
+class DFDImprovement(BaseModel):
+    improved_mermaid: str = ""
+    suggestions: list[str] = Field(default_factory=list)
+
+
 # ---------- Phase 13/14: additional NudgeKind values ----------
 # (Kept as plain strings — NudgeKind Literal stays advisory; the DB
 # accepts any string and the dispatch table is the source of truth.)

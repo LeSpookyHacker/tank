@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Tank — DFD Analysis{% endblock %}
+
+{% block content %}
+<section class="report-detail">
+  <header class="report-header">
+    <a href="/dfd" class="dim">← DFD analyses</a>
+    <h1>DFD Threat Analysis</h1>
+    <div class="report-meta">
+      <span>created: {{ dfd.created_at | int }}</span>
+      <span>threats: {{ threats | length }}</span>
+      {% if dfd.tokens_in %}<span>tokens in: {{ dfd.tokens_in }}</span>{% endif %}
+    </div>
+    <div class="report-actions">
+      <button class="btn-ghost" onclick="window.print()">↓ PDF</button>
+      <a class="btn-ghost" href="/api/dfd/{{ dfd.id }}/export?format=mmd" download="{{ dfd.id }}.mmd">↓ Mermaid</a>
+      <a class="btn-ghost" href="/api/dfd/{{ dfd.id }}/export?format=json" download="{{ dfd.id }}.json">↓ JSON</a>
+      <button class="btn-ghost" id="reanalyze-btn" onclick="reanalyze()">↺ Re-analyze</button>
+      <button class="btn-secondary" id="improve-btn" onclick="improveDFD()">✦ Improve diagram</button>
+    </div>
+  </header>
+
+  {% if annotated_mermaid %}
+  <div class="dfd-diagram-section">
+    <h2>Annotated Diagram</h2>
+    <div class="dfd-diagram-wrap">
+      <div class="mermaid" id="dfd-mermaid-diagram">{{ annotated_mermaid }}</div>
+    </div>
+    <div class="dfd-legend">
+      <span class="legend-item"><span class="sev-dot sev-critical"></span>Critical</span>
+      <span class="legend-item"><span class="sev-dot sev-high"></span>High</span>
+      <span class="legend-item"><span class="sev-dot sev-medium"></span>Medium</span>
+      <span class="legend-item"><span class="sev-dot sev-low"></span>Low</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if threats %}
+  <div class="dfd-threats-section">
+    <h2>Identified Threats</h2>
+    <table class="dfd-threat-table">
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Category</th>
+          <th>Element</th>
+          <th>Description</th>
+          <th>Mitigation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in threats %}
+        <tr class="threat-row sev-row-{{ t.severity | lower }}">
+          <td><span class="sev-badge sev-{{ t.severity | lower }}">{{ t.severity }}</span></td>
+          <td><code>{{ t.stride_category }}</code></td>
+          <td><code>{{ t.element_id }}</code></td>
+          <td>{{ t.description }}</td>
+          <td>{{ t.mitigation }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">✓</div>
+    <h2>No significant threats identified</h2>
+    <p>The diagram may be too abstract or Tank found no security-relevant data flows. Try adding trust boundaries and data stores.</p>
+  </div>
+  {% endif %}
+
+  {% if elements %}
+  <details style="margin-top:1.5rem">
+    <summary class="dim" style="cursor:pointer">Parsed elements ({{ elements | length }})</summary>
+    <ul class="report-list" style="margin-top:0.5rem">
+      {% for el in elements %}
+      <li><code>{{ el.id }}</code> · {{ el.kind }} · {{ el.label }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  <!-- Improve DFD output (hidden until improve runs) -->
+  <div id="improve-section" class="dfd-improve-section" hidden>
+    <h2>Improved Diagram</h2>
+    <p class="dim" id="improve-status"></p>
+    <ul id="suggestions-list" class="dfd-suggestions"></ul>
+    <div class="dfd-diagram-wrap">
+      <div class="mermaid" id="improved-diagram"></div>
+    </div>
+    <div style="margin-top:0.75rem;display:flex;gap:0.5rem">
+      <button class="btn-secondary" onclick="analyzeImproved()">Run STRIDE on improved diagram</button>
+      <button class="btn-ghost" onclick="copyImproved()">Copy Mermaid</button>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  var _improvedSrc = "";
+  var _dfdId = {{ dfd.id | tojson }};
+  var _mermaidSrc = {{ (dfd.mermaid_src or "") | tojson }};
+
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: document.documentElement.classList.contains('theme-light') ? 'default' : 'dark',
+    securityLevel: 'loose',
+  });
+
+  async function reanalyze() {
+    var btn = document.getElementById('reanalyze-btn');
+    btn.disabled = true;
+    btn.textContent = 'Re-analyzing…';
+    try {
+      var fd = new FormData();
+      fd.append('mermaid_src', _mermaidSrc);
+      fd.append('force', 'true');
+      var r = await fetch('/api/dfd/analyze', {method: 'POST', body: fd});
+      var d = await r.json();
+      if (r.ok) {
+        window.location.href = '/dfd/' + d.dfd_id;
+      } else {
+        alert('Re-analyze failed: ' + (d.detail || r.status));
+        btn.disabled = false; btn.textContent = '↺ Re-analyze';
+      }
+    } catch(e) {
+      alert('Request failed: ' + e.message);
+      btn.disabled = false; btn.textContent = '↺ Re-analyze';
+    }
+  }
+
+  async function improveDFD() {
+    var btn = document.getElementById('improve-btn');
+    var section = document.getElementById('improve-section');
+    var status = document.getElementById('improve-status');
+    btn.disabled = true;
+    btn.textContent = 'Improving…';
+    status.textContent = 'Querying knowledge base and asking Claude to fill in gaps…';
+    section.hidden = false;
+    document.getElementById('suggestions-list').innerHTML = '';
+    document.getElementById('improved-diagram').innerHTML = '';
+
+    try {
+      var r = await fetch('/api/dfd/' + _dfdId + '/improve', {method: 'POST'});
+      var d = await r.json();
+      if (!r.ok) {
+        status.textContent = 'Error: ' + (d.detail || r.status);
+        btn.disabled = false; btn.textContent = '✦ Improve diagram';
+        return;
+      }
+      _improvedSrc = d.improved_mermaid;
+      var ul = document.getElementById('suggestions-list');
+      (d.suggestions || []).forEach(function(s) {
+        var li = document.createElement('li'); li.textContent = s; ul.appendChild(li);
+      });
+      status.textContent = (d.suggestions || []).length + ' improvement(s) applied:';
+
+      // Render improved diagram via mermaid
+      var el = document.getElementById('improved-diagram');
+      el.removeAttribute('data-processed');
+      el.textContent = _improvedSrc;
+      await mermaid.run({nodes: [el]});
+    } catch(e) {
+      status.textContent = 'Request failed: ' + e.message;
+    }
+    btn.disabled = false; btn.textContent = '✦ Improve diagram';
+  }
+
+  function copyImproved() {
+    if (!_improvedSrc) return;
+    navigator.clipboard.writeText(_improvedSrc).then(function() {
+      alert('Improved Mermaid copied to clipboard.');
+    });
+  }
+
+  function analyzeImproved() {
+    if (!_improvedSrc) return;
+    var fd = new FormData();
+    fd.append('mermaid_src', _improvedSrc);
+    fetch('/api/dfd/analyze', {method: 'POST', body: fd})
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.dfd_id) window.location.href = '/dfd/' + d.dfd_id; })
+      .catch(function(e) { alert('Failed: ' + e.message); });
+  }
+</script>
+{% endblock %}

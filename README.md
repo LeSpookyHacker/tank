@@ -27,13 +27,16 @@ rest of your tenure. You feed it what you're given (architecture PDFs, repo
 paths, CMDB exports, org-chart screenshots, runbooks, postmortems, Sigma
 detection rules, IAM policies, control frameworks) and it produces:
 
-- Structured recon reports you can re-run weekly.
+- Structured recon reports you can re-run weekly — rendered as Markdown with PDF and download export.
 - **Living, versioned threat models** that detect when architecture drifts
   and prompt regeneration.
 - A **decisions log** with kinds (design choice, accepted risk, deferred fix,
   security invariant), expiry tracking, and reaffirmation flows.
 - Authoring scaffolds for **design reviews**, **postmortems**, and
   **tabletop exercises** — all extracting lessons into a searchable DB.
+- **DFD threat modeling** — paste or upload a Data Flow Diagram; Tank runs
+  STRIDE analysis, annotates the diagram with severity colors, and generates
+  a remediation table. Incomplete diagrams can be improved using KB context.
 - An **ATT&CK coverage map** + **compliance evidence collection** +
   **IAM policy translator** + **attack-surface ledger** over your ingested
   data.
@@ -100,6 +103,29 @@ your morning digest.
 - **Compliance evidence collection** — ingest a control framework; Tank
   finds matching evidence in the KB; surfaces gaps.
 - **Attack-surface ledger** — weekly Endpoint snapshot + diff vs prior.
+
+### DFD Threat Modeling
+
+Submit a Data Flow Diagram — as Mermaid text, a `.mmd` file, or a PNG/JPG — and
+Tank runs automated STRIDE threat modeling:
+
+- **Identifies STRIDE threats** (Spoofing, Tampering, Repudiation, Information
+  Disclosure, Denial of Service, Elevation of Privilege) per element with
+  Critical / High / Medium / Low severity.
+- **Annotates the diagram** — returns the original Mermaid source with `style`
+  directives that color-code threatened nodes by severity.
+- **Remediation table** — concrete, element-specific mitigations alongside each
+  threat.
+- **Improve incomplete diagrams** — if your DFD is missing trust boundaries,
+  data stores, or services, Tank queries its KB and asks Claude to fill in the
+  gaps, then shows you a bullet list of what was added. You can immediately
+  run STRIDE on the improved diagram.
+- **Re-analyze** — bypass the SHA-256 cache to re-run STRIDE after updating the
+  prompt or ingesting new architecture docs.
+- Export the annotated diagram as `.mmd` or full analysis as `.json`.
+
+Access via Ingest → *"Have a Data Flow Diagram?"* callout, or the **DFD Analysis**
+link in the sidebar.
 
 ### Second brain (Phase 15)
 
@@ -285,9 +311,11 @@ to the system font stack — UI still works, looks plainer.
 ## Stack
 
 - **Python 3.11+**, FastAPI, Jinja2 + HTMX, Server-Sent Events for streaming.
-- **Anthropic SDK** — `claude-sonnet-4-6` only (extraction, chat, every
-  report, vision, partner mode). SDK retry tuned (`max_retries=4`) and
-  per-request timeout configurable.
+- **Anthropic SDK** — `claude-sonnet-4-6` for chat, reports, DFD analysis,
+  threat models, and all reasoning tasks; `claude-haiku-4-5-20251001` for
+  structured-extraction tasks (entity extraction, meeting prep, lesson/journal
+  extraction). SDK retry tuned (`max_retries=4`) and per-request timeout
+  configurable.
 - **SQLite** (WAL) with `sqlite-vec` for vectors and FTS5 for keyword search.
 - **`sentence-transformers/all-MiniLM-L6-v2`** for local embeddings — no
   remote embedding API.
@@ -312,6 +340,7 @@ to the system font stack — UI still works, looks plainer.
 | `TANK_TIMEZONE` | no | system | IANA TZ name; **set on a hosted VM** (which is usually UTC) |
 | `TANK_API_MAX_RETRIES` | no | `4` | Anthropic SDK retry budget |
 | `TANK_API_TIMEOUT_SECONDS` | no | `600` | Per-request ceiling |
+| `TANK_DEBUG_TOKENS` | no | off | Set `1` to log per-call token counts (in/out/cache_read/cache_create) to the console |
 
 ---
 
@@ -391,6 +420,11 @@ See `sample_data/README.md` for the full scenario and file list.
 | 15 | ✅ | Second brain (lessons, glossary, ownership, philosophy) |
 | Ops | ✅ | systemd, healthz, weekly backup, retries, durable scheduler state, wipe phrase |
 | UI | ✅ | Nyx theme + day/night toggle |
+| 2.1 | ✅ | Markdown rendering in reports + PDF and Markdown export |
+| 2.2 | ✅ | Token cost counter fix — all Claude calls tracked across 3 tables |
+| 2.3 | ✅ | Claude API optimization — Haiku for extraction tasks, token debug flag |
+| 3.1 | ✅ | App redesign — grouped left sidebar nav, empty states |
+| 3.2 | ✅ | DFD threat modeling — STRIDE analysis, diagram annotation, KB-aware improvement |
 
 Build history with tradeoffs and known gaps: [HISTORY.md](HISTORY.md).
 

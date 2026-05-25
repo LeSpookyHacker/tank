@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.iam import find_risks
 from app.schemas import IAMAuditReport, IAMPolicyRisk
 from app.storage import entities_store
@@ -52,6 +52,7 @@ def explain(policy_id: str) -> dict:
             messages=[{"role": "user",
                        "content": [{"type": "text", "text": body_text}]}],
         )
+        log_token_usage("iam_translator.explain", MODEL, getattr(resp, "usage", None))
         explanation = ""
         for block in resp.content or []:
             t = getattr(block, "text", None)

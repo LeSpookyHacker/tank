@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name
 from app.schemas import DecisionExtraction
 from app.storage import decisions_store
@@ -70,6 +70,7 @@ def extract_from_doc(doc_id: str) -> DecisionExtraction | None:
                        ]}],
             output_format=DecisionExtraction,
         )
+        log_token_usage("decisions.extract", MODEL, getattr(resp, "usage", None))
         return getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.warning("extract_decisions failed for doc %s: %s", doc_id, exc)

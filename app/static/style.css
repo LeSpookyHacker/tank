@@ -236,6 +236,65 @@ pre code { background: transparent; border: 0; padding: 0; }
 html.theme-light .theme-toggle .icon-sun  { display: inline; }
 html.theme-light .theme-toggle .icon-moon { display: none; }
 
+/* ---------------- topbar spacer ---------------- */
+.topbar-spacer { flex: 1; }
+
+/* ---------------- sidebar ---------------- */
+.sidebar {
+  width: 210px;
+  min-width: 210px;
+  background: rgb(var(--nyx-dusk) / 0.6);
+  border-right: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: sticky;
+  top: var(--topbar-h, 48px);
+  height: calc(100vh - var(--topbar-h, 48px));
+  padding: 0.75rem 0 0.5rem;
+  flex-shrink: 0;
+}
+.sidebar-nav { flex: 1; padding: 0 0.5rem; }
+.nav-group { margin-bottom: 1rem; }
+.nav-group-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  padding: 0.25rem 0.6rem 0.35rem;
+}
+.nav-item {
+  display: block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  transition: background 120ms, color 120ms;
+  text-decoration: none;
+  margin-bottom: 1px;
+}
+.nav-item:hover {
+  color: var(--text);
+  background: rgb(var(--nyx-iris) / 0.1);
+  text-decoration: none;
+}
+.nav-item.active {
+  color: var(--text);
+  background: rgb(var(--nyx-iris) / 0.18);
+  font-weight: 500;
+}
+.sidebar-footer {
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border-soft);
+  margin-top: 0.5rem;
+}
+
+/* Collapse sidebar below 900px */
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+}
+
 /* ---------------- main ---------------- */
 .main {
   flex: 1;
@@ -395,6 +454,25 @@ h3 { font-size: 1.02rem; font-weight: 600; margin: 1rem 0 0.5rem; }
   text-decoration: none;
 }
 .btn-link:hover { text-decoration: underline; color: var(--accent-hover); }
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border-soft);
+  color: var(--text-dim);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: rgb(var(--nyx-iris) / 0.5);
+  background: rgb(var(--nyx-iris) / 0.07);
+  text-decoration: none;
+}
 
 button:focus-visible,
 .btn:focus-visible,
@@ -653,6 +731,178 @@ input:focus, textarea:focus, select:focus {
   background: transparent; padding: 0;
 }
 .report-audit pre { font-size: 0.85em; color: var(--text-mute); }
+.report-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
+
+/* ---------- Markdown body renderer (report_detail) ---------- */
+.markdown-body { line-height: 1.7; font-size: 0.95rem; }
+.markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin: 1.5rem 0 0.5rem; color: var(--text); }
+.markdown-body h2 { font-size: 1.2rem; font-weight: 600; margin: 1.25rem 0 0.4rem; color: var(--text); border-bottom: 1px solid var(--border-soft); padding-bottom: 0.25rem; }
+.markdown-body h3 { font-size: 1rem; font-weight: 600; margin: 1rem 0 0.3rem; color: var(--text-dim); }
+.markdown-body p { margin: 0.5rem 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.5rem; margin: 0.4rem 0; }
+.markdown-body li { margin: 0.2rem 0; }
+.markdown-body code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: rgb(var(--nyx-iris) / 0.12);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.markdown-body pre {
+  background: rgb(var(--nyx-void) / 0.8);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.88rem;
+}
+.markdown-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+.markdown-body th {
+  background: rgb(var(--nyx-iris) / 0.15);
+  color: var(--text);
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.markdown-body td {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border-soft);
+  color: var(--text-dim);
+}
+.markdown-body tr:nth-child(even) td { background: rgb(var(--nyx-iris) / 0.04); }
+.markdown-body blockquote {
+  border-left: 3px solid rgb(var(--nyx-iris) / 0.5);
+  margin: 0.5rem 0;
+  padding: 0.25rem 1rem;
+  color: var(--text-mute);
+}
+.markdown-body strong { color: var(--text); font-weight: 600; }
+.markdown-body em { color: var(--text-dim); }
+.markdown-body a { color: var(--link); }
+.markdown-body a:hover { color: var(--accent-hover); }
+.markdown-body hr { border: none; border-top: 1px solid var(--border-soft); margin: 1rem 0; }
+
+/* ---------------- empty state ---------------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem;
+  margin: 1.5rem 0;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: rgb(var(--nyx-iris) / 0.03);
+}
+.empty-state-icon {
+  font-size: 2rem;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+  text-shadow: 0 0 20px rgb(var(--nyx-iris) / 0.5);
+}
+.empty-state h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
+.empty-state p { color: var(--text-dim); max-width: 440px; margin: 0 0 1.25rem; }
+
+/* ---------------- DFD threat modeling ---------------- */
+.dfd-input-section { max-width: 860px; }
+.tab-bar { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.tab-btn {
+  background: none; border: none; padding: 0.5rem 1rem;
+  color: var(--text-dim); cursor: pointer; font-family: var(--sans);
+  font-size: 0.9rem; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color 120ms;
+}
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.dfd-textarea {
+  width: 100%; padding: 0.75rem; background: rgb(var(--nyx-void) / 0.8);
+  border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+  font-size: 0.88rem; resize: vertical; min-height: 200px;
+}
+.dfd-file-hint { margin-top: 0.5rem; font-size: 0.88rem; color: var(--text-dim); }
+.dfd-file-input { margin-top: 0.5rem; }
+.dfd-submit-row { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; }
+.dfd-diagram-section { margin: 1.5rem 0; }
+.dfd-diagram-wrap {
+  background: rgb(var(--nyx-void) / 0.6); border: 1px solid var(--border-soft);
+  border-radius: 10px; padding: 1rem; overflow: auto; max-height: 600px;
+}
+.dfd-legend {
+  display: flex; gap: 1.25rem; margin-top: 0.5rem; font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.legend-item { display: flex; align-items: center; gap: 0.35rem; }
+.sev-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.sev-dot.sev-critical { background: #dc2626; }
+.sev-dot.sev-high     { background: #ea580c; }
+.sev-dot.sev-medium   { background: #d97706; }
+.sev-dot.sev-low      { background: #2563eb; }
+.dfd-threats-section { margin: 1.5rem 0; }
+.dfd-threat-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.dfd-threat-table th {
+  background: rgb(var(--nyx-iris) / 0.15); color: var(--text);
+  font-weight: 600; padding: 0.5rem 0.75rem; border: 1px solid var(--border);
+  text-align: left;
+}
+.dfd-threat-table td {
+  padding: 0.4rem 0.75rem; border: 1px solid var(--border-soft);
+  color: var(--text-dim); vertical-align: top;
+}
+.sev-badge {
+  display: inline-block; font-size: 0.75rem; font-weight: 600;
+  padding: 0.15rem 0.5rem; border-radius: 4px; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sev-badge.sev-critical { background: rgb(220 38 38 / 0.2); color: #ef4444; }
+.sev-badge.sev-high     { background: rgb(234 88 12 / 0.2); color: #f97316; }
+.sev-badge.sev-medium   { background: rgb(217 119 6 / 0.2);  color: #f59e0b; }
+.sev-badge.sev-low      { background: rgb(37 99 235 / 0.2);  color: #60a5fa; }
+.dfd-callout {
+  background: rgb(var(--nyx-iris) / 0.06); border: 1px dashed var(--border);
+  border-radius: 8px; padding: 0.75rem 1rem; margin-top: 1.5rem;
+  font-size: 0.9rem; color: var(--text-dim);
+}
+.dfd-callout a { color: var(--link); }
+
+.dfd-improve-section {
+  margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;
+}
+.dfd-improve-section h2 { margin-bottom: 0.5rem; }
+.dfd-suggestions {
+  margin: 0.5rem 0 1rem 1.25rem; padding: 0;
+  font-size: 0.88rem; color: var(--text-dim);
+}
+.dfd-suggestions li { margin-bottom: 0.25rem; }
+
+/* ---------- Print styles for report PDF export ---------- */
+@media print {
+  .topbar, .sidebar, #side-panel, .report-actions,
+  .report-audit, footer, nav { display: none !important; }
+  body { background: #fff; color: #111; }
+  .report-body { box-shadow: none; border: none; padding: 0; }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #111; }
+  .markdown-body th { background: #eee; color: #111; }
+  .markdown-body td { color: #222; border-color: #ccc; }
+  .markdown-body code { background: #f5f5f5; border-color: #ddd; }
+  .markdown-body pre { background: #f5f5f5; border-color: #ddd; }
+  .markdown-body a { color: #3b82f6; }
+  .report-detail { max-width: 100%; }
+}
 
 /* ---------------- meeting prep ---------------- */
 .prep-form { display: flex; flex-direction: column; gap: 0.5rem; max-width: 600px; }

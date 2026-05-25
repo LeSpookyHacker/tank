@@ -11,7 +11,7 @@ import logging
 from pydantic import BaseModel, Field
 
 from app.claude.reports import _build_scope_block
-from app.config import MODEL, get_client, load_prompt
+from app.config import HAIKU_MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name, get_card
 from app.redact.engine import rehydrate
 from app.redact.store import load_rehydration_map
@@ -41,7 +41,7 @@ def prepare(*, who: str, when: str | None = None,
     client = get_client()
     try:
         resp = client.messages.parse(
-            model=MODEL,
+            model=HAIKU_MODEL,
             max_tokens=4096,
             thinking={"type": "adaptive"},
             system=[{
@@ -58,6 +58,7 @@ def prepare(*, who: str, when: str | None = None,
             }],
             output_format=MeetingPrepBrief,
         )
+        log_token_usage("meeting_prep.prepare", HAIKU_MODEL, getattr(resp, "usage", None))
         parsed = getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.exception("meeting prep failed")

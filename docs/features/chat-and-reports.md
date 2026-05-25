@@ -92,6 +92,16 @@ Defined in [app/kb/tools.py](../../app/kb/tools.py).
 All use Sonnet 4.6 with `thinking={"type": "adaptive"}` and share
 the cached scope block. Generated from `/reports` or via subscription.
 
+### Report rendering and export
+
+Report detail pages render the Markdown output with full formatting (headings,
+tables, code blocks, lists) via `marked.js`. From any report detail page:
+
+| Button | Action |
+| --- | --- |
+| ↓ PDF | `window.print()` — browser print dialog with nav/sidebar hidden via `@media print` |
+| ↓ Markdown | Downloads the raw `.md` source |
+
 ### `threat_landscape` — STRIDE per service
 
 One-shot threat list for a single service. Superseded by the Phase-12

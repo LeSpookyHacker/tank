@@ -63,6 +63,9 @@ python -m scripts.verify_privacy --fixture-pack
 # DB inspection
 sqlite3 ~/.tank/db.sqlite "SELECT category, COUNT(*) FROM redaction_map GROUP BY category;"
 
+# Debug token usage — logs per-call in/out/cache_read/cache_create to console
+TANK_DEBUG_TOKENS=1 uvicorn app.main:app --reload
+
 # Ops: healthcheck (works without an API key)
 curl http://127.0.0.1:8000/healthz
 
@@ -293,6 +296,30 @@ ownership dashboard — users claim Service entities; the heuristic
 risk score weighs TM drift, unaddressed threats, expired decisions,
 and open postmortem action items.
 
+## Token cost tracking (three tables)
+
+`/api/usage/cost` aggregates from all three sources:
+
+1. **`messages`** — chat turns; all 4 token fields (`tokens_in`, `tokens_out`, `cache_read_in`, `cache_create_in`).
+2. **`reports`** — generated reports; `cache_read_in`/`cache_create_in` columns added by `_migrate_reports_cache_columns` in `app/db.py`.
+3. **`api_calls`** — every other Claude call; `app/storage/api_calls_store.py::record()` is the writer.
+
+`app/config.py::log_token_usage(call_site, model, usage)` is the single function every Claude call must invoke after getting a response. It writes to `api_calls` and, when `TANK_DEBUG_TOKENS=1`, logs per-call counts to the console. If a new module makes a Claude call without calling `log_token_usage()`, that spend is invisible to the cost counter.
+
+`reports_store.insert()` additionally takes `cache_read_in` / `cache_create_in` — pass them or the reports table will undercount cache savings.
+
+## DFD Threat Modeling
+
+New feature (Phase 3.2). Key files:
+
+- `app/claude/dfd_analyzer.py` — `analyze_mermaid(src, force=False)` (SHA-256 cached unless `force=True`), `analyze_image(bytes, media_type)`, `improve_mermaid(src, kb_context)`. Cache bypass is intentional: pass `force=True` to re-run STRIDE after updating `prompts/dfd_stride.md`.
+- `app/routers/dfd.py` — `POST /api/dfd/analyze` (accepts `force` form field), `POST /api/dfd/{id}/improve` (fetches KB context via `hybrid_search`, returns improved diagram + suggestions list), `GET /api/dfd/{id}/export?format=mmd|json`.
+- `app/storage/dfd_store.py` — `insert`, `get`, `get_by_hash`, `list_recent`.
+- `prompts/dfd_stride.md` — STRIDE analysis prompt. `prompts/dfd_improve.md` — diagram-completion prompt.
+- `app/schemas.py` — `DFDAnalysis`, `DFDElement`, `STRIDEThreat`, `DFDImprovement`.
+
+The `improve_mermaid` endpoint pulls KB context using `hybrid_search("data flow architecture services trust boundary", k=10)` and sends it alongside the diagram — so ingested architecture docs directly inform what's added to incomplete diagrams.
+
 ## Operations layer (the always-on-VM additions)
 
 Tank is designed to run on a user-owned dev VM via SSH tunnel, not
@@ -356,11 +383,15 @@ Other `localStorage` keys used across the UI:
 
 ## Hard rules
 
-- **Single Claude model**: `MODEL = "claude-sonnet-4-6"` in
-  `app/config.py`. Used for ingest extraction, chat, every report,
-  vision (diagrams), nudges, notes, Day-1 brief, anniversaries. There
-  is no Opus tier. Don't add per-call model overrides without a strong
-  reason — uniform model means uniform prompt-cache behavior.
+- **Two Claude models, strict split**: `MODEL = "claude-sonnet-4-6"` for
+  all reasoning tasks (chat, reports, design reviews, postmortems,
+  tabletops, threat models, DFD analysis, Day-1 brief, anniversaries,
+  notes, vision). `HAIKU_MODEL = "claude-haiku-4-5-20251001"` for
+  structured-extraction tasks with predictable JSON schemas (entity
+  extraction in `extractor.py`, meeting prep, journal/lesson extraction,
+  nudge question-of-week). **Haiku does not support extended thinking**
+  — remove `thinking=...` from any call you switch to Haiku. Do not add
+  further per-call overrides without a strong reason.
 - **Pre-redact at ingest**, not at send time. Adding a code path that
   redacts at send time means it's possible to forget; the existing
   invariant is "if it's in `chunks.text_redacted`, it's already safe."

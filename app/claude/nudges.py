@@ -13,7 +13,7 @@ import time
 from datetime import datetime
 
 from app.claude.event_bus import publish
-from app.config import MODEL, get_client, load_prompt
+from app.config import HAIKU_MODEL, MODEL, get_client, load_prompt, log_token_usage
 from app.storage import (entities_store, nudges_store, relationships_store,
                          subscriptions_store, usage_store)
 
@@ -195,7 +195,7 @@ def _question_of_week() -> str | None:
                  "their manager this week."
     try:
         resp = client.messages.create(
-            model=MODEL,
+            model=HAIKU_MODEL,
             max_tokens=512,
             system=[{"type": "text", "text": prompt,
                      "cache_control": {"type": "ephemeral"}}],
@@ -203,6 +203,7 @@ def _question_of_week() -> str | None:
                        "content": "Generate the Question of the Week. "
                                   "Return one paragraph only."}],
         )
+        log_token_usage("nudges.question_of_week", HAIKU_MODEL, getattr(resp, "usage", None))
         text = ""
         for block in resp.content or []:
             t = getattr(block, "text", None)

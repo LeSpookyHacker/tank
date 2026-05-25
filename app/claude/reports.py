@@ -256,6 +256,8 @@ def _finalize(*, kind: str, title: str, content_md_redacted: str,
         scope=scope,
         tokens_in=usage.get("tokens_in"),
         tokens_out=usage.get("tokens_out"),
+        cache_read_in=usage.get("cache_read_in"),
+        cache_create_in=usage.get("cache_create_in"),
     )
     publish("reports.global", "report_created",
             {"id": rid, "kind": kind, "title": title})

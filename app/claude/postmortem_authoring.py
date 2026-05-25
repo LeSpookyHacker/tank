@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name
 from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
@@ -114,6 +114,7 @@ def _generate_draft(title: str, redacted_freewrite: str,
                        ]}],
             output_format=PostmortemDraftPayload,
         )
+        log_token_usage("postmortem.draft", MODEL, getattr(resp, "usage", None))
         return getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.warning("postmortem draft LLM failed: %s", exc)

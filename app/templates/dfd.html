@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Tank — DFD Analysis{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>DFD Analysis</h1>
+  <p class="lede">Submit a Data Flow Diagram for automated STRIDE threat modeling.
+  Tank will identify threats, annotate the diagram, and generate a remediation table.</p>
+</section>
+
+<section class="dfd-input-section">
+  <div class="tab-bar" id="dfd-tab-bar">
+    <button class="tab-btn active" onclick="switchTab('mermaid')">Mermaid (.mmd)</button>
+    <button class="tab-btn" onclick="switchTab('image')">Image (PNG/JPG)</button>
+  </div>
+
+  <form id="dfd-form" onsubmit="return submitDFD(event)" enctype="multipart/form-data">
+    <div id="tab-mermaid" class="dfd-tab">
+      <label class="field-label" for="mermaid-input">Paste your Mermaid diagram or upload a .mmd file</label>
+      <textarea id="mermaid-input" name="mermaid_src" class="dfd-textarea mono"
+                rows="14" placeholder="graph TD
+  User -->|HTTPS| WebApp[Web Application]
+  WebApp -->|SQL| DB[(Database)]
+  WebApp -->|RPC| AuthService[Auth Service]
+  DB -.->|Backup| S3[(S3 Bucket)]"></textarea>
+      <div class="dfd-file-hint">
+        Or upload a <code>.mmd</code> file:
+        <input type="file" accept=".mmd,.txt" onchange="loadMmdFile(event)">
+      </div>
+    </div>
+
+    <div id="tab-image" class="dfd-tab" hidden>
+      <label class="field-label" for="image-input">Upload a DFD diagram image</label>
+      <input type="file" id="image-input" name="image" accept="image/png,image/jpeg,image/webp"
+             class="dfd-file-input">
+      <p class="dim" style="font-size:0.88rem">Tank will use Claude vision to parse the diagram and perform STRIDE analysis.</p>
+    </div>
+
+    <div class="dfd-submit-row">
+      <button type="submit" class="btn-primary" id="dfd-submit-btn">Analyze with STRIDE</button>
+      <span id="dfd-status" class="dim" hidden>Analyzing… this may take 15–30 seconds.</span>
+    </div>
+  </form>
+</section>
+
+{% if recent %}
+<section class="dfd-recent">
+  <h2>Recent analyses</h2>
+  <ul class="report-list">
+    {% for d in recent %}
+      <li>
+        <a href="/dfd/{{ d.id }}">
+          <span class="dim">{{ d.created_at | int }}</span>
+          DFD — {{ d.analysis.threats | length }} threats identified
+          {% if d.mermaid_src %}· Mermaid{% else %}· Image{% endif %}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<div class="empty-state">
+  <div class="empty-state-icon">◈</div>
+  <h2>No DFD analyses yet</h2>
+  <p>Submit a diagram above to get your first STRIDE threat model.</p>
+</div>
+{% endif %}
+
+<script>
+  var activeTab = 'mermaid';
+
+  function switchTab(name) {
+    activeTab = name;
+    document.querySelectorAll('.tab-btn').forEach(function(b, i) {
+      b.classList.toggle('active', (i === 0 && name === 'mermaid') || (i === 1 && name === 'image'));
+    });
+    document.getElementById('tab-mermaid').hidden = name !== 'mermaid';
+    document.getElementById('tab-image').hidden = name !== 'image';
+  }
+
+  function loadMmdFile(e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      document.getElementById('mermaid-input').value = ev.target.result;
+    };
+    reader.readAsText(f);
+  }
+
+  async function submitDFD(e) {
+    e.preventDefault();
+    var btn = document.getElementById('dfd-submit-btn');
+    var status = document.getElementById('dfd-status');
+    btn.disabled = true;
+    status.hidden = false;
+
+    var form = document.getElementById('dfd-form');
+    var data = new FormData();
+
+    if (activeTab === 'mermaid') {
+      data.append('mermaid_src', document.getElementById('mermaid-input').value);
+    } else {
+      var img = document.getElementById('image-input').files[0];
+      if (!img) { btn.disabled = false; status.hidden = true; return false; }
+      data.append('image', img);
+    }
+
+    try {
+      var resp = await fetch('/api/dfd/analyze', { method: 'POST', body: data });
+      if (!resp.ok) {
+        var err = await resp.json().catch(function() { return {detail: 'Unknown error'}; });
+        alert('Error: ' + (err.detail || resp.status));
+        btn.disabled = false; status.hidden = true;
+        return false;
+      }
+      var d = await resp.json();
+      window.location.href = '/dfd/' + d.dfd_id;
+    } catch (ex) {
+      alert('Request failed: ' + ex.message);
+      btn.disabled = false; status.hidden = true;
+    }
+    return false;
+  }
+</script>
+{% endblock %}

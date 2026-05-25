@@ -165,13 +165,22 @@ def usage_cost() -> JSONResponse:
         ).fetchone()
         r = conn.execute(
             "SELECT COALESCE(SUM(tokens_in),0) AS ti, "
-            "       COALESCE(SUM(tokens_out),0) AS to_ "
+            "       COALESCE(SUM(tokens_out),0) AS to_, "
+            "       COALESCE(SUM(cache_read_in),0) AS cr, "
+            "       COALESCE(SUM(cache_create_in),0) AS cc "
             "FROM reports"
         ).fetchone()
-    ti  = (m["ti"]  or 0) + (r["ti"]  or 0)
-    to_ = (m["to_"] or 0) + (r["to_"] or 0)
-    cr  = m["cr"]  or 0
-    cc  = m["cc"]  or 0
+        a = conn.execute(
+            "SELECT COALESCE(SUM(tokens_in),0) AS ti, "
+            "       COALESCE(SUM(tokens_out),0) AS to_, "
+            "       COALESCE(SUM(cache_read_in),0) AS cr, "
+            "       COALESCE(SUM(cache_create_in),0) AS cc "
+            "FROM api_calls"
+        ).fetchone()
+    ti  = (m["ti"] or 0) + (r["ti"] or 0) + (a["ti"] or 0)
+    to_ = (m["to_"] or 0) + (r["to_"] or 0) + (a["to_"] or 0)
+    cr  = (m["cr"] or 0) + (r["cr"] or 0) + (a["cr"] or 0)
+    cc  = (m["cc"] or 0) + (r["cc"] or 0) + (a["cc"] or 0)
     cost = (ti * 3.00 + to_ * 15.00 + cr * 0.30 + cc * 3.75) / 1_000_000
     return JSONResponse({
         "total_usd": round(cost, 4),

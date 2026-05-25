@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.role import get_state, tenure_day
 from app.schemas import PhilosophyDoc
 from app.storage import decisions_store, reports_store, tabletops_store
@@ -68,6 +68,8 @@ def _generate(*, label: str, prompt_name: str) -> str | None:
             ]}],
             output_format=PhilosophyDoc,
         )
+        log_token_usage("philosophy.generate", MODEL, getattr(resp, "usage", None))
+        usage = getattr(resp, "usage", None)
         parsed = getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.warning("philosophy %s failed: %s", label, exc)
@@ -83,7 +85,10 @@ def _generate(*, label: str, prompt_name: str) -> str | None:
         role_mode=state.role_mode.value,
         model=MODEL,
         scope={"label": label, "day_n": tenure_day()},
-        tokens_in=None, tokens_out=None,
+        tokens_in=getattr(usage, "input_tokens", None) if usage else None,
+        tokens_out=getattr(usage, "output_tokens", None) if usage else None,
+        cache_read_in=getattr(usage, "cache_read_input_tokens", None) if usage else None,
+        cache_create_in=getattr(usage, "cache_creation_input_tokens", None) if usage else None,
     )
 
     # Track the pointer in app_state for quick fetch.

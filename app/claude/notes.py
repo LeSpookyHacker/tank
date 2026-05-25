@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.redact.engine import apply_redactions
 from app.schemas import NotesDiff
 from app.storage import (entities_store, notes_store,
@@ -60,6 +60,7 @@ def _extract_diff(body_redacted: str,
             messages=[{"role": "user", "content": user_text}],
             output_format=NotesDiff,
         )
+        log_token_usage("notes.extract", MODEL, getattr(resp, "usage", None))
         parsed = getattr(resp, "parsed_output", None)
         return parsed if parsed is not None else NotesDiff()
     except Exception as exc:

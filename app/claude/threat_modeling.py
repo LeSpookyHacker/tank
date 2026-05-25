@@ -19,7 +19,7 @@ import logging
 from typing import Any
 
 from app.claude.event_bus import publish
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import get_card
 from app.kb.relationships import traverse
 from app.redact.engine import rehydrate
@@ -181,6 +181,7 @@ def generate(service_id: str) -> str:
         messages=[{"role": "user", "content": user_blocks}],
         output_format=ThreatModelV2,
     )
+    log_token_usage("threat_modeling.generate", MODEL, getattr(resp, "usage", None))
     parsed: ThreatModelV2 | None = getattr(resp, "parsed_output", None)
     if parsed is None:
         raise RuntimeError("threat_model_v2 generation returned no output")

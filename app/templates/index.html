@@ -27,6 +27,15 @@
   </p>
 </section>
 
+{% if counts.documents == 0 %}
+<div class="empty-state">
+  <div class="empty-state-icon">▰</div>
+  <h2>No documents ingested yet</h2>
+  <p>Drop a file into Tank to get started. Security posture analysis, threat modeling, and reports all flow from your ingested documents.</p>
+  <a class="btn-primary" href="/ingest">Ingest a document →</a>
+</div>
+{% endif %}
+
 <section class="grid">
   <div class="card">
     <div class="card-label">Documents</div>

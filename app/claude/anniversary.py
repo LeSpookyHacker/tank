@@ -62,6 +62,8 @@ def generate(day_n: int) -> str:
         usage_d = {
             "tokens_in": getattr(usage, "input_tokens", 0) or 0,
             "tokens_out": getattr(usage, "output_tokens", 0) or 0,
+            "cache_read_in": getattr(usage, "cache_read_input_tokens", 0) or 0,
+            "cache_create_in": getattr(usage, "cache_creation_input_tokens", 0) or 0,
         }
     return _finalize(
         kind=f"anniversary_{day_n}",

@@ -11,7 +11,7 @@ from app.config import STATIC_DIR
 from app.db import get_conn
 from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
-    entities, followups, glossary, iam, ingest, integrations, journal,
+    dfd, entities, followups, glossary, iam, ingest, integrations, journal,
     lessons, me, meeting_prep, notes, nudges, onboarding, pages, philosophy,
     postmortems, projects, reports, settings, subscriptions, tabletops, threat_models,
 )
@@ -118,3 +118,6 @@ app.include_router(philosophy.router)
 
 # Phase 16: project compartmentalization
 app.include_router(projects.router)
+
+# DFD threat modeling
+app.include_router(dfd.router)

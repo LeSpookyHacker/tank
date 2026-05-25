@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name
 from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
@@ -111,6 +111,7 @@ def _generate_intake(title: str, redacted_freewrite: str
                        ]}],
             output_format=DesignReviewIntakePayload,
         )
+        log_token_usage("design_review.intake", MODEL, getattr(resp, "usage", None))
         return getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.warning("design_review intake LLM failed: %s", exc)

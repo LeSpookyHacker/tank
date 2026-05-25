@@ -13,6 +13,117 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-25 — Update batch: 2.2 / 2.3 / 2.1 / 3.1 / 3.2
+
+### Goal
+
+Fix a significant token cost undercount ($0.27 displayed vs ~$3.00 actual),
+reduce API spend on extraction tasks, add Markdown rendering to reports,
+redesign the navigation, and ship DFD threat modeling as a new feature.
+
+### What got built
+
+**2.2 — Token cost counter fix**
+
+Root causes were twofold: (1) the `reports` table was missing
+`cache_read_in` / `cache_create_in` columns, so cache-discounted tokens were
+billed at full input price; (2) 13+ Claude modules made untracked API calls
+that never entered the cost calculation at all.
+
+- `app/db.py` — `_migrate_reports_cache_columns()` adds the two columns to
+  `reports` via `_add_col_safe` (idempotent). New `api_calls` table captures
+  all untracked calls: `(id, call_site, model, tokens_in, tokens_out,
+  cache_read_in, cache_create_in, created_at)`.
+- `app/storage/api_calls_store.py` — new store; `record()` is the writer.
+- `app/storage/reports_store.py` — `insert()` now accepts and stores cache
+  columns.
+- `app/claude/reports.py` — `_finalize()` passes cache metrics through.
+- `app/routers/pages.py` — `/api/usage/cost` now sums from all three tables
+  (`messages`, `reports`, `api_calls`) across all four token fields.
+- `app/config.py` — `log_token_usage(call_site, model, usage)` is the single
+  function all Claude modules must call after each response. Writes to
+  `api_calls`; logs to console when `TANK_DEBUG_TOKENS=1`.
+- All 13 previously-untracked modules wired up: `extractor`, `decisions`,
+  `notes`, `nudges`, `attack_mapping`, `iam_translator`, `meeting_prep`,
+  `journal_extractor`, `lesson_extractor`, `design_review`,
+  `postmortem_authoring`, `tabletop`, `threat_modeling`, `anniversary`,
+  `day1_brief`, `philosophy`.
+
+**2.3 — Claude API optimization**
+
+- `app/claude/extractor.py` — switched from Sonnet to `HAIKU_MODEL`
+  (`claude-haiku-4-5-20251001`). Removed `thinking={"type": "adaptive"}` (Haiku
+  doesn't support extended thinking). Entity extraction is structured JSON with
+  a known schema — well within Haiku's capability at ~10× lower cost.
+- `app/claude/meeting_prep.py`, `journal_extractor.py`, `lesson_extractor.py`
+  — switched to Haiku.
+- `app/claude/nudges.py` — question-of-week generation switched to Haiku.
+- `app/config.py` — `HAIKU_MODEL` constant promoted to `config.py`; all
+  affected modules import from there.
+
+**2.1 — Markdown rendering + report exports**
+
+- `app/templates/base.html` — `marked.min.js` added via CDN.
+- `app/templates/report_detail.html` — replaced `<pre>` with a `<div
+  id="report-md-output">` populated by `marked.parse(...)` on load. Added PDF
+  (via `window.print()`) and Markdown download buttons.
+- `app/static/style.css` — `.markdown-body` scoped styles for headings, tables,
+  code blocks, lists. `@media print` block hides sidebar/topbar/actions.
+
+**3.1 — App redesign**
+
+- `app/templates/base.html` — flat topbar nav replaced with `<aside
+  class="sidebar">` with four groups: Workspace, Pipeline, Workstreams, System.
+  Active-item highlighting via JS `location.pathname` check. Cost badge moved
+  to sidebar footer.
+- `app/static/style.css` — full sidebar layout (220px fixed width, responsive
+  hide at <900px). Empty-state component. `.btn-ghost` class.
+- `app/templates/index.html` — first-run empty state when no documents
+  ingested.
+
+**3.2 — DFD threat modeling**
+
+New feature end-to-end. See `docs/features/dfd-analysis.md` for the user-
+facing reference.
+
+- `app/claude/dfd_analyzer.py` — `analyze_mermaid(src, force=False)` (SHA-256
+  cached), `analyze_image(bytes, media_type)`, `improve_mermaid(src,
+  kb_context)`. Cache bypass via `force=True`.
+- `app/routers/dfd.py` — `GET /dfd`, `GET /dfd/{id}`, `POST /api/dfd/analyze`
+  (with `force` form field), `POST /api/dfd/{id}/improve` (KB-aware diagram
+  completion), `GET /api/dfd/{id}/export?format=mmd|json`.
+- `app/storage/dfd_store.py` — `insert`, `get`, `get_by_hash`, `list_recent`.
+- `app/schemas.py` — `DFDElement`, `STRIDEThreat`, `DFDAnalysis`,
+  `DFDImprovement`.
+- `app/main.py` — `dfd.router` registered.
+- `app/templates/dfd.html` — tab bar (Mermaid / Image), textarea, file inputs,
+  submit with loading state, recent analyses list, empty state.
+- `app/templates/dfd_detail.html` — annotated Mermaid diagram (rendered by
+  `mermaid.js` CDN), severity-sorted threat table, color legend. Re-analyze and
+  Improve diagram buttons. Improve section renders result inline with suggestions
+  list and "Run STRIDE on improved diagram" action.
+- `prompts/dfd_stride.md` — STRIDE analysis prompt with severity rubric and
+  color annotation instructions.
+- `prompts/dfd_improve.md` — diagram-completion prompt; instructs Claude to
+  preserve all existing nodes and only add what's missing.
+- `app/templates/ingest.html` — DFD callout at page bottom.
+- `CLAUDE.md` — created (previously absent).
+
+### Tradeoffs
+
+- **Haiku for extraction**: Haiku lacks extended thinking and is weaker on
+  ambiguous entity classification. For the structured schemas Tank uses
+  (known field names, constrained enums) the quality difference is negligible.
+  Revert to Sonnet in `extractor.py` if entity quality degrades noticeably.
+- **DFD caching**: SHA-256 means even a single character change produces a
+  cache miss. This is intentional — avoids stale threat tables after diagram
+  edits. Re-analyze button makes the UX friction manageable.
+- **`window.print()` for PDF**: avoids `jsPDF` + `html2canvas` dependency
+  (complex tables break under canvas rendering). Print CSS hides UI chrome.
+  Trade-off: output is browser-dependent. Acceptable for an internal tool.
+
+---
+
 ## 2026-05-20 — Plan + Phase 1 + Phase 2
 
 ### Goal

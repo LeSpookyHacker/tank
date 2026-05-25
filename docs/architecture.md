@@ -82,6 +82,30 @@ depth. You look up the actual secret in the source doc yourself.
 
 ## The three big subsystems
 
+### Model selection
+
+Tank uses two Claude models with a strict split:
+
+| Model | Constant | Used for |
+| --- | --- | --- |
+| `claude-sonnet-4-6` | `MODEL` | Chat, reports, DFD analysis, threat models, design reviews, postmortems, tabletops, Day-1 brief, anniversaries, notes, vision (images) |
+| `claude-haiku-4-5-20251001` | `HAIKU_MODEL` | Entity extraction, meeting prep, journal/lesson extraction, nudge question-of-week — structured JSON output with known schemas, no reasoning required |
+
+Haiku does not support extended thinking — remove `thinking=...` from any call switched to Haiku.
+
+### Token cost tracking
+
+`/api/usage/cost` aggregates from three tables:
+
+1. **`messages`** — chat turns (all 4 fields: in/out/cache_read/cache_create)
+2. **`reports`** — generated reports (`cache_read_in`/`cache_create_in` columns)
+3. **`api_calls`** — all other Claude calls; every module calls
+   `config.log_token_usage(call_site, model, usage)` after each response
+
+Set `TANK_DEBUG_TOKENS=1` to log per-call counts to the console.
+
+---
+
 ### 1. Ingest pipeline (`app/ingest/`)
 
 `pipeline.py::ingest(path, category)` runs:
@@ -90,7 +114,7 @@ depth. You look up the actual secret in the source doc yourself.
 parse → chunk (RecursiveCharacterTextSplitter + tiktoken, 800/120)
       → redact
       → bulk_insert_chunks + FTS5 + sqlite-vec write
-      → entity extraction via Sonnet messages.parse
+      → entity extraction via Haiku messages.parse
       → entity/relationship upsert
 ```
 

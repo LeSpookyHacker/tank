@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.detections import find_for_technique
 from app.schemas import AttackMappingReport, AttackMappingRow
 from app.storage import entities_store, threat_models_store
@@ -60,6 +60,7 @@ def generate() -> AttackMappingReport:
                 ]}],
                 output_format=AttackMappingReport,
             )
+            log_token_usage("attack_mapping.generate", MODEL, getattr(resp, "usage", None))
             chunk = getattr(resp, "parsed_output", None)
             if chunk:
                 for r in chunk.rows:

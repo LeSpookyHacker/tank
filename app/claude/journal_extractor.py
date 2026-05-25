@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import HAIKU_MODEL, get_client, load_prompt, log_token_usage
 from app.redact.engine import apply_redactions
 from app.schemas import NotesDiff
 from app.storage import journal_store
@@ -44,7 +44,7 @@ def _extract(body_redacted: str) -> NotesDiff:
                   "the user's daily journal entry. Be conservative.")
     try:
         resp = client.messages.parse(
-            model=MODEL,
+            model=HAIKU_MODEL,
             max_tokens=1024,
             system=[{"type": "text", "text": prompt,
                      "cache_control": {"type": "ephemeral"}}],
@@ -52,6 +52,7 @@ def _extract(body_redacted: str) -> NotesDiff:
                        "content": "Journal:\n\n" + body_redacted}],
             output_format=NotesDiff,
         )
+        log_token_usage("journal.extract", HAIKU_MODEL, getattr(resp, "usage", None))
         parsed = getattr(resp, "parsed_output", None)
         return parsed if parsed is not None else NotesDiff()
     except Exception as exc:

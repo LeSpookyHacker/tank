@@ -214,10 +214,41 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             content_md_redacted TEXT NOT NULL,
             tokens_in           INTEGER,
             tokens_out          INTEGER,
+            cache_read_in       INTEGER,
+            cache_create_in     INTEGER,
             created_at          REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_reports_kind_created
             ON reports(kind, created_at);
+
+        -- ----- dfd_analyses: DFD threat models -----
+        CREATE TABLE IF NOT EXISTS dfd_analyses (
+            id              TEXT PRIMARY KEY,
+            diagram_hash    TEXT NOT NULL UNIQUE,
+            mermaid_src     TEXT,
+            analysis_json   TEXT NOT NULL,
+            tokens_in       INTEGER,
+            tokens_out      INTEGER,
+            created_at      REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dfd_hash
+            ON dfd_analyses(diagram_hash);
+        CREATE INDEX IF NOT EXISTS idx_dfd_created
+            ON dfd_analyses(created_at);
+
+        -- ----- api_calls: catch-all token ledger for all Claude call sites -----
+        CREATE TABLE IF NOT EXISTS api_calls (
+            id              TEXT PRIMARY KEY,
+            call_site       TEXT NOT NULL,
+            model           TEXT NOT NULL,
+            tokens_in       INTEGER NOT NULL DEFAULT 0,
+            tokens_out      INTEGER NOT NULL DEFAULT 0,
+            cache_read_in   INTEGER NOT NULL DEFAULT 0,
+            cache_create_in INTEGER NOT NULL DEFAULT 0,
+            created_at      REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_api_calls_created
+            ON api_calls(created_at);
 
         -- ----- partner-mode state -----
         CREATE TABLE IF NOT EXISTS nudges (
@@ -530,6 +561,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     )
     _migrate_app_state_columns(conn)
     _migrate_project_columns(conn)
+    _migrate_reports_cache_columns(conn)
     _seed_default_project(conn)
     _init_vec_table(conn)
 
@@ -555,6 +587,12 @@ def _migrate_app_state_columns(conn: sqlite3.Connection) -> None:
     # Phase 16: active project context.
     if "active_project_id" not in cols:
         conn.execute("ALTER TABLE app_state ADD COLUMN active_project_id TEXT REFERENCES projects(id)")
+
+
+def _migrate_reports_cache_columns(conn: sqlite3.Connection) -> None:
+    """Add cache token columns to reports table (token-counter fix)."""
+    _add_col_safe(conn, "reports", "cache_read_in INTEGER")
+    _add_col_safe(conn, "reports", "cache_create_in INTEGER")
 
 
 def _migrate_project_columns(conn: sqlite3.Connection) -> None:

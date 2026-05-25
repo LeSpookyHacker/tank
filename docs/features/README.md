@@ -38,3 +38,20 @@ no per-feature doc.
 - [second-brain.md](second-brain.md) — lessons-learned DB, glossary
   builder, personal ownership dashboard, security philosophy doc,
   security-focused anniversary retros.
+
+## Update batch (2.1 / 2.2 / 2.3 / 3.1 / 3.2)
+
+- **2.1** — Markdown rendering in all report detail pages (`marked.js`); PDF
+  export via `window.print()` with print stylesheet; Markdown file download.
+- **2.2** — Token cost counter fix: `cache_read_in` / `cache_create_in` columns
+  added to `reports` table; new `api_calls` table captures all previously
+  untracked Claude calls; `/api/usage/cost` now aggregates from three tables.
+  `TANK_DEBUG_TOKENS=1` logs per-call token counts to console.
+- **2.3** — Claude API optimization: entity extraction, meeting prep,
+  journal/lesson extraction, and nudge question-of-week switched to
+  `claude-haiku-4-5-20251001` (~10× cheaper for structured extraction).
+- **3.1** — App redesign: flat topbar nav replaced with a grouped left sidebar
+  (Workspace / Pipeline / Workstreams / System). Empty states added on first
+  load. Cost badge moved to sidebar footer.
+- **3.2** — [dfd-analysis.md](dfd-analysis.md) — STRIDE threat modeling for
+  Data Flow Diagrams.

@@ -19,19 +19,33 @@
       {% endif %}
     </div>
     <div class="report-actions">
-      <a class="btn-secondary"
+      <button class="btn-ghost" onclick="window.print()">↓ PDF</button>
+      <a class="btn-ghost"
          href="/api/reports/{{ report.id }}/export?format=md"
-         download="{{ report.id }}.md">Export MD</a>
+         download="{{ report.title | replace(' ', '_') }}.md">↓ Markdown</a>
     </div>
   </header>
 
-  <div class="report-body markdown-body">
-    <pre>{{ report.content_md }}</pre>
-  </div>
+  <div class="report-body markdown-body" id="report-md-output"></div>
 
   <details class="report-audit">
     <summary>Audit: what Claude actually saw (redacted)</summary>
     <pre>{{ report.content_md_redacted }}</pre>
   </details>
 </section>
+
+<script>
+  (function () {
+    var raw = {{ report.content_md | tojson }};
+    var el = document.getElementById("report-md-output");
+    if (window.marked && el) {
+      el.innerHTML = marked.parse(raw);
+    } else {
+      // marked not yet loaded (defer) — render after load
+      window.addEventListener("load", function () {
+        if (window.marked && el) el.innerHTML = marked.parse(raw);
+      });
+    }
+  })();
+</script>
 {% endblock %}

@@ -19,7 +19,7 @@ import threading
 import time
 from typing import Iterable
 
-from app.config import MODEL, get_client, load_prompt
+from app.config import HAIKU_MODEL, MODEL, get_client, load_prompt, log_token_usage
 from app.redact.engine import apply_redactions
 from app.schemas import ChunkExtraction, DiagramExtraction
 from app.storage import entities_store, relationships_store
@@ -83,9 +83,8 @@ def _call_claude(batch_text: str) -> ChunkExtraction:
         for attempt in range(len(_RETRY_DELAYS) + 1):
             try:
                 resp = client.messages.parse(
-                    model=MODEL,
+                    model=HAIKU_MODEL,
                     max_tokens=4096,
-                    thinking={"type": "adaptive"},
                     system=[_system_prompt()],
                     messages=[{
                         "role": "user",
@@ -98,6 +97,7 @@ def _call_claude(batch_text: str) -> ChunkExtraction:
                     }],
                     output_format=ChunkExtraction,
                 )
+                log_token_usage("extractor.batch", HAIKU_MODEL, getattr(resp, "usage", None))
                 return _safe_parse(resp)
             except Exception as exc:
                 is_rate_limit = "429" in str(exc) or "rate_limit" in str(exc)
@@ -223,6 +223,7 @@ def extract_from_diagram(b64: str, media_type: str) -> dict:
             }],
             output_format=DiagramExtraction,
         )
+        log_token_usage("extractor.vision", MODEL, getattr(resp, "usage", None))
         parsed = getattr(resp, "parsed_output", None)
         if parsed is None:
             return {"entities": [], "relationships": [],
