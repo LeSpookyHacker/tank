@@ -8,11 +8,13 @@
     <button class="btn-primary" onclick="newConversation()">+ new</button>
     <ul class="conv-list">
       {% for c in conversations %}
-        <li class="conv-item {% if active and active.id == c.id %}active{% endif %}">
+        <li class="conv-item {% if active and active.id == c.id %}active{% endif %}"
+            data-conv-id="{{ c.id }}">
           <a href="/chat?conv={{ c.id }}">
             <strong>{{ c.title or "(untitled)" }}</strong>
             <span class="conv-meta">{{ c.role_mode }} · {{ c.updated_at | int }}</span>
           </a>
+          <button class="conv-del" onclick="deleteConversation('{{ c.id }}')" title="Delete">×</button>
         </li>
       {% endfor %}
     </ul>
@@ -164,6 +166,17 @@ async function sendMessage(ev) {
   });
 
   return false;
+}
+
+async function deleteConversation(convId) {
+  if (!confirm("Delete this conversation?")) return;
+  await fetch(`/api/conversations/${convId}`, { method: "DELETE" });
+  if (_activeConv === convId) {
+    window.location = "/chat";
+  } else {
+    const li = document.querySelector(`[data-conv-id="${convId}"]`);
+    if (li) li.remove();
+  }
 }
 
 // Enter sends; Shift+Enter inserts a newline.

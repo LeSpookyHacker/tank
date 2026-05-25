@@ -55,3 +55,5 @@ no per-feature doc.
   load. Cost badge moved to sidebar footer.
 - **3.2** — [dfd-analysis.md](dfd-analysis.md) — STRIDE threat modeling for
   Data Flow Diagrams.
+- **3.3** — [projects.md](projects.md) — project dashboard with color/notes
+  fields, detail page, last-opened memory, and project-scoped chat context.

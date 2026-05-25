@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ project.name }}{% endblock %}
+
+{% block content %}
+<section style="max-width:760px">
+
+  {# ── Breadcrumb ── #}
+  <a href="/projects" class="dim" style="font-size:0.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:0.35rem;margin-bottom:1rem">
+    ← Projects
+  </a>
+
+  {# ── Project header card ── #}
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem" id="project-header">
+    <div style="height:6px;background:{{ project.color or '#6366f1' }}"></div>
+    <div style="padding:1.25rem 1.5rem;display:flex;align-items:flex-start;gap:1rem">
+      <span style="font-size:2.2rem;line-height:1;flex-shrink:0">{{ project.emoji or '🔐' }}</span>
+      <div style="flex:1;min-width:0">
+        <h1 style="margin:0 0 0.15rem;font-size:1.4rem">{{ project.name }}</h1>
+        {% if project.description %}
+        <p class="dim" style="margin:0;font-size:0.9rem">{{ project.description }}</p>
+        {% endif %}
+      </div>
+      <button class="btn-secondary" onclick="toggleEdit()" style="flex-shrink:0" id="edit-btn">Edit</button>
+    </div>
+  </div>
+
+  {# ── Inline edit form (hidden by default) ── #}
+  <div id="edit-form" class="ingest-panel" style="display:none;margin-bottom:1.5rem">
+    <h3 style="margin:0 0 1rem">Edit project</h3>
+    <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.6rem">
+      <div>
+        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Icon</label>
+        <input type="text" id="edit-emoji" maxlength="2" value="{{ project.emoji or '🔐' }}"
+          style="width:56px;text-align:center;padding:0.45rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:1.2rem">
+      </div>
+      <div>
+        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Color</label>
+        <input type="color" id="edit-color" value="{{ project.color or '#6366f1' }}"
+          style="width:56px;height:38px;padding:2px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:transparent">
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Name</label>
+        <input type="text" id="edit-name" value="{{ project.name }}"
+          style="width:100%;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
+      </div>
+    </div>
+    <div style="margin-bottom:0.6rem">
+      <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Description</label>
+      <input type="text" id="edit-desc" value="{{ project.description or '' }}" placeholder="Optional description"
+        style="width:100%;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
+    </div>
+    <div style="margin-bottom:1rem">
+      <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Notes (shown in project-scoped chat context)</label>
+      <textarea id="edit-notes" rows="4" placeholder="Add notes about this project's scope, priorities, or anything Claude should keep in mind…"
+        style="width:100%;padding:0.5rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem;resize:vertical">{{ project.notes or '' }}</textarea>
+    </div>
+    <div style="display:flex;gap:0.5rem">
+      <button class="btn-primary" onclick="saveEdit()">Save</button>
+      <button class="btn-secondary" onclick="toggleEdit()">Cancel</button>
+    </div>
+    <div class="ingest-status" id="edit-status" style="margin-top:0.5rem"></div>
+  </div>
+
+  {# ── Notes section (omit if empty) ── #}
+  {% if project.notes %}
+  <div class="card" style="margin-bottom:1.5rem" id="notes-block">
+    <p class="dim" style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 0.6rem">Project Notes</p>
+    <div id="notes-content" style="font-size:0.92rem;line-height:1.6;white-space:pre-wrap">{{ project.notes }}</div>
+  </div>
+  {% else %}
+  <div id="notes-block" style="display:none" class="card" style="margin-bottom:1.5rem">
+    <p class="dim" style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 0.6rem">Project Notes</p>
+    <div id="notes-content" style="font-size:0.92rem;line-height:1.6;white-space:pre-wrap"></div>
+  </div>
+  {% endif %}
+
+  {# ── Metrics ── #}
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
+    <div class="card" style="text-align:center">
+      <div class="card-value" style="font-size:1.8rem">{{ doc_count }}</div>
+      <div class="card-label">Documents</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="card-value" style="font-size:1.8rem">{{ conv_count }}</div>
+      <div class="card-label">Conversations</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="card-value" style="font-size:1.8rem">{{ report_count }}</div>
+      <div class="card-label">Reports</div>
+    </div>
+  </div>
+
+  {# ── Recent documents ── #}
+  {% if recent_docs %}
+  <div style="margin-bottom:1.5rem">
+    <h2 style="font-size:1rem;margin:0 0 0.75rem">Recent Documents</h2>
+    {% for doc in recent_docs %}
+    <div class="card" style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;padding:0.75rem 1rem">
+      <span class="dim" style="font-size:0.8rem;width:80px;flex-shrink:0">{{ doc.category or '—' }}</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.9rem">{{ doc.source_path | replace("\\", "/") | truncate(60, True, "…") }}</span>
+    </div>
+    {% endfor %}
+    {% if doc_count > 5 %}
+    <p class="dim" style="font-size:0.82rem;margin:0.4rem 0 0">+ {{ doc_count - 5 }} more — <a href="/ingest" style="color:var(--link)">view all</a></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Recent conversations ── #}
+  {% if recent_convs %}
+  <div style="margin-bottom:1.5rem">
+    <h2 style="font-size:1rem;margin:0 0 0.75rem">Recent Conversations</h2>
+    {% for conv in recent_convs %}
+    <a href="/chat?conv={{ conv.id }}" style="text-decoration:none">
+      <div class="card" style="margin-bottom:0.5rem;padding:0.75rem 1rem">
+        <span style="font-size:0.9rem">{{ conv.title or '(untitled)' }}</span>
+      </div>
+    </a>
+    {% endfor %}
+    {% if conv_count > 5 %}
+    <p class="dim" style="font-size:0.82rem;margin:0.4rem 0 0">+ {{ conv_count - 5 }} more — <a href="/chat" style="color:var(--link)">view all</a></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</section>
+
+<script>
+const PROJECT_ID = "{{ project.id }}";
+
+function toggleEdit() {
+  const form = document.getElementById("edit-form");
+  const btn  = document.getElementById("edit-btn");
+  const showing = form.style.display !== "none";
+  form.style.display = showing ? "none" : "block";
+  btn.textContent = showing ? "Edit" : "Cancel";
+  document.getElementById("edit-status").textContent = "";
+}
+
+async function saveEdit() {
+  const name  = document.getElementById("edit-name").value.trim();
+  const emoji = document.getElementById("edit-emoji").value.trim() || "🔐";
+  const color = document.getElementById("edit-color").value || "#6366f1";
+  const desc  = document.getElementById("edit-desc").value.trim();
+  const notes = document.getElementById("edit-notes").value;
+  const status = document.getElementById("edit-status");
+
+  if (!name) { status.textContent = "Name is required."; status.className = "ingest-status error"; return; }
+
+  const r = await fetch(`/api/projects/${PROJECT_ID}`, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name, emoji, color, description: desc, notes}),
+  });
+  if (!r.ok) {
+    const j = await r.json();
+    status.textContent = j.detail || "Save failed.";
+    status.className = "ingest-status error";
+    return;
+  }
+
+  // Update DOM without page reload.
+  document.querySelector("#project-header h1").textContent = name;
+  document.querySelector("#project-header span").textContent = emoji;
+  document.querySelector("#project-header div[style*='height:6px']").style.background = color;
+  const descEl = document.querySelector("#project-header .dim");
+  if (descEl) descEl.textContent = desc;
+
+  // Update notes block visibility.
+  const notesBlock = document.getElementById("notes-block");
+  const notesContent = document.getElementById("notes-content");
+  if (notes.trim()) {
+    notesBlock.style.display = "";
+    notesContent.textContent = notes;
+  } else {
+    notesBlock.style.display = "none";
+  }
+
+  document.title = `Tank — ${name}`;
+  toggleEdit();
+  status.textContent = "Saved.";
+  status.className = "ingest-status ok";
+  setTimeout(() => { status.textContent = ""; }, 2000);
+}
+</script>
+{% endblock %}

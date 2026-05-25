@@ -1,11 +1,17 @@
+# projects.py — Routes for project management.
+# Phase 1 (tankinstuction): CreateProject now includes color and notes.
+# Phase 2 (tankinstuction): Added /projects/{id} detail page and PATCH /api/projects/{id}.
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.config import TEMPLATES_DIR
+from app.db import LOCK, get_conn
 from app.role import get_state
 from app.storage import projects_store
 
@@ -17,6 +23,16 @@ class CreateProject(BaseModel):
     name: str
     description: str = ""
     emoji: str = "🔐"
+    color: str = "#6366f1"
+    notes: str = ""
+
+
+class UpdateProject(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    emoji: Optional[str] = None
+    color: Optional[str] = None
+    notes: Optional[str] = None
 
 
 @router.get("/projects", response_class=HTMLResponse)
@@ -28,6 +44,47 @@ def projects_page(request: Request):
         request=request,
         name="projects.html",
         context={"state": state, "projects": project_list, "active_id": active_id},
+    )
+
+
+@router.get("/projects/{project_id}", response_class=HTMLResponse)
+def project_detail_page(request: Request, project_id: str):
+    project = projects_store.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found.")
+    state = get_state()
+    conn = get_conn()
+    doc_count = conn.execute(
+        "SELECT COUNT(*) FROM documents WHERE project_id = ?", (project_id,)
+    ).fetchone()[0]
+    conv_count = conn.execute(
+        "SELECT COUNT(*) FROM conversations WHERE project_id = ?", (project_id,)
+    ).fetchone()[0]
+    report_count = conn.execute(
+        "SELECT COUNT(*) FROM reports WHERE project_id = ?", (project_id,)
+    ).fetchone()[0]
+    recent_docs = conn.execute(
+        "SELECT id, source_path, category, ingested_at FROM documents "
+        "WHERE project_id = ? ORDER BY ingested_at DESC LIMIT 5",
+        (project_id,),
+    ).fetchall()
+    recent_convs = conn.execute(
+        "SELECT id, title, updated_at FROM conversations "
+        "WHERE project_id = ? ORDER BY updated_at DESC LIMIT 5",
+        (project_id,),
+    ).fetchall()
+    return templates.TemplateResponse(
+        request=request,
+        name="project_detail.html",
+        context={
+            "state": state,
+            "project": project,
+            "doc_count": doc_count,
+            "conv_count": conv_count,
+            "report_count": report_count,
+            "recent_docs": [dict(r) for r in recent_docs],
+            "recent_convs": [dict(r) for r in recent_convs],
+        },
     )
 
 
@@ -44,8 +101,18 @@ def list_projects() -> dict:
 def create_project(body: CreateProject) -> dict:
     if not body.name.strip():
         raise HTTPException(400, "Project name is required.")
-    pid = projects_store.create_project(body.name, body.description, body.emoji)
+    pid = projects_store.create_project(
+        body.name, body.description, body.emoji, body.color, body.notes
+    )
     return {"id": pid}
+
+
+@router.patch("/api/projects/{project_id}")
+def update_project(project_id: str, body: UpdateProject) -> dict:
+    if not projects_store.get_project(project_id):
+        raise HTTPException(404, "Project not found.")
+    projects_store.update_project(project_id, **body.dict(exclude_none=True))
+    return {"ok": True}
 
 
 @router.post("/api/projects/{project_id}/activate")

@@ -561,8 +561,10 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     )
     _migrate_app_state_columns(conn)
     _migrate_project_columns(conn)
+    _migrate_project_fields(conn)
     _migrate_reports_cache_columns(conn)
     _seed_default_project(conn)
+    _migrate_unscoped_data(conn)
     _init_vec_table(conn)
 
 
@@ -602,15 +604,45 @@ def _migrate_project_columns(conn: sqlite3.Connection) -> None:
         _add_col_safe(conn, table, "project_id TEXT REFERENCES projects(id)")
 
 
+def _migrate_project_fields(conn: sqlite3.Connection) -> None:
+    """Add color and notes to the projects table (tankinstuction Phase 1)."""
+    _add_col_safe(conn, "projects", "color TEXT NOT NULL DEFAULT '#6366f1'")
+    _add_col_safe(conn, "projects", "notes TEXT NOT NULL DEFAULT ''")
+
+
+def _migrate_unscoped_data(conn: sqlite3.Connection) -> None:
+    """Assign artifact rows with no project_id to the Default project (tankinstuction Phase 7)."""
+    import logging as _logging
+    _log = _logging.getLogger("tank")
+    tables = ["documents", "conversations", "reports",
+              "threat_models", "design_reviews", "postmortems_drafts", "tabletops"]
+    for table in tables:
+        try:
+            count = conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE project_id IS NULL"
+            ).fetchone()[0]
+            if count:
+                _log.warning("[migration] %d unscoped rows in %s → assigning to 'default'", count, table)
+                conn.execute(
+                    f"UPDATE {table} SET project_id='default' WHERE project_id IS NULL"
+                )
+        except sqlite3.OperationalError:
+            pass  # table may not exist yet on first run
+
+
 def _seed_default_project(conn: sqlite3.Connection) -> None:
     """Create the Default project if the projects table is empty."""
     import time as _t
     row = conn.execute("SELECT id FROM projects LIMIT 1").fetchone()
     if row:
+        # Backfill color on the default project in case it predates Phase 1.
+        conn.execute(
+            "UPDATE projects SET color='#6366f1' WHERE id='default' AND (color IS NULL OR color='')"
+        )
         return
     conn.execute(
-        "INSERT INTO projects (id, name, description, emoji, created_at) "
-        "VALUES ('default', 'Default', 'Default project for all existing data.', '🔐', ?)",
+        "INSERT INTO projects (id, name, description, emoji, color, notes, created_at) "
+        "VALUES ('default', 'Default', 'Default project for all existing data.', '🔐', '#6366f1', '', ?)",
         (_t.time(),),
     )
 

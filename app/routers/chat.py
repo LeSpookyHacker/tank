@@ -66,6 +66,14 @@ async def create_conversation(body: CreateConversation) -> dict:
     return {"id": conv_id}
 
 
+@router.delete("/api/conversations/{conv_id}")
+async def delete_conversation(conv_id: str) -> dict:
+    if not conversations_store.get(conv_id):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    conversations_store.delete(conv_id)
+    return {"ok": True}
+
+
 @router.get("/api/conversations")
 async def list_conversations() -> dict:
     return {"conversations": conversations_store.list_recent(50)}

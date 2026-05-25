@@ -220,6 +220,43 @@ Each bullet becomes a lesson; tags make them retrievable.
 
 ---
 
+## Working with projects
+
+Tank lets you compartmentalise your KB, threat models, conversations, and reports by
+project — useful when you cover multiple teams, products, or engagements.
+
+**Dashboard**: navigate to `/projects` to see a card grid of all projects. Each card
+shows the project's color accent, icon, name, and description. The last project you
+opened is sorted first (stored in `localStorage`).
+
+**Creating a project**: click "New project" → pick an emoji icon, a color (native
+browser color picker), add a name and optional description → Create.
+
+**Opening a project**: click "Open →" on any card. The detail page shows:
+- A color-accented header with the project's icon and name.
+- A **Notes** section (only shown if notes are non-empty) — write anything Claude should
+  keep in mind for this project: scope, priorities, team contacts, constraints.
+- Scoped metrics: document count, conversation count, report count for this project only.
+- Recent documents and conversations belonging to this project.
+
+**Editing a project**: click "Edit" on the detail page to reveal an inline form. You can
+update the name, description, icon, color, and notes without leaving the page.
+
+**Project notes in chat**: notes you add to a project are automatically included in the
+system prompt for conversations that belong to that project. The global side panel chat
+(accessible from every page) does **not** inject project notes — it's intentionally
+context-free.
+
+**Switching active project**: from the dashboard, click "Switch to" on any card, or use
+the project switcher dropdown in the top nav. The active project determines which project
+newly ingested documents, conversations, and reports are assigned to.
+
+**Data isolation**: each project's documents, conversations, threat models, design reviews,
+postmortems, and reports are scoped by `project_id`. Counts and recent-items on the detail
+page are always project-specific.
+
+---
+
 ## Asking Tank a question (anytime)
 
 Tank's chat is available two ways:

@@ -76,6 +76,9 @@ them even if asked.
 - Citations on every reply; click to source chunks.
 - **Tenure-aware lens** — Map / Prioritize / Execute / Maintain — shifts
   framing automatically over time.
+- **Project-scoped chat** — conversations started within a project automatically
+  include that project's notes in the system prompt. The global side panel never
+  injects project notes.
 
 ### Reports (10 kinds)
 
@@ -425,6 +428,7 @@ See `sample_data/README.md` for the full scenario and file list.
 | 2.3 | ✅ | Claude API optimization — Haiku for extraction tasks, token debug flag |
 | 3.1 | ✅ | App redesign — grouped left sidebar nav, empty states |
 | 3.2 | ✅ | DFD threat modeling — STRIDE analysis, diagram annotation, KB-aware improvement |
+| 3.3 | ✅ | Projects dashboard — color/notes fields, card grid UI, detail page, project-scoped chat |
 
 Build history with tradeoffs and known gaps: [HISTORY.md](HISTORY.md).
 
@@ -464,7 +468,7 @@ The full docs live in [docs/](docs/):
 - [docs/first-run.md](docs/first-run.md) — onboarding walkthrough
 - [docs/using-tank.md](docs/using-tank.md) — day-to-day workflows
 - [docs/architecture.md](docs/architecture.md) — internals deep-dive
-- [docs/features/](docs/features/) — per-phase feature reference
+- [docs/features/](docs/features/) — per-phase feature reference (includes [projects](docs/features/projects.md), [DFD analysis](docs/features/dfd-analysis.md), [threat models](docs/features/threat-models-decisions.md), and more)
 - [docs/operations.md](docs/operations.md) — running on a VM, backups, healthz, scheduler
 - [docs/faq.md](docs/faq.md) — common questions
 - [docs/troubleshooting.md](docs/troubleshooting.md) — known issues and fixes

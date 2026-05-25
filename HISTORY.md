@@ -13,6 +13,83 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-25 — Projects dashboard + color/notes + project-scoped chat (3.3)
+
+### Goal
+
+Elevate the existing project compartmentalization (schema + FK layer from Phase 16) into a
+fully usable feature: card-based dashboard, color/notes fields, project detail page,
+project notes in the system prompt for project-scoped chat, and data migration for any
+previously unscoped rows.
+
+### What got built
+
+**Phase 1 — Data model**
+
+- `app/db.py` — `_migrate_project_fields(conn)` adds `color TEXT NOT NULL DEFAULT '#6366f1'`
+  and `notes TEXT NOT NULL DEFAULT ''` to the `projects` table via `_add_col_safe` (idempotent).
+  `_migrate_unscoped_data(conn)` assigns any NULL `project_id` rows across 7 artifact tables
+  to the Default project and emits a warning log (ran on first boot: 29 docs, 6 convs, 5
+  reports). `_seed_default_project` back-fills `color` on the existing default row if it
+  predates this migration.
+- `app/storage/projects_store.py` — `create_project()` now accepts `color` and `notes`;
+  `list_projects()` / `get_project()` return them via `SELECT *`; new `update_project(id,
+  **kwargs)` enables PATCH-style edits for name, description, emoji, color, notes.
+
+**Phase 2 — Routing**
+
+- `app/routers/projects.py` — `GET /projects/{project_id}` detail page with scoped
+  doc/conv/report counts + recent-5 lists; `PATCH /api/projects/{id}` with `UpdateProject`
+  Pydantic model; `CreateProject` updated with `color` and `notes` fields.
+- `app/templates/project_detail.html` — new template: 6px color accent header, emoji +
+  name, notes block (omitted when empty), 3-metric grid, recent docs/convs lists, inline
+  edit form with native `<input type="color">` and emoji picker, JS DOM-update on save
+  (no reload).
+
+**Phase 3 — Dashboard UI**
+
+- `app/templates/projects.html` — rebuilt as a CSS Grid card dashboard. Each card shows
+  the color accent bar, emoji icon, name, description, active badge, and "Open → / Switch
+  to / Delete" actions. `tank_last_opened_project` localStorage key written on card open;
+  read on page load to add `.proj-card--last-opened` class (CSS `order: -1` sorts it
+  first). "New project" toggle collapses inline into a form with emoji + color pickers.
+- `app/static/style.css` — `.proj-grid`, `.proj-card`, `.proj-card__accent`,
+  `.proj-card__body`, `.proj-card__icon`, `.proj-card__name`, `.proj-card__desc`,
+  `.proj-card__actions`, `.proj-card--last-opened`.
+
+**Phase 5 — Auth flow**
+
+- `app/routers/pages.py` — home route validates the stored `active_project_id` against the
+  DB on every request; if the row no longer exists (e.g. project was deleted), resets to
+  `"default"` and continues (self-healing, no 500).
+
+**Phase 6 — Project-scoped chat**
+
+- `app/claude/caching.py` — `build_system_block(role_mode, lens, project_notes="")` gains
+  an optional `project_notes` param. When non-empty, appends a `## Project Context` section
+  inside the cached system block. When empty (global / side-panel conversations), omitted.
+- `app/claude/chat.py` — `run_turn()` checks `conv.get("project_id")`; if set, fetches the
+  project and passes `project["notes"]` to `build_system_block()`. Side-panel conversations
+  have no `project_id`, so they never receive project notes.
+
+**Phase 7 — Data migration**
+
+Already described above — runs automatically at startup, idempotent.
+
+### Tradeoffs
+
+- **color via `<input type="color">`**: browser-native picker, zero new JS dependencies.
+  Output is always a 6-char hex string. The CSS custom property `--proj-color` on each
+  card makes the accent bar a single-line style rule.
+- **notes in the system prompt cache**: adding project notes to the system block breaks the
+  prompt-cache hit for that project if notes change, but notes are infrequently edited. The
+  cache breakpoint is still valuable for long-running project sessions where notes are stable.
+- **`SELECT *` on projects**: works because `list_projects()` / `get_project()` return
+  plain dicts; if columns are added in future they're automatically included. The risk
+  (exposing unexpected columns) is minimal for a local single-user app.
+
+---
+
 ## 2026-05-25 — Update batch: 2.2 / 2.3 / 2.1 / 3.1 / 3.2
 
 ### Goal

@@ -2,46 +2,105 @@
 {% block title %}Tank — Projects{% endblock %}
 
 {% block content %}
-<section style="max-width:720px">
-  <div class="page-head">
-    <h1>Projects</h1>
-    <p class="lede">Organise your knowledge base, threat models, design reviews, and conversations by project.</p>
+{# ── Phase 3 (tankinstuction): card-based project dashboard with color/icon and last-opened memory ── #}
+<section style="max-width:900px">
+  <div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem">
+    <div>
+      <h1>Projects</h1>
+      <p class="lede">Organise your knowledge base, threat models, design reviews, and conversations by project.</p>
+    </div>
+    <button class="btn-primary" onclick="toggleCreateForm()" id="new-proj-btn" style="flex-shrink:0;margin-top:0.25rem">+ New project</button>
   </div>
 
-  <div id="project-list">
-    {% for p in projects %}
-    <div class="card" style="display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;padding:1rem 1.25rem;">
-      <span style="font-size:1.5rem;flex-shrink:0">{{ p.emoji }}</span>
-      <div style="flex:1;min-width:0">
-        <strong>{{ p.name }}</strong>
-        {% if p.id == active_id %}<span class="badge badge-source" style="margin-left:0.4rem">active</span>{% endif %}
-        {% if p.description %}<p class="dim" style="margin:0.2rem 0 0;font-size:0.88rem">{{ p.description }}</p>{% endif %}
+  {# ── Create form (collapsed by default) ── #}
+  <div id="create-form" class="ingest-panel" style="display:none;margin-bottom:1.5rem;max-width:640px">
+    <h3 style="margin:0 0 1rem">New project</h3>
+    <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.6rem">
+      <div>
+        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Icon</label>
+        <input type="text" id="new-emoji" maxlength="2" value="🔐"
+          style="width:56px;text-align:center;padding:0.45rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:1.2rem">
       </div>
-      <div style="display:flex;gap:0.5rem;flex-shrink:0">
-        {% if p.id != active_id %}
-        <button class="btn-secondary" onclick="activateProject('{{ p.id }}')">Switch to</button>
+      <div>
+        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Color</label>
+        <input type="color" id="new-color" value="#6366f1"
+          style="width:56px;height:38px;padding:2px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:transparent">
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Name</label>
+        <input type="text" id="new-name" placeholder="Project name"
+          style="width:100%;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
+      </div>
+    </div>
+    <input type="text" id="new-desc" placeholder="Description (optional)"
+      style="width:100%;margin-bottom:0.6rem;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
+    <div style="display:flex;gap:0.5rem">
+      <button class="btn-primary" onclick="createProject()">Create</button>
+      <button class="btn-secondary" onclick="toggleCreateForm()">Cancel</button>
+    </div>
+    <div class="ingest-status" id="create-status" style="margin-top:0.5rem"></div>
+  </div>
+
+  {# ── Project cards grid ── #}
+  <div class="proj-grid" id="project-grid">
+    {% for p in projects %}
+    <div class="proj-card" id="card-{{ p.id }}"
+      style="--proj-color:{{ p.color or '#6366f1' }}"
+      data-project-id="{{ p.id }}">
+      <div class="proj-card__accent"></div>
+      <div class="proj-card__body">
+        <div class="proj-card__top">
+          <span class="proj-card__icon">{{ p.emoji or '🔐' }}</span>
+          {% if p.id == active_id %}
+          <span class="badge badge-source" style="font-size:0.7rem">active</span>
+          {% endif %}
+        </div>
+        <div class="proj-card__name">{{ p.name }}</div>
+        {% if p.description %}
+        <div class="proj-card__desc dim">{{ p.description }}</div>
         {% endif %}
-        {% if p.id != 'default' %}
-        <button class="btn-secondary danger" onclick="deleteProject('{{ p.id }}', '{{ p.name }}')">Delete</button>
-        {% endif %}
+        <div class="proj-card__actions">
+          <a href="/projects/{{ p.id }}" class="btn-secondary proj-card__open" onclick="markOpened('{{ p.id }}')">Open →</a>
+          {% if p.id != active_id %}
+          <button class="btn-secondary" onclick="activateProject('{{ p.id }}')">Switch to</button>
+          {% endif %}
+          {% if p.id != 'default' %}
+          <button class="btn-secondary danger" onclick="deleteProject('{{ p.id }}', '{{ p.name }}')">Delete</button>
+          {% endif %}
+        </div>
       </div>
     </div>
     {% endfor %}
   </div>
 
-  <h2 style="margin-top:2rem">New project</h2>
-  <div class="ingest-panel" style="max-width:560px">
-    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end">
-      <input type="text" id="new-emoji" value="🔐" style="width:56px;text-align:center;padding:0.45rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:1.2rem">
-      <input type="text" id="new-name" placeholder="Project name" style="flex:1;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
-      <button class="btn-primary" onclick="createProject()">Create</button>
-    </div>
-    <input type="text" id="new-desc" placeholder="Description (optional)" style="margin-top:0.6rem;width:100%;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
-    <div class="ingest-status" id="create-status"></div>
-  </div>
+  {% if not projects %}
+  <p class="dim" style="margin-top:2rem">No projects yet. Create one above.</p>
+  {% endif %}
 </section>
 
 <script>
+// ── Last-opened pinning ──
+(function pinLastOpened() {
+  const last = localStorage.getItem("tank_last_opened_project");
+  if (!last) return;
+  const card = document.getElementById("card-" + last);
+  if (card) card.classList.add("proj-card--last-opened");
+})();
+
+function markOpened(id) {
+  localStorage.setItem("tank_last_opened_project", id);
+}
+
+// ── Create form toggle ──
+function toggleCreateForm() {
+  const form = document.getElementById("create-form");
+  const btn  = document.getElementById("new-proj-btn");
+  const showing = form.style.display !== "none";
+  form.style.display = showing ? "none" : "block";
+  btn.textContent = showing ? "+ New project" : "Cancel";
+  if (!showing) document.getElementById("new-name").focus();
+}
+
 function setStatus(msg, cls) {
   const el = document.getElementById("create-status");
   el.textContent = msg;
@@ -51,12 +110,13 @@ function setStatus(msg, cls) {
 async function createProject() {
   const name  = document.getElementById("new-name").value.trim();
   const emoji = document.getElementById("new-emoji").value.trim() || "🔐";
+  const color = document.getElementById("new-color").value || "#6366f1";
   const desc  = document.getElementById("new-desc").value.trim();
   if (!name) { setStatus("Enter a project name.", "error"); return; }
   const r = await fetch("/api/projects", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({name, emoji, description: desc}),
+    body: JSON.stringify({name, emoji, color, description: desc}),
   });
   const j = await r.json();
   if (r.ok) { window.location.reload(); }

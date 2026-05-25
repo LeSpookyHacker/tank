@@ -2,6 +2,7 @@
 {% block title %}Tank — Today{% endblock %}
 
 {% block content %}
+<div class="hero-row">
 <section class="hero">
   <h1>
     {% if state.user_scope.org %}
@@ -26,6 +27,16 @@
     {% endif %}
   </p>
 </section>
+  <article class="today-pane quick-actions-panel">
+    <h2>Quick actions</h2>
+    <ul class="quick-actions">
+      <li><a href="/chat">Open chat</a></li>
+      <li><a href="/meeting-prep">Prep for a meeting</a></li>
+      <li><a href="/notes">Capture notes</a></li>
+      <li><a href="/reports">Reports library</a></li>
+    </ul>
+  </article>
+</div>
 
 {% if counts.documents == 0 %}
 <div class="empty-state">
@@ -121,15 +132,6 @@
     {% endif %}
   </article>
 
-  <article class="today-pane">
-    <h2>Quick actions</h2>
-    <ul class="quick-actions">
-      <li><a href="/chat">Open chat</a></li>
-      <li><a href="/meeting-prep">Prep for a meeting</a></li>
-      <li><a href="/notes">Capture notes</a></li>
-      <li><a href="/reports">Reports library</a></li>
-    </ul>
-  </article>
 </section>
 
 <script>

@@ -68,6 +68,11 @@ def get_or_create_empty(*, role_mode: str, model: str) -> str:
     return create(role_mode=role_mode, model=model)
 
 
+def delete(conv_id: str) -> None:
+    with LOCK:
+        get_conn().execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
+
+
 def touch(conv_id: str, title: str | None = None) -> None:
     conn = get_conn()
     with LOCK:

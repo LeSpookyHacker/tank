@@ -156,7 +156,20 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
     except Exception:
         lens = None
 
-    system_blocks = [build_system_block(role_mode, lens)]
+    # Phase 6: inject project notes only for project-scoped conversations.
+    # Global / side-panel conversations have no project_id, so notes = "".
+    project_notes = ""
+    proj_id = conv.get("project_id")
+    if proj_id:
+        try:
+            from app.storage.projects_store import get_project as _get_project
+            proj = _get_project(proj_id)
+            if proj:
+                project_notes = proj.get("notes") or ""
+        except Exception:
+            pass
+
+    system_blocks = [build_system_block(role_mode, lens, project_notes)]
     kb_block = build_kb_block(hit_dicts, entity_cards)
 
     history = _history_for_claude(conversation_id)

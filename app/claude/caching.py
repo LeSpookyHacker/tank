@@ -1,19 +1,25 @@
-"""Build cacheable prompt blocks for chat + reports.
-
-Two breakpoints per request:
-1. End of system prompt (stable per role × lens).
-2. End of KB context block (the retrieved chunks + entity cards).
-"""
+# caching.py — Build cacheable prompt blocks for chat + reports.
+# Phase 6 (tankinstuction): build_system_block() now accepts project_notes;
+# appended only for project-scoped chat (never for the global side-panel).
+#
+# Two breakpoints per request:
+# 1. End of system prompt (stable per role × lens × project notes).
+# 2. End of KB context block (the retrieved chunks + entity cards).
 from __future__ import annotations
 
 from app.config import load_prompt
 
 
-def build_system_block(role_mode: str, lens: str | None = None) -> dict:
+def build_system_block(
+    role_mode: str,
+    lens: str | None = None,
+    project_notes: str = "",
+) -> dict:
     """Return one cache-controlled text block for the system prompt.
 
     role_mode ∈ {ic, manager, both}. lens ∈ {map, prioritize, execute,
     maintain, None} (None = pre-onboarding).
+    project_notes: non-empty only for project-scoped chat sessions.
     """
     base = load_prompt(f"chat_system_{role_mode}")
     lens_text = ""
@@ -23,9 +29,12 @@ def build_system_block(role_mode: str, lens: str | None = None) -> dict:
                         load_prompt(f"chat_lens_{lens}")
         except FileNotFoundError:
             lens_text = ""
+    notes_text = ""
+    if project_notes and project_notes.strip():
+        notes_text = "\n\n## Project Context\n\n" + project_notes.strip()
     return {
         "type": "text",
-        "text": base + lens_text,
+        "text": base + lens_text + notes_text,
         "cache_control": {"type": "ephemeral"},
     }
 

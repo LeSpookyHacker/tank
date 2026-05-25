@@ -1,4 +1,5 @@
-"""Server-rendered UI routes (home + onboarding gate + ingest page)."""
+# pages.py — Server-rendered UI routes (home + onboarding gate + ingest page).
+# Phase 5 (tankinstuction): home route validates/heals the active project context.
 from __future__ import annotations
 
 import time
@@ -11,6 +12,7 @@ from app.config import TEMPLATES_DIR
 from app.db import LOCK, get_conn
 from app.role import current_lens, get_state, tenure_day
 from app.storage import followups_store, nudges_store, usage_store
+from app.storage.projects_store import get_active_project_id, get_project, set_active_project_id
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -89,6 +91,13 @@ def home(request: Request):
     if not state.onboarded:
         return RedirectResponse(url="/onboarding", status_code=302)
 
+    # Phase 5: validate the stored active project and self-heal if stale.
+    active_id = get_active_project_id()
+    active_project = get_project(active_id)
+    if active_project is None:
+        set_active_project_id("default")
+        active_project = get_project("default")
+
     conn = get_conn()
     with LOCK:
         counts = {
@@ -122,6 +131,7 @@ def home(request: Request):
             "followups": followups_store.list_by_status("open", limit=5),
             "hot_entities": usage_store.hot_entities(days=7, k=5),
             "hints": hints,
+            "active_project": active_project,
         },
     )
 
