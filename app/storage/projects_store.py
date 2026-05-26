@@ -1,5 +1,5 @@
 # projects_store.py — CRUD for the projects table.
-# Phase 1 (tankinstuction): added color and notes fields; added update_project().
+# Redesign: added team_id, org_id, status, tags, risk_level, icon, last_activity_at.
 from __future__ import annotations
 
 import time
@@ -14,22 +14,62 @@ def create_project(
     emoji: str = "🔐",
     color: str = "#6366f1",
     notes: str = "",
+    team_id: str | None = None,
+    org_id: str | None = None,
+    status: str = "active",
+    tags: str = "[]",
+    risk_level: str = "medium",
+    icon: str = "📦",
 ) -> str:
+    # Resolve team/org if not provided.
+    if team_id is None:
+        row = get_conn().execute(
+            "SELECT id, org_id FROM teams ORDER BY created_at ASC LIMIT 1"
+        ).fetchone()
+        if row:
+            team_id, org_id = row["id"], row["org_id"]
     pid = uuid.uuid4().hex[:12]
     conn = get_conn()
     with LOCK:
         conn.execute(
-            "INSERT INTO projects (id, name, description, emoji, color, notes, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (pid, name.strip(), description.strip(), emoji, color, notes, time.time()),
+            "INSERT INTO projects "
+            "(id, name, description, emoji, color, notes, team_id, org_id, "
+            " status, tags, risk_level, icon, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                pid, name.strip(), description.strip(), emoji, color, notes,
+                team_id, org_id, status, tags, risk_level, icon, time.time(),
+            ),
         )
     return pid
 
 
-def list_projects() -> list[dict]:
-    rows = get_conn().execute(
-        "SELECT * FROM projects ORDER BY created_at ASC"
-    ).fetchall()
+def list_projects(include_archived: bool = False) -> list[dict]:
+    conn = get_conn()
+    if include_archived:
+        rows = conn.execute(
+            "SELECT * FROM projects ORDER BY created_at ASC"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM projects WHERE status != 'archived' ORDER BY created_at ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_by_team(team_id: str, include_archived: bool = False) -> list[dict]:
+    conn = get_conn()
+    if include_archived:
+        rows = conn.execute(
+            "SELECT * FROM projects WHERE team_id = ? ORDER BY last_activity_at DESC, created_at DESC",
+            (team_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM projects WHERE team_id = ? AND status != 'archived' "
+            "ORDER BY last_activity_at DESC, created_at DESC",
+            (team_id,),
+        ).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -40,9 +80,9 @@ def get_project(project_id: str) -> dict | None:
     return dict(row) if row else None
 
 
-def update_project(project_id: str, **kwargs: str) -> None:
-    """Patch one or more fields on a project row."""
-    allowed = {"name", "description", "emoji", "color", "notes"}
+def update_project(project_id: str, **kwargs) -> None:
+    allowed = {"name", "description", "emoji", "color", "notes",
+               "status", "tags", "risk_level", "icon", "team_id"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return
@@ -53,12 +93,21 @@ def update_project(project_id: str, **kwargs: str) -> None:
         conn.execute(f"UPDATE projects SET {set_clause} WHERE id = ?", values)
 
 
-def delete_project(project_id: str) -> None:
-    if project_id == "default":
-        raise ValueError("Cannot delete the Default project.")
+def touch_activity(project_id: str) -> None:
+    """Update last_activity_at to now for a project."""
     conn = get_conn()
     with LOCK:
-        # Null out project_id on owned rows rather than cascade-deleting them.
+        conn.execute(
+            "UPDATE projects SET last_activity_at = ? WHERE id = ?",
+            (int(time.time()), project_id),
+        )
+
+
+def delete_project(project_id: str) -> None:
+    if project_id in ("default", "imported"):
+        raise ValueError("Cannot delete a system project.")
+    conn = get_conn()
+    with LOCK:
         for table in ("documents", "conversations", "reports",
                       "threat_models", "design_reviews", "postmortems_drafts", "tabletops"):
             conn.execute(
@@ -84,3 +133,30 @@ def set_active_project_id(project_id: str) -> None:
             "UPDATE app_state SET active_project_id = ? WHERE id = 1",
             (project_id,),
         )
+
+
+def get_project_stats(project_id: str) -> dict:
+    """Return document, report, threat model, and open followup counts for a project."""
+    conn = get_conn()
+    doc_count = conn.execute(
+        "SELECT COUNT(*) FROM documents WHERE project_id = ?", (project_id,)
+    ).fetchone()[0]
+    report_count = conn.execute(
+        "SELECT COUNT(*) FROM reports WHERE project_id = ?", (project_id,)
+    ).fetchone()[0]
+    tm_count = conn.execute(
+        "SELECT COUNT(*) FROM threat_models WHERE project_id = ?", (project_id,)
+    ).fetchone()[0]
+    conv_count = conn.execute(
+        "SELECT COUNT(*) FROM conversations WHERE project_id = ?", (project_id,)
+    ).fetchone()[0]
+    followup_count = conn.execute(
+        "SELECT COUNT(*) FROM followups WHERE status = 'open'"
+    ).fetchone()[0]
+    return {
+        "doc_count": doc_count,
+        "report_count": report_count,
+        "tm_count": tm_count,
+        "conv_count": conv_count,
+        "open_followups": followup_count,
+    }

@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} · Tank{% endblock %}
+
+{% block breadcrumb %}
+  <a class="bc-item" href="/dashboard">Dashboard</a>
+  <span class="bc-sep">›</span>
+  <span class="bc-item bc-current" style="color:{{ team.color }}">{{ team.icon }} {{ team.name }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="team-page">
+
+  {# ── Team header ── #}
+  <div class="team-header" style="border-left: 4px solid {{ team.color }}">
+    <div class="team-header-icon" style="background:{{ team.color }}22">{{ team.icon }}</div>
+    <div class="team-header-info">
+      <h1 class="team-header-name">{{ team.name }}</h1>
+      {% if team.description %}
+      <p class="team-header-desc">{{ team.description }}</p>
+      {% endif %}
+    </div>
+    <div class="team-header-actions">
+      <button class="btn-secondary" onclick="openEditTeamModal()">Edit</button>
+      <button class="btn-primary" onclick="openNewProjectModal()">+ New Project</button>
+    </div>
+  </div>
+
+  {# ── Filter + sort bar ── #}
+  <div class="filter-sort-bar">
+    <div class="filter-group">
+      <label class="filter-label">Status</label>
+      <select class="filter-select" id="filter-status" onchange="applyFilters()">
+        <option value="">All</option>
+        <option value="active">Active</option>
+        <option value="in-review">In Review</option>
+        <option value="complete">Complete</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">Risk</label>
+      <select class="filter-select" id="filter-risk" onchange="applyFilters()">
+        <option value="">All</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">Sort</label>
+      <select class="filter-select" id="sort-by" onchange="applyFilters()">
+        <option value="activity">Last activity</option>
+        <option value="name">Name</option>
+        <option value="risk">Risk level</option>
+        <option value="created">Created</option>
+      </select>
+    </div>
+    <label class="archived-toggle">
+      <input type="checkbox" id="show-archived" onchange="toggleArchived(this.checked)">
+      Show archived
+    </label>
+    <span class="filter-count" id="filter-count"></span>
+  </div>
+
+  {# ── Projects grid ── #}
+  {% if projects %}
+  <div class="project-cards-grid" id="project-cards-grid">
+    {% for p in projects %}
+    <div class="project-card"
+         data-status="{{ p.status }}"
+         data-risk="{{ p.risk_level }}"
+         data-name="{{ p.name | lower }}"
+         data-activity="{{ p.last_activity_at or 0 }}"
+         data-created="{{ p.created_at or 0 }}">
+      <div class="project-card-accent" style="background:{{ p.color }};"></div>
+      <div class="project-card-body">
+        <div class="project-card-top">
+          <span class="project-card-icon">{{ p.icon or p.emoji }}</span>
+          <div class="project-card-badges">
+            <span class="badge badge-status badge-status-{{ p.status | replace(' ', '-') }}">{{ p.status | title }}</span>
+            <span class="badge badge-risk badge-risk-{{ p.risk_level }}">{{ p.risk_level | title }}</span>
+          </div>
+        </div>
+        <a class="project-card-name" href="/teams/{{ team.id }}/projects/{{ p.id }}">{{ p.name }}</a>
+        {% if p.description %}
+        <p class="project-card-desc">{{ p.description }}</p>
+        {% endif %}
+        {% if p.tags and p.tags != '[]' %}
+        <div class="project-card-tags" data-all-tags='{{ p.tags }}'>
+          {# rendered by JS to handle overflow #}
+        </div>
+        {% endif %}
+        <div class="project-card-meta">
+          <span title="Documents">📄 {{ p.doc_count }}</span>
+          <span title="Reports">📊 {{ p.report_count }}</span>
+          {% if p.last_activity_at %}
+          <span class="ts" data-ts="{{ p.last_activity_at }}"></span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="project-card-menu-wrapper">
+        <button class="project-card-menu-btn" onclick="toggleCardMenu(event, '{{ p.id }}')" title="Options">⋯</button>
+        <div class="project-card-menu" id="menu-{{ p.id }}" hidden>
+          <a href="/teams/{{ team.id }}/projects/{{ p.id }}">Open</a>
+          <button onclick="editProject('{{ p.id }}')">Edit</button>
+          <button onclick="pinProject('{{ p.id }}', '{{ p.name }}')">Pin to Dashboard</button>
+          <button onclick="archiveProject('{{ p.id }}')">Archive</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📦</div>
+    <div class="empty-title">No projects yet</div>
+    <div class="empty-body">Create your first project to start tracking security work for this team.</div>
+    <button class="btn-primary" onclick="openNewProjectModal()">+ New Project</button>
+  </div>
+  {% endif %}
+
+</div>{# /team-page #}
+
+{# ── New Project modal ── #}
+<dialog class="modal" id="new-project-modal">
+  <div class="modal-header">
+    <span class="modal-title">New Project</span>
+    <button class="modal-close" onclick="closeNewProjectModal()" type="button">✕</button>
+  </div>
+  <form class="modal-body" id="new-project-form" onsubmit="return submitNewProject(event)">
+    <label class="form-label">Project name <span class="required">*</span></label>
+    <input class="form-input" type="text" id="np-name" placeholder="e.g. Auth Service" required>
+
+    <label class="form-label">Description</label>
+    <input class="form-input" type="text" id="np-desc" placeholder="Optional">
+
+    <div class="form-row">
+      <div class="form-col">
+        <label class="form-label">Risk level</label>
+        <select class="form-select" id="np-risk">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div class="form-col">
+        <label class="form-label">Tags (comma-separated)</label>
+        <input class="form-input" type="text" id="np-tags" placeholder="public-facing, PII">
+      </div>
+    </div>
+
+    <label class="form-label">Icon</label>
+    <div class="emoji-picker" id="np-emoji-picker">
+      {% set icons = ["📦","🔐","🖥️","🗄️","☁️","💻","🌐","🔑","📚","👥","🧠","⚠️","🔒","🧩","⚙️","📊","🚀","🌿","📡","👁️"] %}
+      {% for em in icons %}
+      <button type="button" class="emoji-btn" data-emoji="{{ em }}" onclick="selectEmoji('np', this)">{{ em }}</button>
+      {% endfor %}
+    </div>
+    <input type="hidden" id="np-icon" value="📦">
+
+    <label class="form-label">Color</label>
+    <div class="color-picker" id="np-color-picker">
+      {% set colors = ["#6366f1","#6c5ce7","#00b894","#0984e3","#e17055","#fd79a8","#fdcb6e","#55efc4","#74b9ff","#a29bfe","#636e72","#e84393"] %}
+      {% for c in colors %}
+      <button type="button" class="color-swatch" data-color="{{ c }}" style="background:{{ c }}"
+              onclick="selectColor('np', this)" title="{{ c }}"></button>
+      {% endfor %}
+    </div>
+    <input type="hidden" id="np-color" value="#6366f1">
+
+    <label class="form-label">Notes (optional)</label>
+    <textarea class="form-textarea" id="np-notes" rows="3"
+              placeholder="Scope, service owner, known risks…"></textarea>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
+      <button type="submit" class="btn-primary" id="np-submit">Create Project</button>
+    </div>
+  </form>
+</dialog>
+
+{# ── Edit Team modal ── #}
+<dialog class="modal" id="edit-team-modal">
+  <div class="modal-header">
+    <span class="modal-title">Edit Team</span>
+    <button class="modal-close" onclick="document.getElementById('edit-team-modal').close()" type="button">✕</button>
+  </div>
+  <form class="modal-body" onsubmit="return submitEditTeam(event)">
+    <label class="form-label">Team name</label>
+    <input class="form-input" type="text" id="et-name" value="{{ team.name }}">
+    <label class="form-label">Description</label>
+    <input class="form-input" type="text" id="et-desc" value="{{ team.description or '' }}">
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" onclick="document.getElementById('edit-team-modal').close()">Cancel</button>
+      <button type="submit" class="btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+var TEAM_ID = "{{ team.id }}";
+
+// ── Timestamp rendering ──
+(function () {
+  var now = Date.now() / 1000;
+  document.querySelectorAll(".ts[data-ts]").forEach(function (el) {
+    var ts = parseInt(el.dataset.ts, 10);
+    if (!ts) { el.textContent = ""; return; }
+    var diff = now - ts;
+    if (diff < 60) el.textContent = "just now";
+    else if (diff < 3600) el.textContent = Math.floor(diff / 60) + "m ago";
+    else if (diff < 86400) el.textContent = Math.floor(diff / 3600) + "h ago";
+    else el.textContent = Math.floor(diff / 86400) + "d ago";
+  });
+})();
+
+// ── Tag rendering ──
+document.querySelectorAll(".project-card-tags[data-all-tags]").forEach(function (el) {
+  try {
+    var tags = JSON.parse(el.dataset.allTags);
+    if (!Array.isArray(tags) || !tags.length) return;
+    var shown = tags.slice(0, 3);
+    var rest = tags.length - 3;
+    shown.forEach(function (t) {
+      var span = document.createElement("span");
+      span.className = "tag-pill";
+      span.textContent = t;
+      el.appendChild(span);
+    });
+    if (rest > 0) {
+      var more = document.createElement("span");
+      more.className = "tag-overflow";
+      more.textContent = "+" + rest + " more";
+      el.appendChild(more);
+    }
+  } catch (e) {}
+});
+
+// ── Filters ──
+function applyFilters() {
+  var status = document.getElementById("filter-status").value;
+  var risk = document.getElementById("filter-risk").value;
+  var sort = document.getElementById("sort-by").value;
+  var riskOrder = {critical: 0, high: 1, medium: 2, low: 3};
+  var grid = document.getElementById("project-cards-grid");
+  if (!grid) return;
+  var cards = Array.from(grid.querySelectorAll(".project-card"));
+  var visible = 0;
+  cards.forEach(function (c) {
+    var match = (!status || c.dataset.status === status) &&
+                (!risk || c.dataset.risk === risk);
+    c.style.display = match ? "" : "none";
+    if (match) visible++;
+  });
+  // Sort visible cards.
+  var sorted = cards.filter(function (c) { return c.style.display !== "none"; });
+  sorted.sort(function (a, b) {
+    if (sort === "name") return a.dataset.name.localeCompare(b.dataset.name);
+    if (sort === "risk") return (riskOrder[a.dataset.risk] || 2) - (riskOrder[b.dataset.risk] || 2);
+    if (sort === "created") return parseInt(b.dataset.created) - parseInt(a.dataset.created);
+    return parseInt(b.dataset.activity) - parseInt(a.dataset.activity);
+  });
+  sorted.forEach(function (c) { grid.appendChild(c); });
+  var fc = document.getElementById("filter-count");
+  if (fc) fc.textContent = visible + " project" + (visible !== 1 ? "s" : "");
+}
+applyFilters();
+
+function toggleArchived(show) {
+  document.querySelectorAll(".project-card[data-status='archived']").forEach(function (c) {
+    c.style.display = show ? "" : "none";
+  });
+}
+document.querySelectorAll(".project-card[data-status='archived']").forEach(function (c) {
+  c.style.display = "none";
+});
+
+// ── Context menus ──
+function toggleCardMenu(e, id) {
+  e.stopPropagation();
+  var menu = document.getElementById("menu-" + id);
+  document.querySelectorAll(".project-card-menu").forEach(function (m) {
+    if (m !== menu) m.hidden = true;
+  });
+  menu.hidden = !menu.hidden;
+}
+document.addEventListener("click", function () {
+  document.querySelectorAll(".project-card-menu").forEach(function (m) { m.hidden = true; });
+});
+
+function archiveProject(id) {
+  if (!confirm("Archive this project?")) return;
+  fetch("/api/projects/" + id, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({status: "archived"}),
+  }).then(function () { window.location.reload(); });
+}
+
+function pinProject(id, name) {
+  try {
+    var pinned = JSON.parse(localStorage.getItem("tank_pinned_projects") || "[]");
+    if (!pinned.includes(id)) { pinned.unshift(id); pinned = pinned.slice(0, 10); }
+    localStorage.setItem("tank_pinned_projects", JSON.stringify(pinned));
+  } catch (e) {}
+  alert(name + " pinned to dashboard.");
+}
+
+function editProject(id) {
+  window.location.href = "/teams/" + TEAM_ID + "/projects/" + id;
+}
+
+// ── New Project modal ──
+function openNewProjectModal() { document.getElementById("new-project-modal").showModal(); }
+function closeNewProjectModal() { document.getElementById("new-project-modal").close(); }
+
+// Default selections.
+(function () {
+  var fe = document.querySelector("#np-emoji-picker .emoji-btn");
+  if (fe) fe.classList.add("selected");
+  var fc = document.querySelector("#np-color-picker .color-swatch");
+  if (fc) fc.classList.add("selected");
+})();
+
+function selectEmoji(prefix, btn) {
+  document.querySelectorAll("#" + prefix + "-emoji-picker .emoji-btn")
+    .forEach(function (b) { b.classList.remove("selected"); });
+  btn.classList.add("selected");
+  document.getElementById(prefix + "-icon").value = btn.dataset.emoji;
+}
+function selectColor(prefix, btn) {
+  document.querySelectorAll("#" + prefix + "-color-picker .color-swatch")
+    .forEach(function (b) { b.classList.remove("selected"); });
+  btn.classList.add("selected");
+  document.getElementById(prefix + "-color").value = btn.dataset.color;
+}
+
+function submitNewProject(e) {
+  e.preventDefault();
+  var name = document.getElementById("np-name").value.trim();
+  if (!name) return false;
+  var rawTags = document.getElementById("np-tags").value.trim();
+  var tags = rawTags ? JSON.stringify(rawTags.split(",").map(function (t) { return t.trim(); }).filter(Boolean)) : "[]";
+  var payload = {
+    name: name,
+    description: document.getElementById("np-desc").value.trim(),
+    risk_level: document.getElementById("np-risk").value,
+    tags: tags,
+    icon: document.getElementById("np-icon").value,
+    color: document.getElementById("np-color").value,
+    notes: document.getElementById("np-notes").value.trim(),
+    team_id: TEAM_ID,
+  };
+  var btn = document.getElementById("np-submit");
+  btn.disabled = true; btn.textContent = "Creating…";
+  fetch("/api/projects", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.id) window.location.href = "/teams/" + TEAM_ID + "/projects/" + d.id;
+      else { btn.disabled = false; btn.textContent = "Create Project"; }
+    })
+    .catch(function () { btn.disabled = false; btn.textContent = "Create Project"; });
+  return false;
+}
+
+// ── Edit Team modal ──
+function openEditTeamModal() { document.getElementById("edit-team-modal").showModal(); }
+function submitEditTeam(e) {
+  e.preventDefault();
+  var payload = {
+    name: document.getElementById("et-name").value.trim(),
+    description: document.getElementById("et-desc").value.trim(),
+  };
+  fetch("/api/teams/" + TEAM_ID, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  }).then(function () { window.location.reload(); });
+  return false;
+}
+
+// ── Track recent project views ──
+function trackRecent(projectId) {
+  try {
+    var recent = JSON.parse(localStorage.getItem("tank_recent_projects") || "[]");
+    recent = recent.filter(function (id) { return id !== projectId; });
+    recent.unshift(projectId);
+    localStorage.setItem("tank_recent_projects", JSON.stringify(recent.slice(0, 10)));
+  } catch (e) {}
+}
+// Track each project card click.
+document.querySelectorAll(".project-card-name").forEach(function (a) {
+  a.addEventListener("click", function () {
+    var card = a.closest(".project-card");
+    // Extract project id from href.
+    var m = a.href.match(/\/projects\/([^/]+)/);
+    if (m) trackRecent(m[1]);
+  });
+});
+</script>
+{% endblock %}

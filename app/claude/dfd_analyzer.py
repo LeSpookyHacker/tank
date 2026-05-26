@@ -1,16 +1,18 @@
-"""STRIDE threat modeling for Data Flow Diagrams.
+"""STRIDE threat modeling for Data Flow Diagrams — DFD & Threat Model revamp.
 
-Accepts Mermaid source or raw image bytes. Results are cached by SHA-256
-of the input so re-submitting the same diagram costs nothing.
+Accepts Mermaid source, raw image bytes, architecture documents, or plain-language
+descriptions. Results are cached by SHA-256 of the input so re-submitting the same
+diagram costs nothing.
 """
 from __future__ import annotations
 
 import base64
 import hashlib
 import logging
+from io import BytesIO
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
-from app.schemas import DFDAnalysis, DFDImprovement
+from app.schemas import DFDAnalysis, DFDImprovement, DFDMermaidGeneration
 from app.storage import dfd_store
 
 log = logging.getLogger("tank.dfd")
@@ -22,24 +24,37 @@ def _hash(content: str | bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def analyze_mermaid(mermaid_src: str, force: bool = False) -> tuple[str, DFDAnalysis]:
+def _project_context_prefix(project_notes: str) -> str:
+    if not project_notes or not project_notes.strip():
+        return ""
+    return f"Project context:\n{project_notes.strip()}\n\nUse this context to make threat analysis more specific to this system.\n\n"
+
+
+def analyze_mermaid(
+    mermaid_src: str,
+    force: bool = False,
+    project_id: str | None = None,
+    project_notes: str = "",
+    input_format: str = "mermaid",
+) -> tuple[str, DFDAnalysis, bool]:
     """Run STRIDE analysis on a Mermaid DFD string.
 
-    Returns (dfd_id, analysis). Cached by diagram hash unless force=True.
+    Returns (dfd_id, analysis, from_cache). Cached by diagram hash unless force=True.
     """
     diagram_hash = _hash(mermaid_src)
     if not force:
         cached = dfd_store.get_by_hash(diagram_hash)
         if cached:
             log.info("dfd cache hit for %s", diagram_hash[:12])
-            return cached["id"], _dict_to_analysis(cached["analysis"])
+            return cached["id"], _dict_to_analysis(cached["analysis"]), True
 
     prompt = load_prompt("dfd_stride")
     client = get_client()
+    prefix = _project_context_prefix(project_notes)
     try:
         resp = client.messages.parse(
             model=MODEL,
-            max_tokens=4096,
+            max_tokens=8192,
             system=[{
                 "type": "text",
                 "text": prompt,
@@ -49,7 +64,7 @@ def analyze_mermaid(mermaid_src: str, force: bool = False) -> tuple[str, DFDAnal
                 "role": "user",
                 "content": [
                     {"type": "text",
-                     "text": "Analyze this Mermaid DFD with STRIDE:\n\n```mermaid\n"
+                     "text": prefix + "Analyze this Mermaid DFD with STRIDE:\n\n```mermaid\n"
                              + mermaid_src + "\n```"},
                 ],
             }],
@@ -70,25 +85,36 @@ def analyze_mermaid(mermaid_src: str, force: bool = False) -> tuple[str, DFDAnal
         analysis_json=analysis_dict,
         tokens_in=getattr(usage, "input_tokens", None) if usage else None,
         tokens_out=getattr(usage, "output_tokens", None) if usage else None,
+        input_format=input_format,
+        project_id=project_id,
     )
-    return dfd_id, parsed
+    return dfd_id, parsed, False
 
 
-def analyze_image(image_bytes: bytes, media_type: str = "image/png") -> tuple[str, DFDAnalysis]:
-    """Run STRIDE analysis on a DFD image using Claude vision."""
+def analyze_image(
+    image_bytes: bytes,
+    media_type: str = "image/png",
+    project_id: str | None = None,
+    project_notes: str = "",
+) -> tuple[str, DFDAnalysis, bool]:
+    """Run STRIDE analysis on a DFD image using Claude vision.
+
+    Returns (dfd_id, analysis, from_cache).
+    """
     diagram_hash = _hash(image_bytes)
     cached = dfd_store.get_by_hash(diagram_hash)
     if cached:
         log.info("dfd image cache hit for %s", diagram_hash[:12])
-        return cached["id"], _dict_to_analysis(cached["analysis"])
+        return cached["id"], _dict_to_analysis(cached["analysis"]), True
 
     prompt = load_prompt("dfd_stride")
     client = get_client()
+    prefix = _project_context_prefix(project_notes)
     b64 = base64.standard_b64encode(image_bytes).decode("ascii")
     try:
         resp = client.messages.parse(
             model=MODEL,
-            max_tokens=4096,
+            max_tokens=8192,
             system=[{
                 "type": "text",
                 "text": prompt,
@@ -101,7 +127,7 @@ def analyze_image(image_bytes: bytes, media_type: str = "image/png") -> tuple[st
                      "source": {"type": "base64",
                                 "media_type": media_type, "data": b64}},
                     {"type": "text",
-                     "text": "Analyze this DFD image with STRIDE. "
+                     "text": prefix + "Analyze this DFD image with STRIDE. "
                              "Generate a Mermaid representation and annotate it."},
                 ],
             }],
@@ -122,8 +148,108 @@ def analyze_image(image_bytes: bytes, media_type: str = "image/png") -> tuple[st
         analysis_json=analysis_dict,
         tokens_in=getattr(usage, "input_tokens", None) if usage else None,
         tokens_out=getattr(usage, "output_tokens", None) if usage else None,
+        input_format="image",
+        project_id=project_id,
     )
-    return dfd_id, parsed
+    return dfd_id, parsed, False
+
+
+def generate_from_description(
+    text: str,
+    project_notes: str = "",
+) -> DFDMermaidGeneration:
+    """Generate a Mermaid DFD from a plain-language system description."""
+    prompt = load_prompt("dfd_generate_desc")
+    client = get_client()
+    prefix = _project_context_prefix(project_notes)
+    try:
+        resp = client.messages.parse(
+            model=MODEL,
+            max_tokens=4096,
+            system=[{
+                "type": "text",
+                "text": prompt,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{
+                "role": "user",
+                "content": [{"type": "text", "text": prefix + text}],
+            }],
+            output_format=DFDMermaidGeneration,
+        )
+        log_token_usage("dfd.generate_from_description", MODEL, getattr(resp, "usage", None))
+        parsed: DFDMermaidGeneration = getattr(resp, "parsed_output", None) or DFDMermaidGeneration()
+    except Exception as exc:
+        log.warning("DFD generate from description failed: %s", exc)
+        parsed = DFDMermaidGeneration(
+            mermaid="", notes=["Generation failed — please try rephrasing the description."]
+        )
+    return parsed
+
+
+def generate_from_document(
+    file_bytes: bytes,
+    filename: str,
+    project_notes: str = "",
+) -> DFDMermaidGeneration:
+    """Generate a Mermaid DFD from an architecture document (PDF/DOCX/TXT/MD)."""
+    text = _extract_text_from_file(file_bytes, filename)
+    if not text.strip():
+        return DFDMermaidGeneration(
+            mermaid="", notes=["Could not extract text from document."]
+        )
+
+    prompt = load_prompt("dfd_generate_doc")
+    client = get_client()
+    prefix = _project_context_prefix(project_notes)
+    # Truncate to ~8000 chars to stay within reasonable token budget
+    doc_excerpt = text[:8000]
+    if len(text) > 8000:
+        doc_excerpt += "\n\n[Document truncated for length]"
+
+    try:
+        resp = client.messages.parse(
+            model=MODEL,
+            max_tokens=4096,
+            system=[{
+                "type": "text",
+                "text": prompt,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{
+                "role": "user",
+                "content": [{"type": "text",
+                             "text": prefix + "## Document: " + filename + "\n\n" + doc_excerpt}],
+            }],
+            output_format=DFDMermaidGeneration,
+        )
+        log_token_usage("dfd.generate_from_document", MODEL, getattr(resp, "usage", None))
+        parsed: DFDMermaidGeneration = getattr(resp, "parsed_output", None) or DFDMermaidGeneration()
+    except Exception as exc:
+        log.warning("DFD generate from document failed: %s", exc)
+        parsed = DFDMermaidGeneration(
+            mermaid="", notes=["Generation failed — please try again or use Paste Mermaid mode."]
+        )
+    return parsed
+
+
+def _extract_text_from_file(file_bytes: bytes, filename: str) -> str:
+    """Extract plain text from PDF, DOCX, TXT, or MD files."""
+    lower = filename.lower()
+    try:
+        if lower.endswith(".pdf"):
+            import pypdf
+            reader = pypdf.PdfReader(BytesIO(file_bytes))
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        if lower.endswith(".docx"):
+            import docx
+            doc = docx.Document(BytesIO(file_bytes))
+            return "\n".join(p.text for p in doc.paragraphs)
+        # TXT, MD, or any other text format
+        return file_bytes.decode("utf-8", errors="replace")
+    except Exception as exc:
+        log.warning("Text extraction failed for %s: %s", filename, exc)
+        return file_bytes.decode("utf-8", errors="replace")
 
 
 def improve_mermaid(mermaid_src: str, kb_context: str = "") -> DFDImprovement:

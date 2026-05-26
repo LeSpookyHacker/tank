@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Tank{% endblock %}
+
+{% block breadcrumb %}
+  <span class="bc-item bc-current">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-page">
+
+  {# ── Org summary bar ── #}
+  <section class="org-summary-bar">
+    <div class="org-summary-item">
+      <span class="org-summary-value" id="stat-teams">{{ stats.team_count }}</span>
+      <span class="org-summary-label">Teams</span>
+    </div>
+    <div class="org-summary-item">
+      <span class="org-summary-value" id="stat-projects">{{ stats.project_count }}</span>
+      <span class="org-summary-label">Active Projects</span>
+    </div>
+    <div class="org-summary-item">
+      <span class="org-summary-value" id="stat-followups">{{ stats.open_followups }}</span>
+      <span class="org-summary-label">Open Findings</span>
+    </div>
+    <div class="org-summary-item">
+      <span class="org-summary-value" id="stat-docs">{{ stats.doc_count }}</span>
+      <span class="org-summary-label">Documents</span>
+    </div>
+    <div class="org-summary-spacer"></div>
+    <div class="org-name">{{ org.name if org else "My Organization" }}</div>
+  </section>
+
+  <div class="dashboard-body">
+
+    {# ── Team cards grid ── #}
+    <section class="teams-section">
+      <div class="teams-section-header">
+        <h2 class="section-title">Teams</h2>
+        <div class="teams-controls">
+          <select class="sort-select" id="team-sort" onchange="sortTeams(this.value)">
+            <option value="activity">Last activity</option>
+            <option value="name">Name</option>
+            <option value="projects">Projects</option>
+          </select>
+          <label class="archived-toggle">
+            <input type="checkbox" id="show-archived-teams" onchange="toggleArchivedTeams(this.checked)">
+            Show archived
+          </label>
+          <button class="btn-primary" onclick="openNewTeamModal()">+ New Team</button>
+        </div>
+      </div>
+
+      {% if teams %}
+      <div class="team-cards-grid" id="team-cards-grid">
+        {% for team in teams %}
+        <a class="team-card" href="/teams/{{ team.id }}"
+           data-name="{{ team.name | lower }}"
+           data-activity="{{ team.last_activity_at or 0 }}"
+           data-projects="{{ team.project_count }}"
+           data-status="{{ team.status }}">
+          <div class="team-card-accent" style="background:{{ team.color }};"></div>
+          <div class="team-card-body">
+            <div class="team-card-icon">{{ team.icon }}</div>
+            <div class="team-card-info">
+              <div class="team-card-name">{{ team.name }}</div>
+              {% if team.description %}
+              <div class="team-card-desc">{{ team.description }}</div>
+              {% endif %}
+              <div class="team-card-meta">
+                <span>{{ team.project_count }} project{{ "s" if team.project_count != 1 else "" }}</span>
+                {% if team.last_activity_at %}
+                <span class="meta-sep">·</span>
+                <span class="ts" data-ts="{{ team.last_activity_at }}"></span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% if team.status == "archived" %}
+          <span class="badge badge-archived">Archived</span>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">🛡️</div>
+        <div class="empty-title">No teams yet</div>
+        <div class="empty-body">Create your first team to start organizing your security work.</div>
+        <button class="btn-primary" onclick="openNewTeamModal()">+ New Team</button>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ── Recent & Pinned sidebar ── #}
+    <aside class="dashboard-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">📌 Pinned</div>
+        <div id="pinned-list" class="project-shortcut-list">
+          <div class="shortcut-empty" id="pinned-empty">No pinned projects yet.</div>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">🕐 Recent</div>
+        <div id="recent-list" class="project-shortcut-list">
+          <div class="shortcut-empty" id="recent-empty">No recent projects yet.</div>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">📋 Activity</div>
+        <div class="activity-feed" id="activity-feed">
+          {% for item in activity %}
+          <div class="activity-item">
+            <span class="activity-icon">{{ item.icon or item.emoji }}</span>
+            <span class="activity-name">{{ item.name }}</span>
+            <span class="ts activity-ts" data-ts="{{ item.last_activity_at }}"></span>
+          </div>
+          {% else %}
+          <div class="activity-empty">No activity yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="sidebar-section sidebar-nav-links">
+        <a href="/settings">⚙ Settings</a>
+        <a href="/me">👤 Me</a>
+        <a href="/entities">🔗 Entities</a>
+        <a href="/decisions">📝 Decisions</a>
+        <a href="/lessons">📚 Lessons</a>
+      </div>
+    </aside>
+
+  </div>{# /dashboard-body #}
+</div>{# /dashboard-page #}
+
+{# ── New Team modal ── #}
+<dialog class="modal" id="new-team-modal">
+  <div class="modal-header">
+    <span class="modal-title">New Team</span>
+    <button class="modal-close" onclick="closeNewTeamModal()" type="button">✕</button>
+  </div>
+  <form class="modal-body" id="new-team-form" onsubmit="return submitNewTeam(event)">
+    <label class="form-label">Team name <span class="required">*</span></label>
+    <input class="form-input" type="text" id="nt-name" placeholder="e.g. Platform Engineering" required>
+
+    <label class="form-label">Description</label>
+    <input class="form-input" type="text" id="nt-desc" placeholder="Optional description">
+
+    <label class="form-label">Icon</label>
+    <div class="emoji-picker" id="nt-emoji-picker">
+      {% set icons = ["🛡️","🖥️","🗄️","☁️","💻","🌐","🔐","🔑","📚","🌿","👥","🧠","📡","👁️","⚠️","📦","🔒","🧩","⚙️","📊"] %}
+      {% for em in icons %}
+      <button type="button" class="emoji-btn" data-emoji="{{ em }}" onclick="selectEmoji('nt', this)">{{ em }}</button>
+      {% endfor %}
+    </div>
+    <input type="hidden" id="nt-icon" value="🛡️">
+
+    <label class="form-label">Color</label>
+    <div class="color-picker" id="nt-color-picker">
+      {% set colors = ["#6c5ce7","#00b894","#0984e3","#e17055","#fd79a8","#fdcb6e","#55efc4","#74b9ff","#a29bfe","#636e72","#2d3436","#e84393"] %}
+      {% for c in colors %}
+      <button type="button" class="color-swatch" data-color="{{ c }}" style="background:{{ c }}"
+              onclick="selectColor('nt', this)" title="{{ c }}"></button>
+      {% endfor %}
+    </div>
+    <input type="hidden" id="nt-color" value="#6c5ce7">
+
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" onclick="closeNewTeamModal()">Cancel</button>
+      <button type="submit" class="btn-primary" id="nt-submit">Create Team</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Timestamp rendering ──
+(function () {
+  var now = Date.now() / 1000;
+  document.querySelectorAll(".ts[data-ts]").forEach(function (el) {
+    var ts = parseInt(el.dataset.ts, 10);
+    if (!ts) { el.textContent = ""; return; }
+    var diff = now - ts;
+    if (diff < 60) el.textContent = "just now";
+    else if (diff < 3600) el.textContent = Math.floor(diff / 60) + "m ago";
+    else if (diff < 86400) el.textContent = Math.floor(diff / 3600) + "h ago";
+    else if (diff < 86400 * 7) el.textContent = Math.floor(diff / 86400) + "d ago";
+    else el.textContent = new Date(ts * 1000).toLocaleDateString();
+  });
+})();
+
+// ── Recent & Pinned (localStorage) ──
+(function () {
+  function loadProjectMeta() {
+    return fetch("/api/projects")
+      .then(function (r) { return r.json(); })
+      .then(function (d) { return d.projects || []; })
+      .catch(function () { return []; });
+  }
+
+  function renderShortcuts(ids, projects, containerId, emptyId) {
+    var container = document.getElementById(containerId);
+    var empty = document.getElementById(emptyId);
+    if (!container) return;
+    var found = ids.map(function (id) {
+      return projects.find(function (p) { return p.id === id; });
+    }).filter(Boolean);
+    if (!found.length) {
+      if (empty) empty.style.display = "";
+      return;
+    }
+    if (empty) empty.style.display = "none";
+    found.forEach(function (p) {
+      var a = document.createElement("a");
+      a.className = "shortcut-item";
+      a.href = "/teams/" + (p.team_id || "default") + "/projects/" + p.id;
+      a.innerHTML = '<span class="shortcut-icon">' + (p.icon || p.emoji || "📦") + '</span>'
+        + '<span class="shortcut-name">' + p.name + '</span>';
+      container.appendChild(a);
+    });
+  }
+
+  loadProjectMeta().then(function (projects) {
+    var pinned = [];
+    var recent = [];
+    try {
+      pinned = JSON.parse(localStorage.getItem("tank_pinned_projects") || "[]");
+      recent = JSON.parse(localStorage.getItem("tank_recent_projects") || "[]");
+    } catch (e) {}
+    renderShortcuts(pinned, projects, "pinned-list", "pinned-empty");
+    renderShortcuts(recent.slice(0, 5), projects, "recent-list", "recent-empty");
+  });
+})();
+
+// ── Team sort ──
+function sortTeams(by) {
+  var grid = document.getElementById("team-cards-grid");
+  if (!grid) return;
+  var cards = Array.from(grid.querySelectorAll(".team-card"));
+  cards.sort(function (a, b) {
+    if (by === "name") return a.dataset.name.localeCompare(b.dataset.name);
+    if (by === "projects") return parseInt(b.dataset.projects) - parseInt(a.dataset.projects);
+    return parseInt(b.dataset.activity) - parseInt(a.dataset.activity);
+  });
+  cards.forEach(function (c) { grid.appendChild(c); });
+}
+
+function toggleArchivedTeams(show) {
+  document.querySelectorAll(".team-card[data-status='archived']").forEach(function (c) {
+    c.style.display = show ? "" : "none";
+  });
+}
+// Hide archived by default.
+document.querySelectorAll(".team-card[data-status='archived']").forEach(function (c) {
+  c.style.display = "none";
+});
+
+// ── New Team modal ──
+function openNewTeamModal() {
+  document.getElementById("new-team-modal").showModal();
+}
+function closeNewTeamModal() {
+  document.getElementById("new-team-modal").close();
+}
+// Select first emoji/color by default.
+(function () {
+  var firstEmoji = document.querySelector(".emoji-btn");
+  if (firstEmoji) firstEmoji.classList.add("selected");
+  var firstColor = document.querySelector(".color-swatch");
+  if (firstColor) firstColor.classList.add("selected");
+})();
+
+function selectEmoji(prefix, btn) {
+  document.querySelectorAll("#" + prefix + "-emoji-picker .emoji-btn")
+    .forEach(function (b) { b.classList.remove("selected"); });
+  btn.classList.add("selected");
+  document.getElementById(prefix + "-icon").value = btn.dataset.emoji;
+}
+function selectColor(prefix, btn) {
+  document.querySelectorAll("#" + prefix + "-color-picker .color-swatch")
+    .forEach(function (b) { b.classList.remove("selected"); });
+  btn.classList.add("selected");
+  document.getElementById(prefix + "-color").value = btn.dataset.color;
+}
+
+function submitNewTeam(e) {
+  e.preventDefault();
+  var name = document.getElementById("nt-name").value.trim();
+  if (!name) return false;
+  var payload = {
+    name: name,
+    description: document.getElementById("nt-desc").value.trim(),
+    icon: document.getElementById("nt-icon").value,
+    color: document.getElementById("nt-color").value,
+  };
+  var btn = document.getElementById("nt-submit");
+  btn.disabled = true;
+  btn.textContent = "Creating…";
+  fetch("/api/teams", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.id) window.location.href = "/teams/" + d.id;
+      else { btn.disabled = false; btn.textContent = "Create Team"; }
+    })
+    .catch(function () {
+      btn.disabled = false;
+      btn.textContent = "Create Team";
+    });
+  return false;
+}
+</script>
+{% endblock %}

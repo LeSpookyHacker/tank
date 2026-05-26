@@ -1,186 +1,669 @@
 {% extends "base.html" %}
-{% block title %}Tank — DFD Analysis{% endblock %}
+{% block title %}Tank — DFD Threat Analysis{% endblock %}
 
 {% block content %}
-<section class="report-detail">
-  <header class="report-header">
-    <a href="/dfd" class="dim">← DFD analyses</a>
-    <h1>DFD Threat Analysis</h1>
-    <div class="report-meta">
-      <span>created: {{ dfd.created_at | int }}</span>
-      <span>threats: {{ threats | length }}</span>
-      {% if dfd.tokens_in %}<span>tokens in: {{ dfd.tokens_in }}</span>{% endif %}
+<div class="dfd-workspace">
+
+  <!-- ─── Output header bar ────────────────────────────────────────── -->
+  <div class="dfd-workspace-header">
+    <div class="dfd-workspace-header-left">
+      <a href="/dfd" class="dfd-back-link dim">← DFD analyses</a>
+      <div class="dfd-header-meta dim">
+        {% if input_format == 'image' %}Image
+        {% elif input_format == 'generated_from_doc' %}From document
+        {% elif input_format == 'generated_from_description' %}From description
+        {% else %}Mermaid{% endif %}
+        · analyzed <span class="ts-rel" data-ts="{{ dfd.created_at | int }}"></span>
+        {% if dfd.tokens_in %}· {{ dfd.tokens_in }} tokens{% endif %}
+      </div>
+      {% if from_cache %}
+      <span class="dfd-cache-badge">⚡ Loaded from cache</span>
+      {% endif %}
     </div>
-    <div class="report-actions">
-      <button class="btn-ghost" onclick="window.print()">↓ PDF</button>
-      <a class="btn-ghost" href="/api/dfd/{{ dfd.id }}/export?format=mmd" download="{{ dfd.id }}.mmd">↓ Mermaid</a>
-      <a class="btn-ghost" href="/api/dfd/{{ dfd.id }}/export?format=json" download="{{ dfd.id }}.json">↓ JSON</a>
-      <button class="btn-ghost" id="reanalyze-btn" onclick="reanalyze()">↺ Re-analyze</button>
-      <button class="btn-secondary" id="improve-btn" onclick="improveDFD()">✦ Improve diagram</button>
+    <div class="dfd-workspace-header-right">
+      <div class="dfd-export-wrap">
+        <button class="btn-ghost dfd-export-btn" onclick="toggleExportMenu()">Export ▾</button>
+        <div class="dfd-export-menu" id="export-menu" hidden>
+          <button onclick="window.print(); closeExportMenu()">Print / Save as PDF</button>
+          <a href="/api/dfd/{{ dfd.id }}/export?format=mmd" download="{{ dfd.id }}_annotated.mmd" onclick="closeExportMenu()">Annotated .mmd</a>
+          <a href="/api/dfd/{{ dfd.id }}/export?format=original_mmd" download="{{ dfd.id }}_original.mmd" onclick="closeExportMenu()">Original .mmd</a>
+          <a href="/api/dfd/{{ dfd.id }}/export?format=json" download="{{ dfd.id }}.json" onclick="closeExportMenu()">JSON</a>
+        </div>
+      </div>
+      <button class="btn-ghost" id="reanalyze-btn" onclick="reanalyze()" title="Re-run analysis (bypasses cache, uses API tokens)">↺ Run again</button>
     </div>
-  </header>
+  </div>
+
+  <!-- ─── Split panel ─────────────────────────────────────────────── -->
+  <div class="dfd-split" id="dfd-split">
+
+    <!-- Diagram panel -->
+    <div class="dfd-diagram-panel" id="diagram-panel">
+
+      <!-- Skeleton shown while Mermaid initializes -->
+      <div class="dfd-diagram-skeleton" id="diagram-skeleton">
+        <div class="skeleton-line" style="width:60%;height:8px"></div>
+        <div class="skeleton-line" style="width:80%;height:8px;margin-top:12px"></div>
+        <div class="skeleton-line" style="width:45%;height:8px;margin-top:12px"></div>
+      </div>
+
+      <!-- Diagram error state -->
+      <div class="dfd-diagram-error" id="diagram-error" hidden>
+        <div class="dfd-diagram-error-icon">◈</div>
+        <div id="diagram-error-msg">Diagram could not be rendered.</div>
+        <div class="dim" style="font-size:0.82rem;margin-top:0.5rem">Check that the Mermaid source is valid. <a href="/dfd">← Back</a></div>
+      </div>
+
+      <!-- Diagram zoom controls -->
+      <div class="dfd-zoom-controls" id="zoom-controls" hidden>
+        <button onclick="zoom(0.15)" title="Zoom in">+</button>
+        <button onclick="zoom(-0.15)" title="Zoom out">−</button>
+        <button onclick="resetZoom()" title="Reset zoom">⊙</button>
+      </div>
+
+      <!-- Diagram container -->
+      <div class="dfd-diagram-scroll" id="diagram-scroll">
+        <div class="dfd-diagram-inner" id="diagram-inner"></div>
+      </div>
+
+      <!-- Tooltip -->
+      <div class="dfd-tooltip" id="dfd-tooltip" hidden></div>
+
+      <!-- Legend -->
+      <details class="dfd-legend" id="diagram-legend">
+        <summary>Legend</summary>
+        <div class="dfd-legend-items">
+          <span class="legend-swatch" style="background:var(--sev-critical)"></span> Critical
+          <span class="legend-swatch" style="background:var(--sev-high)"></span> High
+          <span class="legend-swatch" style="background:var(--sev-medium)"></span> Medium
+          <span class="legend-swatch" style="background:var(--sev-low)"></span> Low
+          <span class="legend-swatch legend-none"></span> No threats
+        </div>
+      </details>
+    </div>
+
+    <!-- Drag handle -->
+    <div class="dfd-panel-divider" id="panel-divider" title="Drag to resize"></div>
+
+    <!-- Findings panel -->
+    <div class="dfd-findings-panel" id="findings-panel">
+
+      <!-- Skeleton -->
+      <div class="dfd-findings-skeleton" id="findings-skeleton">
+        <div class="skeleton-line" style="width:90%;height:12px"></div>
+        <div class="skeleton-line" style="width:60%;height:12px;margin-top:8px"></div>
+        <div class="skeleton-line" style="width:75%;height:8px;margin-top:16px"></div>
+        <div class="skeleton-line" style="width:90%;height:8px;margin-top:8px"></div>
+      </div>
+
+      <!-- Summary strip -->
+      <div class="dfd-summary-strip" id="summary-strip" hidden>
+        <span class="summary-chip total">{{ threats | length }} threat{{ 's' if threats | length != 1 else '' }}</span>
+        {% if sev_counts.Critical > 0 %}
+        <span class="summary-chip critical">{{ sev_counts.Critical }} Critical</span>
+        {% endif %}
+        {% if sev_counts.High > 0 %}
+        <span class="summary-chip high">{{ sev_counts.High }} High</span>
+        {% endif %}
+        {% if sev_counts.Medium > 0 %}
+        <span class="summary-chip medium">{{ sev_counts.Medium }} Medium</span>
+        {% endif %}
+        {% if sev_counts.Low > 0 %}
+        <span class="summary-chip low">{{ sev_counts.Low }} Low</span>
+        {% endif %}
+      </div>
+
+      <!-- Filter toolbar -->
+      <div class="dfd-filter-bar" id="filter-bar" hidden>
+        <div class="dfd-filter-group">
+          <button class="filter-pill active" data-filter="sev" data-value="all" onclick="setSevFilter('all')">All</button>
+          <button class="filter-pill" data-filter="sev" data-value="Critical" onclick="setSevFilter('Critical')" style="--pill-color:var(--sev-critical)">Critical</button>
+          <button class="filter-pill" data-filter="sev" data-value="High" onclick="setSevFilter('High')" style="--pill-color:var(--sev-high)">High</button>
+          <button class="filter-pill" data-filter="sev" data-value="Medium" onclick="setSevFilter('Medium')" style="--pill-color:var(--sev-medium)">Medium</button>
+          <button class="filter-pill" data-filter="sev" data-value="Low" onclick="setSevFilter('Low')" style="--pill-color:var(--sev-low)">Low</button>
+        </div>
+        <div class="dfd-filter-group dfd-stride-filters">
+          <button class="filter-pill active" data-filter="stride" data-value="all" onclick="setStrideFilter('all')">All</button>
+          <button class="filter-pill" data-filter="stride" data-value="Spoofing" onclick="setStrideFilter('Spoofing')" title="Impersonating another user, process, or system.">S</button>
+          <button class="filter-pill" data-filter="stride" data-value="Tampering" onclick="setStrideFilter('Tampering')" title="Unauthorized modification of data in transit or at rest.">T</button>
+          <button class="filter-pill" data-filter="stride" data-value="Repudiation" onclick="setStrideFilter('Repudiation')" title="Performing actions without accountability or audit trail.">R</button>
+          <button class="filter-pill" data-filter="stride" data-value="Information Disclosure" onclick="setStrideFilter('Information Disclosure')" title="Exposure of data to unauthorized parties.">I</button>
+          <button class="filter-pill" data-filter="stride" data-value="Denial of Service" onclick="setStrideFilter('Denial of Service')" title="Preventing legitimate users from accessing the system.">D</button>
+          <button class="filter-pill" data-filter="stride" data-value="Elevation of Privilege" onclick="setStrideFilter('Elevation of Privilege')" title="Gaining capabilities beyond what was granted.">E</button>
+        </div>
+      </div>
+
+      <!-- Element selection chip -->
+      <div class="dfd-selection-chip" id="selection-chip" hidden>
+        <span id="selection-label"></span>
+        <button onclick="clearDiagramSelection()" title="Clear filter">× Clear</button>
+      </div>
+
+      <!-- Threat cards -->
+      <div class="dfd-cards-container" id="cards-container" hidden>
+        {% if threats %}
+          {% for t in threats %}
+          <div class="threat-card sev-{{ t.severity | lower }}"
+               data-element-id="{{ t.element_id }}"
+               data-stride="{{ t.stride_category }}"
+               data-severity="{{ t.severity }}"
+               data-threat-id="{{ t.threat_id | default(loop.index0) }}">
+            <div class="card-header">
+              <span class="sev-badge sev-badge-{{ t.severity | lower }}">{{ t.severity }}</span>
+              <span class="stride-badge"
+                    title="{% if t.stride_category == 'Spoofing' %}Impersonating another user, process, or system.{% elif t.stride_category == 'Tampering' %}Unauthorized modification of data in transit or at rest.{% elif t.stride_category == 'Repudiation' %}Performing actions without accountability or audit trail.{% elif t.stride_category == 'Information Disclosure' %}Exposure of data to unauthorized parties.{% elif t.stride_category == 'Denial of Service' %}Preventing legitimate users from accessing the system.{% elif t.stride_category == 'Elevation of Privilege' %}Gaining capabilities beyond what was granted.{% endif %}">
+                {{ t.stride_category }}
+              </span>
+            </div>
+            <div class="card-title">{{ t.title | default(t.description[:60] + '…' if t.description | length > 60 else t.description) }}</div>
+            <div class="card-element dim">{{ t.element_label | default(t.element_id) }}</div>
+            <div class="card-desc">
+              <span class="card-desc-text">{{ t.description }}</span>
+            </div>
+            <details class="card-mitigation">
+              <summary>Mitigation ▸</summary>
+              <div class="card-mitigation-body">{{ t.mitigation }}</div>
+            </details>
+            <div class="card-meta">
+              {% if t.cvss_estimate is not none and t.cvss_estimate is defined %}
+              <span class="card-cvss">CVSS ~{{ "%.1f" | format(t.cvss_estimate) }}</span>
+              {% endif %}
+              {% for ref in t.references %}
+              <span class="ref-pill">{{ ref }}</span>
+              {% endfor %}
+            </div>
+            <button class="highlight-btn" onclick="highlightInDiagram('{{ t.element_id }}')">
+              Highlight in diagram →
+            </button>
+          </div>
+          {% endfor %}
+        {% endif %}
+
+        <!-- Empty state for filter -->
+        <div class="dfd-empty-state" id="filter-empty" hidden>
+          <div class="empty-icon">◈</div>
+          <div>No threats match these filters.</div>
+          <button class="btn-secondary" style="margin-top:0.75rem" onclick="clearAllFilters()">Clear filters</button>
+        </div>
+      </div>
+
+      {% if not threats %}
+      <div class="dfd-empty-state" style="padding:2rem">
+        <div class="empty-icon">✓</div>
+        <div>No significant threats identified.</div>
+        <div class="dim" style="font-size:0.82rem;margin-top:0.5rem">The diagram may be too abstract. Try adding trust boundaries and data stores.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ─── Print-only content ─────────────────────────────────────────── -->
+<div class="print-only">
+  <div class="print-cover">
+    <h1>DFD Threat Analysis Report</h1>
+    <table class="print-meta-table">
+      <tr><td>Analysis ID</td><td>{{ dfd.id }}</td></tr>
+      <tr><td>Date</td><td>{{ dfd.created_at | int }}</td></tr>
+      <tr><td>Input format</td><td>{{ input_format }}</td></tr>
+      <tr><td>Total threats</td><td>{{ threats | length }}</td></tr>
+    </table>
+    <table class="print-sev-table">
+      <tr>
+        <th>Critical</th><th>High</th><th>Medium</th><th>Low</th>
+      </tr>
+      <tr>
+        <td class="sev-critical-cell">{{ sev_counts.Critical }}</td>
+        <td class="sev-high-cell">{{ sev_counts.High }}</td>
+        <td class="sev-medium-cell">{{ sev_counts.Medium }}</td>
+        <td class="sev-low-cell">{{ sev_counts.Low }}</td>
+      </tr>
+    </table>
+  </div>
 
   {% if annotated_mermaid %}
-  <div class="dfd-diagram-section">
-    <h2>Annotated Diagram</h2>
-    <div class="dfd-diagram-wrap">
-      <div class="mermaid" id="dfd-mermaid-diagram">{{ annotated_mermaid }}</div>
-    </div>
-    <div class="dfd-legend">
-      <span class="legend-item"><span class="sev-dot sev-critical"></span>Critical</span>
-      <span class="legend-item"><span class="sev-dot sev-high"></span>High</span>
-      <span class="legend-item"><span class="sev-dot sev-medium"></span>Medium</span>
-      <span class="legend-item"><span class="sev-dot sev-low"></span>Low</span>
-    </div>
+  <div class="print-diagram-section">
+    <h2>Annotated Data Flow Diagram</h2>
+    <div id="print-diagram"></div>
   </div>
   {% endif %}
 
-  {% if threats %}
-  <div class="dfd-threats-section">
-    <h2>Identified Threats</h2>
-    <table class="dfd-threat-table">
+  <div class="print-threats-section">
+    <h2>Threat Findings</h2>
+    <table class="print-threat-table">
       <thead>
         <tr>
-          <th>Severity</th>
-          <th>Category</th>
-          <th>Element</th>
-          <th>Description</th>
-          <th>Mitigation</th>
+          <th>ID</th><th>Severity</th><th>STRIDE</th><th>Element</th>
+          <th>Title</th><th>CVSS</th><th>Description</th><th>Mitigation</th><th>References</th>
         </tr>
       </thead>
       <tbody>
         {% for t in threats %}
-        <tr class="threat-row sev-row-{{ t.severity | lower }}">
-          <td><span class="sev-badge sev-{{ t.severity | lower }}">{{ t.severity }}</span></td>
-          <td><code>{{ t.stride_category }}</code></td>
-          <td><code>{{ t.element_id }}</code></td>
+        <tr>
+          <td>{{ t.threat_id | default(loop.index) }}</td>
+          <td>{{ t.severity }}</td>
+          <td>{{ t.stride_category }}</td>
+          <td>{{ t.element_label | default(t.element_id) }}</td>
+          <td>{{ t.title | default('') }}</td>
+          <td>{{ "%.1f" | format(t.cvss_estimate) if t.cvss_estimate is not none and t.cvss_estimate is defined else '—' }}</td>
           <td>{{ t.description }}</td>
           <td>{{ t.mitigation }}</td>
+          <td>{{ t.references | join(', ') if t.references is defined else '' }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  {% else %}
-  <div class="empty-state">
-    <div class="empty-state-icon">✓</div>
-    <h2>No significant threats identified</h2>
-    <p>The diagram may be too abstract or Tank found no security-relevant data flows. Try adding trust boundaries and data stores.</p>
+
+  <div class="print-matrix-section">
+    <h2>STRIDE Coverage Matrix</h2>
+    <table class="print-matrix-table">
+      <thead>
+        <tr>
+          <th>STRIDE Category</th>
+          {% for sev in sev_levels %}<th>{{ sev }}</th>{% endfor %}
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in stride_cats %}
+        <tr>
+          <td>{{ cat }}</td>
+          {% for sev in sev_levels %}
+          <td>{{ stride_matrix[cat][sev] or '—' }}</td>
+          {% endfor %}
+          <td><strong>{{ stride_matrix[cat].values() | sum }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if original_mermaid %}
+  <div class="print-appendix">
+    <h2>Appendix: Original Mermaid Source</h2>
+    <pre class="print-mermaid-src">{{ original_mermaid }}</pre>
   </div>
   {% endif %}
-
-  {% if elements %}
-  <details style="margin-top:1.5rem">
-    <summary class="dim" style="cursor:pointer">Parsed elements ({{ elements | length }})</summary>
-    <ul class="report-list" style="margin-top:0.5rem">
-      {% for el in elements %}
-      <li><code>{{ el.id }}</code> · {{ el.kind }} · {{ el.label }}</li>
-      {% endfor %}
-    </ul>
-  </details>
-  {% endif %}
-
-  <!-- Improve DFD output (hidden until improve runs) -->
-  <div id="improve-section" class="dfd-improve-section" hidden>
-    <h2>Improved Diagram</h2>
-    <p class="dim" id="improve-status"></p>
-    <ul id="suggestions-list" class="dfd-suggestions"></ul>
-    <div class="dfd-diagram-wrap">
-      <div class="mermaid" id="improved-diagram"></div>
-    </div>
-    <div style="margin-top:0.75rem;display:flex;gap:0.5rem">
-      <button class="btn-secondary" onclick="analyzeImproved()">Run STRIDE on improved diagram</button>
-      <button class="btn-ghost" onclick="copyImproved()">Copy Mermaid</button>
-    </div>
-  </div>
-</section>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 <script>
-  var _improvedSrc = "";
-  var _dfdId = {{ dfd.id | tojson }};
-  var _mermaidSrc = {{ (dfd.mermaid_src or "") | tojson }};
+/* ── DFD workspace — Stage 3 ── */
+var SEV_COLORS = {Critical:'#DC2626', High:'#EA580C', Medium:'#D97706', Low:'#4F46E5'};
+var SEV_LABELS = {Critical:'C', High:'H', Medium:'M', Low:'L'};
 
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: document.documentElement.classList.contains('theme-light') ? 'default' : 'dark',
-    securityLevel: 'loose',
+var STRIDE_TIPS = {
+  'Spoofing': 'Impersonating another user, process, or system.',
+  'Tampering': 'Unauthorized modification of data in transit or at rest.',
+  'Repudiation': 'Performing actions without accountability or audit trail.',
+  'Information Disclosure': 'Exposure of data to unauthorized parties.',
+  'Denial of Service': 'Preventing legitimate users from accessing the system.',
+  'Elevation of Privilege': 'Gaining capabilities beyond what was granted.',
+};
+
+var _annotatedSrc = {{ annotated_mermaid | tojson }};
+var _originalSrc = {{ original_mermaid | tojson }};
+var _dfdId = {{ dfd.id | tojson }};
+var _mermaidSrc = {{ (dfd.mermaid_src or '') | tojson }};
+
+var _zoomLevel = 1.0;
+var _selectedElementId = null;
+var _activeSevFilter = 'all';
+var _activeStrideFilter = 'all';
+
+// ── Mermaid init ──
+var isLight = document.documentElement.classList.contains('theme-light');
+mermaid.initialize({
+  startOnLoad: false,
+  theme: isLight ? 'default' : 'base',
+  themeVariables: isLight ? {} : {
+    background: '#0d0d12', primaryColor: '#1a1728', primaryTextColor: '#e8e6f0',
+    primaryBorderColor: '#3d2e6b', lineColor: '#6c5ce7',
+    fontFamily: 'Inter, sans-serif', fontSize: '14px',
+  },
+  securityLevel: 'loose',
+});
+
+// ── Build element → threat count map from server-rendered threat cards ──
+var _elementThreatMap = {};
+document.querySelectorAll('.threat-card').forEach(function(card) {
+  var eid = card.dataset.elementId;
+  if (!eid) return;
+  _elementThreatMap[eid] = (_elementThreatMap[eid] || []).concat(card.dataset.severity);
+});
+
+// ── Render diagram ──
+async function initDiagram() {
+  var src = _annotatedSrc || _originalSrc;
+  if (!src) {
+    document.getElementById('diagram-skeleton').hidden = true;
+    document.getElementById('diagram-error').hidden = false;
+    document.getElementById('diagram-error-msg').textContent = 'No Mermaid source available.';
+    revealFindings();
+    return;
+  }
+
+  try {
+    var result = await mermaid.render('dfd-main-svg', src);
+    var inner = document.getElementById('diagram-inner');
+    inner.innerHTML = result.svg;
+
+    document.getElementById('diagram-skeleton').hidden = true;
+    document.getElementById('zoom-controls').hidden = false;
+    document.getElementById('diagram-legend').hidden = false;
+    attachDiagramInteractivity(inner);
+  } catch (e) {
+    document.getElementById('diagram-skeleton').hidden = true;
+    document.getElementById('diagram-error').hidden = false;
+    var msg = String(e.message || e).split('\n')[0];
+    document.getElementById('diagram-error-msg').textContent = 'Render error: ' + msg;
+  }
+
+  // Render print diagram too
+  if (_annotatedSrc) {
+    try {
+      var pr = await mermaid.render('dfd-print-svg', _annotatedSrc);
+      var pd = document.getElementById('print-diagram');
+      if (pd) pd.innerHTML = pr.svg;
+    } catch (_) {}
+  }
+
+  revealFindings();
+}
+
+function revealFindings() {
+  document.getElementById('findings-skeleton').hidden = true;
+  document.getElementById('summary-strip').hidden = false;
+  document.getElementById('filter-bar').hidden = false;
+  document.getElementById('cards-container').hidden = false;
+}
+
+// ── SVG interactivity ──
+function attachDiagramInteractivity(container) {
+  var svg = container.querySelector('svg');
+  if (!svg) return;
+
+  // Click on empty SVG background → clear selection
+  svg.addEventListener('click', function(e) {
+    if (e.target === svg || e.target.tagName === 'svg') {
+      clearDiagramSelection();
+    }
   });
 
-  async function reanalyze() {
-    var btn = document.getElementById('reanalyze-btn');
-    btn.disabled = true;
-    btn.textContent = 'Re-analyzing…';
-    try {
-      var fd = new FormData();
-      fd.append('mermaid_src', _mermaidSrc);
-      fd.append('force', 'true');
-      var r = await fetch('/api/dfd/analyze', {method: 'POST', body: fd});
-      var d = await r.json();
-      if (r.ok) {
-        window.location.href = '/dfd/' + d.dfd_id;
-      } else {
-        alert('Re-analyze failed: ' + (d.detail || r.status));
-        btn.disabled = false; btn.textContent = '↺ Re-analyze';
-      }
-    } catch(e) {
-      alert('Request failed: ' + e.message);
-      btn.disabled = false; btn.textContent = '↺ Re-analyze';
-    }
-  }
+  // Find node <g> elements — Mermaid renders them as <g class="node"> with various structures
+  var nodes = svg.querySelectorAll('g.node, g[class*="node"]');
+  nodes.forEach(function(nodeEl) {
+    // Extract node ID from the element's id attribute (e.g., "flowchart-AuthService-0")
+    var rawId = nodeEl.id || '';
+    var nodeId = extractNodeId(rawId);
+    if (!nodeId) return;
 
-  async function improveDFD() {
-    var btn = document.getElementById('improve-btn');
-    var section = document.getElementById('improve-section');
-    var status = document.getElementById('improve-status');
-    btn.disabled = true;
-    btn.textContent = 'Improving…';
-    status.textContent = 'Querying knowledge base and asking Claude to fill in gaps…';
-    section.hidden = false;
-    document.getElementById('suggestions-list').innerHTML = '';
-    document.getElementById('improved-diagram').innerHTML = '';
+    nodeEl.style.cursor = 'pointer';
 
-    try {
-      var r = await fetch('/api/dfd/' + _dfdId + '/improve', {method: 'POST'});
-      var d = await r.json();
-      if (!r.ok) {
-        status.textContent = 'Error: ' + (d.detail || r.status);
-        btn.disabled = false; btn.textContent = '✦ Improve diagram';
-        return;
-      }
-      _improvedSrc = d.improved_mermaid;
-      var ul = document.getElementById('suggestions-list');
-      (d.suggestions || []).forEach(function(s) {
-        var li = document.createElement('li'); li.textContent = s; ul.appendChild(li);
-      });
-      status.textContent = (d.suggestions || []).length + ' improvement(s) applied:';
-
-      // Render improved diagram via mermaid
-      var el = document.getElementById('improved-diagram');
-      el.removeAttribute('data-processed');
-      el.textContent = _improvedSrc;
-      await mermaid.run({nodes: [el]});
-    } catch(e) {
-      status.textContent = 'Request failed: ' + e.message;
-    }
-    btn.disabled = false; btn.textContent = '✦ Improve diagram';
-  }
-
-  function copyImproved() {
-    if (!_improvedSrc) return;
-    navigator.clipboard.writeText(_improvedSrc).then(function() {
-      alert('Improved Mermaid copied to clipboard.');
+    nodeEl.addEventListener('mouseenter', function(e) {
+      showTooltip(e, nodeId);
     });
-  }
+    nodeEl.addEventListener('mouseleave', function() {
+      hideTooltip();
+    });
+    nodeEl.addEventListener('mousemove', function(e) {
+      positionTooltip(e);
+    });
+    nodeEl.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (_selectedElementId === nodeId) {
+        clearDiagramSelection();
+      } else {
+        selectElement(nodeId, nodeEl);
+      }
+    });
+  });
+}
 
-  function analyzeImproved() {
-    if (!_improvedSrc) return;
-    var fd = new FormData();
-    fd.append('mermaid_src', _improvedSrc);
-    fetch('/api/dfd/analyze', {method: 'POST', body: fd})
-      .then(function(r) { return r.json(); })
-      .then(function(d) { if (d.dfd_id) window.location.href = '/dfd/' + d.dfd_id; })
-      .catch(function(e) { alert('Failed: ' + e.message); });
+function extractNodeId(rawId) {
+  // Mermaid flowchart: "flowchart-NodeName-N" or just "NodeName"
+  var m = rawId.match(/^flowchart-(.+)-\d+$/) || rawId.match(/^(.+)$/);
+  return m ? m[1] : rawId;
+}
+
+function showTooltip(e, nodeId) {
+  var tooltip = document.getElementById('dfd-tooltip');
+  var sevs = _elementThreatMap[nodeId] || [];
+  var counts = {};
+  sevs.forEach(function(s) { counts[s] = (counts[s] || 0) + 1; });
+  var countStr = sevs.length === 0 ? 'No threats' :
+    sevs.length + ' threat' + (sevs.length !== 1 ? 's' : '') +
+    (Object.keys(counts).length > 0 ? ' · ' + Object.entries(counts).map(function(kv) {
+      return kv[1] + ' ' + kv[0];
+    }).join(', ') : '');
+
+  tooltip.textContent = nodeId + ' · ' + countStr;
+  tooltip.hidden = false;
+  positionTooltip(e);
+}
+
+function positionTooltip(e) {
+  var tooltip = document.getElementById('dfd-tooltip');
+  var panel = document.getElementById('diagram-panel');
+  var rect = panel.getBoundingClientRect();
+  var x = e.clientX - rect.left + 12;
+  var y = e.clientY - rect.top - 8;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('dfd-tooltip').hidden = true;
+}
+
+function selectElement(nodeId, nodeEl) {
+  // Clear previous selection highlight
+  clearNodeHighlight();
+  _selectedElementId = nodeId;
+
+  // Highlight selected node in SVG
+  highlightNode(nodeEl, true);
+
+  // Show selection chip
+  document.getElementById('selection-chip').hidden = false;
+  document.getElementById('selection-label').textContent = 'Showing threats for: ' + nodeId;
+
+  // Filter cards
+  applyFilters();
+}
+
+function clearDiagramSelection() {
+  if (_selectedElementId) {
+    clearNodeHighlight();
+    _selectedElementId = null;
   }
+  document.getElementById('selection-chip').hidden = true;
+  applyFilters();
+}
+
+function clearNodeHighlight() {
+  document.querySelectorAll('.dfd-node-selected').forEach(function(el) {
+    el.classList.remove('dfd-node-selected');
+    el.style.filter = '';
+    el.style.outline = '';
+  });
+}
+
+function highlightNode(nodeEl, selected) {
+  if (selected) {
+    nodeEl.classList.add('dfd-node-selected');
+    nodeEl.style.filter = 'drop-shadow(0 0 8px rgba(167,139,250,0.8))';
+  }
+}
+
+function highlightInDiagram(elementId) {
+  var inner = document.getElementById('diagram-inner');
+  if (!inner) return;
+  var nodes = inner.querySelectorAll('g.node, g[class*="node"]');
+  var found = null;
+  nodes.forEach(function(n) {
+    if (extractNodeId(n.id || '') === elementId) found = n;
+  });
+  if (found) {
+    clearNodeHighlight();
+    _selectedElementId = elementId;
+    highlightNode(found, true);
+    document.getElementById('selection-chip').hidden = false;
+    document.getElementById('selection-label').textContent = 'Showing threats for: ' + elementId;
+    applyFilters();
+    // Scroll node into view within diagram panel
+    found.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+}
+
+// ── Zoom ──
+function zoom(delta) {
+  _zoomLevel = Math.min(3, Math.max(0.3, _zoomLevel + delta));
+  document.getElementById('diagram-inner').style.transform = 'scale(' + _zoomLevel + ')';
+  document.getElementById('diagram-inner').style.transformOrigin = 'top left';
+}
+function resetZoom() {
+  _zoomLevel = 1.0;
+  document.getElementById('diagram-inner').style.transform = '';
+}
+document.getElementById('diagram-scroll').addEventListener('wheel', function(e) {
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    zoom(e.deltaY < 0 ? 0.1 : -0.1);
+  }
+}, {passive: false});
+
+// ── Filters ──
+function setSevFilter(val) {
+  _activeSevFilter = val;
+  document.querySelectorAll('[data-filter="sev"]').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.value === val);
+  });
+  applyFilters();
+}
+
+function setStrideFilter(val) {
+  _activeStrideFilter = val;
+  document.querySelectorAll('[data-filter="stride"]').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.value === val);
+  });
+  applyFilters();
+}
+
+function clearAllFilters() {
+  setSevFilter('all');
+  setStrideFilter('all');
+  clearDiagramSelection();
+}
+
+function applyFilters() {
+  var cards = document.querySelectorAll('.threat-card');
+  var visibleCount = 0;
+
+  cards.forEach(function(card) {
+    var sevMatch = _activeSevFilter === 'all' || card.dataset.severity === _activeSevFilter;
+    var strideMatch = _activeStrideFilter === 'all' || card.dataset.stride === _activeStrideFilter;
+    var elementMatch = !_selectedElementId || card.dataset.elementId === _selectedElementId;
+    var visible = sevMatch && strideMatch && elementMatch;
+
+    card.style.transition = 'opacity 0.2s, max-height 0.3s';
+    if (visible) {
+      card.style.display = '';
+      card.style.opacity = '1';
+      visibleCount++;
+    } else {
+      card.style.opacity = '0';
+      setTimeout(function(c) { return function() { c.style.display = 'none'; }; }(card), 200);
+    }
+  });
+
+  document.getElementById('filter-empty').hidden = visibleCount > 0 || !document.querySelectorAll('.threat-card').length;
+}
+
+// ── Keyboard nav ──
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') clearDiagramSelection();
+});
+
+// ── Panel drag resize ──
+(function() {
+  var divider = document.getElementById('panel-divider');
+  var split = document.getElementById('dfd-split');
+  var diagPanel = document.getElementById('diagram-panel');
+  var dragging = false;
+  var startX, startWidth;
+
+  divider.addEventListener('mousedown', function(e) {
+    dragging = true;
+    startX = e.clientX;
+    startWidth = diagPanel.getBoundingClientRect().width;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var delta = e.clientX - startX;
+    var total = split.getBoundingClientRect().width;
+    var newWidth = Math.min(Math.max(startWidth + delta, total * 0.25), total * 0.75);
+    diagPanel.style.flexBasis = newWidth + 'px';
+    diagPanel.style.flexGrow = '0';
+    diagPanel.style.flexShrink = '0';
+  });
+  document.addEventListener('mouseup', function() {
+    if (dragging) {
+      dragging = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  });
+})();
+
+// ── Export menu ──
+function toggleExportMenu() {
+  var menu = document.getElementById('export-menu');
+  menu.hidden = !menu.hidden;
+}
+function closeExportMenu() {
+  document.getElementById('export-menu').hidden = true;
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.dfd-export-wrap')) closeExportMenu();
+});
+
+// ── Re-analyze ──
+async function reanalyze() {
+  if (!confirm('Re-running analysis will use API tokens and bypass the cache. Continue?')) return;
+  var btn = document.getElementById('reanalyze-btn');
+  btn.disabled = true; btn.textContent = 'Re-analyzing…';
+
+  try {
+    var r = await fetch('/api/dfd/start-analysis', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mermaid_src: _mermaidSrc || _originalSrc, force: true}),
+    });
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.status);
+    // Navigate to Stage 1 progress page ... but we're already on the detail page.
+    // Redirect back to /dfd with task running and redirect on done.
+    // Simplest: redirect to /dfd and let user see the task progress.
+    window.location.href = '/dfd?reanalyzing=' + d.task_id;
+  } catch (e) {
+    alert('Re-analyze failed: ' + e.message);
+    btn.disabled = false; btn.textContent = '↺ Run again';
+  }
+}
+
+// ── Timestamp rendering ──
+document.querySelectorAll('.ts-rel').forEach(function(el) {
+  var ts = parseInt(el.dataset.ts, 10);
+  if (!ts) return;
+  var d = new Date(ts * 1000);
+  el.textContent = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+});
+
+// ── Init ──
+initDiagram();
 </script>
 {% endblock %}

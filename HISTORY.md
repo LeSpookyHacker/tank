@@ -13,6 +13,100 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-26 — DFD & Threat Model Revamp (3.2 rewrite)
+
+### Goal
+
+Replace the minimal 2-tab input form and flat threat table with a professional
+three-stage pipeline: four input modes → 4-step SSE progress tracker → split-panel
+interactive workspace. Elevate DFD from a quick prototype to a first-class feature
+with richer threat schema, diagram interactivity, cross-panel linking, project
+context awareness, and professional PDF export.
+
+### What got built
+
+**Schema (`app/schemas.py`)**
+
+Renamed DFD `STRIDEThreat` → `DFDThreat` to fix naming collision with the
+reports-module `STRIDEThreat`. Added new fields: `threat_id` (sequential T001…),
+`element_label`, `title`, `cvss_estimate: float | None`, `references: list[str]`.
+Added `DFDMermaidGeneration` schema for generate-from-doc and generate-from-description flows.
+
+**DB migration (`app/db.py`)**
+
+`_migrate_dfd_columns()` adds `input_format TEXT`, `project_id TEXT`, and
+`cached INTEGER NOT NULL DEFAULT 0` to `dfd_analyses` via `_add_col_safe`
+(idempotent). Called from `_init_schema()` on every boot.
+
+**Storage (`app/storage/dfd_store.py`)**
+
+`insert()` now accepts `input_format`, `project_id`, `cached`. `list_recent()`
+accepts optional `project_id` filter. `_row_to_dict()` normalizes rows (parses
+`analysis_json`, converts `cached` to bool).
+
+**Prompts**
+
+- `prompts/dfd_stride.md` — updated for new threat fields; Low severity color
+  changed from `#2563eb` → `#4F46E5` (aligns with CSS vars); severity indicator
+  added to annotated node labels (`⚠ H`); project context injection instruction.
+- `prompts/dfd_generate_doc.md` — new: generate Mermaid DFD from an architecture
+  document (PDF/DOCX/TXT/MD).
+- `prompts/dfd_generate_desc.md` — new: generate Mermaid DFD from plain-language
+  system description.
+
+**Analyzer (`app/claude/dfd_analyzer.py`)**
+
+Added `generate_from_description()`, `generate_from_document()` (uses `pypdf` /
+`python-docx` for local text extraction). Updated `analyze_mermaid()` and
+`analyze_image()` to accept `project_id`, `project_notes`, `input_format`; all
+return `(dfd_id, analysis, from_cache)` tuples.
+
+**Router (`app/routers/dfd.py`)**
+
+New endpoints: `POST /api/dfd/generate-from-description`, `POST /api/dfd/generate-from-doc`,
+`POST /api/dfd/start-analysis` (returns `task_id`), `POST /api/dfd/start-analysis-image`,
+`GET /api/dfd/task/{task_id}/stream` (SSE). New `format=original_mmd` export.
+JSON export updated with a metadata wrapper. Legacy `POST /api/dfd/analyze`
+retained for backward compat.
+
+**Stage 1 — `dfd.html` (complete rewrite)**
+
+4-tab mode selector: Paste Mermaid / Upload File / From Document / From Description.
+Tab A: debounced live preview, "Load example" 6–8 node DFD. Tab B: drag-drop zone
+with per-extension behavior (images stay as images; text files populate Tab A).
+Tabs C/D: generate via Claude → populate Tab A. Submit launches SSE-tracked
+analysis (Stage 2 progress tracker in-page).
+
+**Stage 3 — `dfd_detail.html` (complete rewrite)**
+
+Split-panel workspace with drag-resize handle. Mermaid rendered with custom Nyx
+theme (`theme: 'base'` + `themeVariables`). SVG click/hover interactivity via
+`<g class="node">` elements. Zoom via CSS `transform: scale()`. Findings panel:
+summary strip, severity + STRIDE filter pills with CSS transitions, threat cards
+with collapsible mitigation and `<details>`, CVSS, ref-pills, "Highlight in
+diagram →" cross-link. Print-only section for professional PDF layout
+(cover + diagram + threat table + STRIDE 6×4 matrix + Mermaid appendix).
+
+**Style (`app/static/style.css`)**
+
+Added `--sev-critical/high/medium/low` CSS variables to `:root` as the single
+source of truth for severity colors. All Stage 1 + Stage 3 UI styles. Comprehensive
+`@media print` for PDF export.
+
+### Tradeoffs
+
+- **SSE steps bracket a single Claude call** — Steps 1 and 4 are genuinely real
+  (input validation and DB storage). Steps 2–3 bracket the Claude call. The
+  4-step UX communicates meaningful progress without requiring the analysis to be
+  split into multiple API calls.
+- **PDF via `@print` CSS only** — No jsPDF/html2canvas dependency. Produces a
+  professional layout without adding a build step or large client-side library.
+- **Old-schema backward compat** — Existing `dfd_analyses` rows have no `threat_id`,
+  `title`, etc. Template uses Jinja2 `| default()` fallbacks so old records still
+  render correctly alongside new ones.
+
+---
+
 ## 2026-05-25 — Projects dashboard + color/notes + project-scoped chat (3.3)
 
 ### Goal

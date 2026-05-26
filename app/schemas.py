@@ -514,23 +514,35 @@ class DFDElement(BaseModel):
     label: str
 
 
-class STRIDEThreat(BaseModel):
+class DFDThreat(BaseModel):
+    """STRIDE threat from DFD analysis. Severity must be Critical|High|Medium|Low."""
+    threat_id: str                        # sequential: T001, T002, …
     element_id: str
-    stride_category: str  # Spoofing | Tampering | Repudiation | Information Disclosure | Denial of Service | Elevation of Privilege
-    severity: str  # Critical | High | Medium | Low
+    element_label: str
+    stride_category: str                  # Spoofing|Tampering|Repudiation|Information Disclosure|Denial of Service|Elevation of Privilege
+    severity: str                         # Critical|High|Medium|Low
+    cvss_estimate: float | None = None
+    title: str
     description: str
     mitigation: str
+    references: list[str] = Field(default_factory=list)  # e.g. ["OWASP A02:2021", "CWE-347"]
 
 
 class DFDAnalysis(BaseModel):
     elements: list[DFDElement] = Field(default_factory=list)
-    threats: list[STRIDEThreat] = Field(default_factory=list)
+    threats: list[DFDThreat] = Field(default_factory=list)
     annotated_mermaid: str = ""
 
 
 class DFDImprovement(BaseModel):
     improved_mermaid: str = ""
     suggestions: list[str] = Field(default_factory=list)
+
+
+class DFDMermaidGeneration(BaseModel):
+    """Mermaid DFD generated from a document or plain-language description."""
+    mermaid: str = ""
+    notes: list[str] = Field(default_factory=list)
 
 
 # ---------- Phase 13/14: additional NudgeKind values ----------

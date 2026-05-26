@@ -5,19 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Tank{% endblock %}</title>
 
-  {# Set theme synchronously before <body> renders to prevent a flash
-     when the user has chosen light mode on a return visit. #}
+  {# Synchronous theme init — prevents flash on return visits. #}
   <script>
     (function () {
       try {
         var t = localStorage.getItem("tank-theme");
         if (!t) {
-          t = window.matchMedia &&
-              window.matchMedia("(prefers-color-scheme: light)").matches
+          t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
               ? "light" : "dark";
         }
         if (t === "light") document.documentElement.classList.add("theme-light");
-      } catch (e) { /* localStorage blocked — fall back to default dark */ }
+      } catch (e) {}
     })();
   </script>
 
@@ -25,113 +23,81 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/">
+  {# ── Global header ── #}
+  <header class="global-header" id="global-header">
+    <a class="brand" href="/dashboard">
       <span class="brand-mark">▰</span>
       <span class="brand-name">Tank</span>
     </a>
-    <span class="topbar-spacer"></span>
-    {% if state %}
-    <div class="role-toggle" data-current="{{ state.role_mode.value }}">
-      <span class="role-pill" data-role="ic">Staff IC</span>
-      <span class="role-pill" data-role="manager">Manager</span>
-      <span class="role-pill" data-role="both">Both</span>
-    </div>
-    {% endif %}
 
-    <div class="project-switcher" id="project-switcher">
-      <button class="project-btn" onclick="toggleProjectMenu(event)" title="Switch project" id="project-switcher-btn">
-        <span id="active-project-emoji">🔐</span>
-        <span class="project-name" id="active-project-name">…</span>
-        ▾
-      </button>
-      <div class="project-menu" id="project-menu" hidden></div>
-    </div>
+    {# Breadcrumb — populated by individual pages via a block #}
+    <nav class="global-breadcrumb" aria-label="breadcrumb">
+      {% block breadcrumb %}{% endblock %}
+    </nav>
 
-    <button id="theme-toggle"
-            class="theme-toggle"
-            type="button"
-            aria-label="Toggle day/night theme"
-            title="Toggle day/night theme"
+    <div class="header-spacer"></div>
+
+    {# Global search bar #}
+    <form class="global-search-form" action="/search" method="get" role="search">
+      <input class="global-search-input" type="search" name="q"
+             placeholder="Search teams, projects, docs…"
+             value="{{ request.query_params.get('q', '') if request else '' }}"
+             autocomplete="off">
+      <button class="global-search-btn" type="submit" aria-label="Search">⌕</button>
+    </form>
+
+    {# Theme toggle #}
+    <button id="theme-toggle" class="theme-toggle" type="button"
+            aria-label="Toggle theme" title="Toggle theme"
             onclick="tankToggleTheme()">
       <span class="icon-moon" aria-hidden="true">☾</span>
       <span class="icon-sun"  aria-hidden="true">☀</span>
     </button>
+
+    {# API cost badge #}
+    <span id="cost-badge" class="cost-badge" title="Lifetime API cost">$<span id="cost-value">—</span></span>
   </header>
 
-  <div class="app-layout" id="app-layout">
-    <aside class="sidebar" id="sidebar">
-      <nav class="sidebar-nav">
-        <div class="nav-group">
-          <div class="nav-group-label">Workspace</div>
-          <a class="nav-item" href="/">Today</a>
-          <a class="nav-item" href="/entities">Entities</a>
-          <a class="nav-item" href="/chat" id="chat-nav-link" onclick="return panelNavClick(event)">Chat</a>
-        </div>
-        <div class="nav-group">
-          <div class="nav-group-label">Pipeline</div>
-          <a class="nav-item" href="/ingest">Ingest</a>
-          <a class="nav-item" href="/reports">Reports</a>
-          <a class="nav-item" href="/dfd">DFD Analysis</a>
-          <a class="nav-item" href="/threat-models">Threat Models</a>
-          <a class="nav-item" href="/attack-surface">Attack Surface</a>
-        </div>
-        <div class="nav-group">
-          <div class="nav-group-label">Workstreams</div>
-          <a class="nav-item" href="/design-reviews">Design Reviews</a>
-          <a class="nav-item" href="/postmortems">Postmortems</a>
-          <a class="nav-item" href="/tabletops">Tabletops</a>
-          <a class="nav-item" href="/compliance">Compliance</a>
-          <a class="nav-item" href="/decisions">Decisions</a>
-          <a class="nav-item" href="/lessons">Lessons</a>
-          <a class="nav-item" href="/glossary">Glossary</a>
-        </div>
-        <div class="nav-group">
-          <div class="nav-group-label">System</div>
-          <a class="nav-item" href="/me">Me</a>
-          <a class="nav-item" href="/settings">Settings</a>
-        </div>
-      </nav>
-      <div class="sidebar-footer">
-        <span id="cost-badge" class="cost-badge" title="Lifetime API cost (claude-sonnet-4-6)">$<span id="cost-value">—</span></span>
+  {# ── Page content ── #}
+  <main class="global-main" id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  {# ── Global chat widget (bottom-right, hidden inside project workspaces) ── #}
+  <div class="global-chat-widget" id="global-chat-widget">
+    <button class="gchat-toggle-btn" id="gchat-toggle-btn"
+            onclick="gchatToggle()" title="Global chat">
+      ▰ Chat
+    </button>
+    <div class="gchat-panel" id="gchat-panel" hidden>
+      <div class="gchat-header">
+        <span class="gchat-title">▰ Chat</span>
+        <a class="gchat-fullscreen" id="gchat-fullscreen" href="/chat" title="Full chat">⤢</a>
+        <button class="gchat-close-btn" onclick="gchatToggle()" title="Close">✕</button>
       </div>
-    </aside>
-    <main class="main" id="main-content">
-      {% block content %}{% endblock %}
-    </main>
-    <aside class="side-panel" id="side-panel">
-      <div class="panel-resize-handle" id="panel-resize-handle"></div>
-      <div class="panel-header">
-        <span class="panel-title">▰ Chat</span>
-        <a class="panel-fullscreen" id="panel-fullscreen" href="/chat" title="Open full chat">⤢</a>
-        <button class="panel-close-btn" onclick="panelToggle()" title="Collapse panel">✕</button>
+      <div class="gchat-messages" id="gchat-messages"></div>
+      <div class="gchat-stream" id="gchat-stream" hidden>
+        <div class="gchat-stream-body" id="gchat-stream-body"></div>
       </div>
-      <div class="panel-messages" id="panel-messages"></div>
-      <div class="panel-stream" id="panel-stream" hidden>
-        <div class="panel-stream-body" id="panel-stream-body"></div>
-      </div>
-      <form class="panel-composer" id="panel-composer" onsubmit="return panelSend(event)">
-        <textarea id="panel-input" rows="2" placeholder="Ask Tank anything…"></textarea>
-        <button type="submit" id="panel-send-btn" class="panel-send-btn">↑</button>
+      <form class="gchat-composer" id="gchat-composer" onsubmit="return gchatSend(event)">
+        <textarea id="gchat-input" rows="2" placeholder="Ask Tank anything…"></textarea>
+        <button type="submit" id="gchat-send-btn" class="gchat-send-btn">↑</button>
       </form>
-    </aside>
+    </div>
   </div>
-  <button class="panel-reopen-tab" id="panel-reopen-tab" onclick="panelToggle()" hidden>
-    Chat ▰
-  </button>
 
   <footer class="footer">
-    <span>Tank · local-first · {{ "claude-sonnet-4-6" }}</span>
+    <span>Tank · local-first · claude-sonnet-4-6</span>
     <span class="privacy-badge">redaction map stays on this machine</span>
   </footer>
 
   <script>
+    // ── Theme ──
     function tankToggleTheme() {
       var root = document.documentElement;
       var next = root.classList.contains("theme-light") ? "dark" : "light";
@@ -139,265 +105,132 @@
       try { localStorage.setItem("tank-theme", next); } catch (e) {}
     }
 
-    // Cost badge — fetch on every page load; fail silently.
+    // ── Cost badge ──
     (function () {
       fetch("/api/usage/cost")
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          var v = d.total_usd;
           var el = document.getElementById("cost-value");
-          if (el) el.textContent = v < 0.01 ? v.toFixed(4) : v.toFixed(2);
+          if (el) el.textContent = d.total_usd < 0.01 ? d.total_usd.toFixed(4) : d.total_usd.toFixed(2);
         })
         .catch(function () {});
     })();
 
-    // Project switcher — load projects and wire up dropdown.
+    // ── Global chat widget ──
+    // Suppress inside project workspaces (/teams/*/projects/*).
     (function () {
-      var menu = document.getElementById("project-menu");
-      var switcher = document.getElementById("project-switcher");
-      if (!menu || !switcher) return;
-
-      function renderMenu(projects, activeId) {
-        var active = projects.find(function (p) { return p.id === activeId; }) || projects[0];
-        if (active) {
-          document.getElementById("active-project-emoji").textContent = active.emoji;
-          document.getElementById("active-project-name").textContent = active.name;
-        }
-        menu.innerHTML = "";
-        projects.forEach(function (p) {
-          var btn = document.createElement("button");
-          btn.className = "project-menu-item" + (p.id === activeId ? " active" : "");
-          btn.innerHTML = "<span>" + p.emoji + "</span><span>" + p.name + "</span>";
-          btn.onclick = function () {
-            fetch("/api/projects/" + p.id + "/activate", {method: "POST"})
-              .then(function () { window.location.reload(); });
-          };
-          menu.appendChild(btn);
-        });
-        var div = document.createElement("div");
-        div.className = "project-menu-divider";
-        menu.appendChild(div);
-        var footer = document.createElement("div");
-        footer.className = "project-menu-footer";
-        footer.innerHTML = "<a href='/projects'>Manage projects →</a>";
-        menu.appendChild(footer);
+      var SUPPRESS_RE = /^\/teams\/[^/]+\/projects\//;
+      var widget = document.getElementById("global-chat-widget");
+      if (!widget) return;
+      if (SUPPRESS_RE.test(location.pathname)) {
+        widget.style.display = "none";
+        return;
       }
 
-      fetch("/api/projects")
-        .then(function (r) { return r.json(); })
-        .then(function (d) { renderMenu(d.projects, d.active_id); })
-        .catch(function () {
-          document.getElementById("active-project-name").textContent = "Default";
-        });
+      var panel = document.getElementById("gchat-panel");
+      var messages = document.getElementById("gchat-messages");
+      var stream = document.getElementById("gchat-stream");
+      var streamBody = document.getElementById("gchat-stream-body");
+      var input = document.getElementById("gchat-input");
+      var sendBtn = document.getElementById("gchat-send-btn");
+      var fullscreenLink = document.getElementById("gchat-fullscreen");
 
-      window.toggleProjectMenu = function (ev) {
-        ev.stopPropagation();
-        menu.hidden = !menu.hidden;
-      };
-
-      document.addEventListener("click", function (e) {
-        if (!switcher.contains(e.target)) menu.hidden = true;
-      });
-    })();
-
-    // ---- Side panel ----
-    // Always define panelNavClick/panelToggle so the Chat nav link's onclick
-    // never throws a ReferenceError, even on suppressed pages.
-    window.panelNavClick = function () { return true; };
-    window.panelToggle = function () {};
-
-    (function () {
-      var SUPPRESS_PATHS = ['/chat', '/onboarding'];
-      var panel = document.getElementById('side-panel');
-      var reopenTab = document.getElementById('panel-reopen-tab');
-      var handle = document.getElementById('panel-resize-handle');
-      var msgs = document.getElementById('panel-messages');
-      var stream = document.getElementById('panel-stream');
-      var streamBody = document.getElementById('panel-stream-body');
-      var input = document.getElementById('panel-input');
-      var sendBtn = document.getElementById('panel-send-btn');
-      var fullscreenLink = document.getElementById('panel-fullscreen');
-
-      if (!panel) return;
-
-      var suppressed = SUPPRESS_PATHS.some(function (p) { return location.pathname.startsWith(p); });
-      if (suppressed) { panel.classList.add('panel-suppressed'); if (reopenTab) reopenTab.hidden = true; return; }
-
-      var topbar = document.querySelector('.topbar');
-      if (topbar) {
-        document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
-      }
-      var footer = document.querySelector('.footer');
-      if (footer) {
-        document.documentElement.style.setProperty('--footer-h', footer.offsetHeight + 'px');
-      }
-
-      var savedOpen = localStorage.getItem('tank-panel-open') !== 'false';
-      var savedW = parseInt(localStorage.getItem('tank-panel-width') || '340', 10);
-      panel.style.setProperty('--panel-w', savedW + 'px');
-      if (!savedOpen) { panel.classList.add('collapsed'); if (reopenTab) reopenTab.hidden = false; }
-
-      var panelConvId = localStorage.getItem('tank-panel-conv');
-      var panelSending = false;
+      var convId = null;
+      var sending = false;
+      var open = false;
 
       function appendMsg(role, text) {
-        var el = document.createElement('div');
-        el.className = 'panel-msg panel-msg-' + role;
-        var body = document.createElement('div');
-        body.className = 'panel-msg-body';
+        var el = document.createElement("div");
+        el.className = "gchat-msg gchat-msg-" + role;
+        var body = document.createElement("div");
+        body.className = "gchat-msg-body";
         body.textContent = text;
         el.appendChild(body);
-        msgs.appendChild(el);
-        msgs.scrollTop = msgs.scrollHeight;
+        messages.appendChild(el);
+        messages.scrollTop = messages.scrollHeight;
       }
-
-      function scrollMsgs() { msgs.scrollTop = msgs.scrollHeight; }
-
-      window.panelToggle = function () {
-        var isCollapsed = panel.classList.toggle('collapsed');
-        if (reopenTab) reopenTab.hidden = !isCollapsed;
-        localStorage.setItem('tank-panel-open', String(!isCollapsed));
-      };
-
-      window.panelNavClick = function (e) {
-        if (suppressed) return true;
-        e.preventDefault();
-        panelToggle();
-        return false;
-      };
-
-      handle.addEventListener('mousedown', function (e) {
-        e.preventDefault();
-        var startX = e.clientX;
-        var startW = panel.offsetWidth;
-        function onMove(ev) {
-          var newW = Math.max(240, Math.min(600, startW - (ev.clientX - startX)));
-          panel.style.setProperty('--panel-w', newW + 'px');
-          localStorage.setItem('tank-panel-width', String(newW));
-        }
-        function onUp() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
 
       function initConv() {
-        if (panelConvId) {
-          return fetch('/api/conversations/' + panelConvId)
-            .then(function (r) {
-              if (!r.ok) throw new Error('gone');
-              return r.json();
-            })
-            .then(function (d) {
-              (d.messages || []).forEach(function (m) {
-                var text = m.display_view || m.redacted_view || '';
-                if (text) appendMsg(m.role, text);
-              });
-              if (fullscreenLink) fullscreenLink.href = '/chat?conv=' + panelConvId;
-            })
-            .catch(function () {
-              panelConvId = null;
-              return createConv();
-            });
-        }
-        return createConv();
-      }
-
-      function createConv() {
-        // Use the active (scratch) conversation instead of always creating a
-        // new one — this prevents a pile of untitled empty chats.
-        return fetch('/api/conversations/active')
+        return fetch("/api/conversations/active")
           .then(function (r) { return r.json(); })
           .then(function (d) {
-            panelConvId = d.id;
-            localStorage.setItem('tank-panel-conv', panelConvId);
-            if (fullscreenLink) fullscreenLink.href = '/chat?conv=' + panelConvId;
-          });
+            convId = d.id;
+            if (fullscreenLink) fullscreenLink.href = "/chat?conv=" + convId;
+            return fetch("/api/conversations/" + convId);
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            (d.messages || []).forEach(function (m) {
+              var text = m.display_view || m.redacted_view || "";
+              if (text) appendMsg(m.role, text);
+            });
+          })
+          .catch(function () {});
       }
 
+      window.gchatToggle = function () {
+        open = !open;
+        panel.hidden = !open;
+        if (open && !convId) initConv();
+      };
 
-      initConv().catch(function () {});
-
-      window.panelSend = function (e) {
+      window.gchatSend = function (e) {
         e.preventDefault();
         var content = input.value.trim();
-        if (!content || panelSending) return false;
-
-        panelSending = true;
-        input.value = '';
+        if (!content || sending || !convId) return false;
+        sending = true;
+        input.value = "";
         input.disabled = true;
         sendBtn.disabled = true;
-
-        appendMsg('user', content);
-        streamBody.textContent = '';
+        appendMsg("user", content);
+        streamBody.textContent = "";
         stream.hidden = false;
-        scrollMsgs();
 
-        fetch('/api/conversations/' + panelConvId + '/messages', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
+        fetch("/api/conversations/" + convId + "/messages", {
+          method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({content: content}),
         }).then(function () {
-          var es = new EventSource('/api/conversations/' + panelConvId + '/stream');
-
-          es.addEventListener('text_delta', function (ev) {
+          var es = new EventSource("/api/conversations/" + convId + "/stream");
+          es.addEventListener("text_delta", function (ev) {
             streamBody.textContent += JSON.parse(ev.data).text;
-            scrollMsgs();
+            messages.scrollTop = messages.scrollHeight;
           });
-
-          es.addEventListener('done', function () {
+          es.addEventListener("done", function () {
             es.close();
-            var finalText = streamBody.textContent;
+            var txt = streamBody.textContent;
             stream.hidden = true;
-            streamBody.textContent = '';
-            if (finalText) appendMsg('assistant', finalText);
-            panelSending = false;
+            streamBody.textContent = "";
+            if (txt) appendMsg("assistant", txt);
+            sending = false;
             input.disabled = false;
             sendBtn.disabled = false;
             input.focus();
           });
-
-          es.addEventListener('error', function () {
+          es.addEventListener("error", function () {
             es.close();
             stream.hidden = true;
-            appendMsg('assistant', '[Connection error — try again]');
-            panelSending = false;
+            appendMsg("assistant", "[Connection error — try again]");
+            sending = false;
             input.disabled = false;
             sendBtn.disabled = false;
           });
         }).catch(function () {
           stream.hidden = true;
-          appendMsg('assistant', '[Error sending message]');
-          panelSending = false;
+          sending = false;
           input.disabled = false;
           sendBtn.disabled = false;
         });
-
         return false;
       };
 
-      input.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
-          document.getElementById('panel-composer').requestSubmit();
+          document.getElementById("gchat-composer").requestSubmit();
         }
-      });
-      input.addEventListener('input', function () {
-        this.style.height = 'auto';
-        this.style.height = Math.min(120, this.scrollHeight) + 'px';
-      });
-    })();
-
-    // Sidebar active state — highlight the current page link.
-    (function () {
-      var path = location.pathname.replace(/\/$/, '') || '/';
-      document.querySelectorAll('.sidebar-nav .nav-item').forEach(function (a) {
-        var href = a.getAttribute('href').replace(/\/$/, '') || '/';
-        var isActive = href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
-        if (isActive) a.classList.add('active');
       });
     })();
   </script>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>

@@ -23,43 +23,52 @@ router = APIRouter(prefix="/api")
 
 class IngestPathRequest(BaseModel):
     path: str
-    category: str = "auto"   # 'auto' triggers smart categorization
+    category: str = "auto"
+    project_id: str | None = None
 
 
 class IngestRepoRequest(BaseModel):
     path: str
     category: str = "code"
+    project_id: str | None = None
 
 
-def _do_ingest_file(path: Path, category: str) -> None:
+def _do_ingest_file(path: Path, category: str, project_id: str | None = None) -> None:
     try:
-        ingest(path, category=category)
+        ingest(path, category=category, project_id=project_id)
     except Exception:
         pass  # status='error' already recorded in documents
+    if project_id:
+        from app.storage.projects_store import touch_activity
+        touch_activity(project_id)
 
 
-def _do_ingest_repo(path: Path, category: str) -> None:
+def _do_ingest_repo(path: Path, category: str, project_id: str | None = None) -> None:
     try:
-        ingest_repo(path, category=category)
+        ingest_repo(path, category=category, project_id=project_id)
     except Exception:
         pass
+    if project_id:
+        from app.storage.projects_store import touch_activity
+        touch_activity(project_id)
 
 
 @router.post("/ingest/file")
 async def ingest_file(background_tasks: BackgroundTasks,
                       file: UploadFile = File(...),
-                      category: str = Form(...)) -> dict:
+                      category: str = Form(...),
+                      project_id: str = Form(default="")) -> dict:
     if category not in {"architecture", "code", "cmdb", "people_process"}:
         raise HTTPException(400, f"invalid category {category}")
 
-    # Persist upload to a temp file; ingest reads it from there.
     tmpdir = tempfile.mkdtemp(prefix="tank-upload-")
     target = Path(tmpdir) / (file.filename or "upload")
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
 
-    background_tasks.add_task(_do_ingest_file, target, category)
+    pid = project_id.strip() or None
+    background_tasks.add_task(_do_ingest_file, target, category, pid)
     return {"status": "queued", "path": str(target)}
 
 

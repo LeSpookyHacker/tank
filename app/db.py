@@ -526,6 +526,29 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (user_id, entity_id)
         );
 
+        -- ----- Redesign: org / team / project hierarchy -----
+
+        CREATE TABLE IF NOT EXISTS organizations (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT,
+            industry    TEXT,
+            created_at  INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS teams (
+            id          TEXT PRIMARY KEY,
+            org_id      TEXT NOT NULL REFERENCES organizations(id),
+            name        TEXT NOT NULL,
+            description TEXT,
+            color       TEXT NOT NULL DEFAULT '#6c5ce7',
+            icon        TEXT NOT NULL DEFAULT '🛡️',
+            status      TEXT NOT NULL DEFAULT 'active',
+            created_at  INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(org_id);
+        CREATE INDEX IF NOT EXISTS idx_teams_status ON teams(status);
+
         -- ----- Phase 16: project compartmentalization -----
 
         CREATE TABLE IF NOT EXISTS projects (
@@ -565,6 +588,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_reports_cache_columns(conn)
     _seed_default_project(conn)
     _migrate_unscoped_data(conn)
+    _migrate_projects_team_fields(conn)
+    _seed_org_team(conn)
+    _migrate_dfd_columns(conn)
     _init_vec_table(conn)
 
 
@@ -645,6 +671,110 @@ def _seed_default_project(conn: sqlite3.Connection) -> None:
         "VALUES ('default', 'Default', 'Default project for all existing data.', '🔐', '#6366f1', '', ?)",
         (_t.time(),),
     )
+
+
+def _migrate_projects_team_fields(conn: sqlite3.Connection) -> None:
+    """Add team/org hierarchy and new display fields to projects (redesign)."""
+    _add_col_safe(conn, "projects", "team_id TEXT REFERENCES teams(id)")
+    _add_col_safe(conn, "projects", "org_id TEXT REFERENCES organizations(id)")
+    _add_col_safe(conn, "projects", "status TEXT NOT NULL DEFAULT 'active'")
+    _add_col_safe(conn, "projects", "tags TEXT NOT NULL DEFAULT '[]'")
+    _add_col_safe(conn, "projects", "risk_level TEXT NOT NULL DEFAULT 'medium'")
+    _add_col_safe(conn, "projects", "icon TEXT NOT NULL DEFAULT '📦'")
+    _add_col_safe(conn, "projects", "last_activity_at INTEGER")
+
+
+def _seed_org_team(conn: sqlite3.Connection) -> None:
+    """Create default org + team and wire all existing projects to them (idempotent)."""
+    import logging as _logging
+    import time as _t
+    import uuid as _uuid
+    _log = _logging.getLogger("tank")
+
+    # Only seed once — if orgs already exist, nothing to do.
+    existing_org = conn.execute("SELECT id FROM organizations LIMIT 1").fetchone()
+    if existing_org:
+        # Still backfill any projects missing team_id in case migration was partial.
+        default_team = conn.execute(
+            "SELECT id FROM teams ORDER BY created_at ASC LIMIT 1"
+        ).fetchone()
+        if default_team:
+            conn.execute(
+                "UPDATE projects SET team_id=?, org_id=(SELECT org_id FROM teams WHERE id=?) "
+                "WHERE team_id IS NULL",
+                (default_team["id"], default_team["id"]),
+            )
+        return
+
+    org_id = _uuid.uuid4().hex[:12]
+    team_id = _uuid.uuid4().hex[:12]
+    now = int(_t.time())
+
+    conn.execute(
+        "INSERT INTO organizations (id, name, description, industry, created_at) "
+        "VALUES (?, 'My Organization', '', '', ?)",
+        (org_id, now),
+    )
+    conn.execute(
+        "INSERT INTO teams (id, org_id, name, description, color, icon, status, created_at) "
+        "VALUES (?, ?, 'Unassigned', '', '#6c5ce7', '🛡️', 'active', ?)",
+        (team_id, org_id, now),
+    )
+    # Assign all existing projects to the default team.
+    count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+    conn.execute(
+        "UPDATE projects SET team_id=?, org_id=? WHERE team_id IS NULL",
+        (team_id, org_id),
+    )
+    # Create catch-all "Imported Data" project for orphaned artifact rows.
+    tables_with_project = [
+        "documents", "conversations", "reports",
+        "threat_models", "design_reviews", "postmortems_drafts", "tabletops",
+    ]
+    orphan_total = 0
+    for tbl in tables_with_project:
+        try:
+            n = conn.execute(
+                f"SELECT COUNT(*) FROM {tbl} WHERE project_id IS NULL"
+            ).fetchone()[0]
+            orphan_total += n
+        except sqlite3.OperationalError:
+            pass
+
+    if orphan_total:
+        catch_id = "imported"
+        existing = conn.execute(
+            "SELECT id FROM projects WHERE id=?", (catch_id,)
+        ).fetchone()
+        if not existing:
+            conn.execute(
+                "INSERT INTO projects (id, name, description, emoji, color, notes, "
+                "team_id, org_id, status, tags, risk_level, icon, created_at) "
+                "VALUES (?, 'Imported Data', 'Auto-created for pre-migration data.', "
+                "'📦', '#6366f1', '', ?, ?, 'active', '[]', 'medium', '📦', ?)",
+                (catch_id, team_id, org_id, now),
+            )
+        for tbl in tables_with_project:
+            try:
+                conn.execute(
+                    f"UPDATE {tbl} SET project_id=? WHERE project_id IS NULL",
+                    (catch_id,),
+                )
+            except sqlite3.OperationalError:
+                pass
+
+    _log.info(
+        "[TANK MIGRATION] Created org %s, team 'Unassigned' (%s), "
+        "migrated %d existing projects, %d orphan artifact rows → 'Imported Data'",
+        org_id, team_id, count, orphan_total,
+    )
+
+
+def _migrate_dfd_columns(conn: sqlite3.Connection) -> None:
+    """Add input_format and project_id columns to dfd_analyses (DFD revamp)."""
+    _add_col_safe(conn, "dfd_analyses", "input_format TEXT")
+    _add_col_safe(conn, "dfd_analyses", "project_id TEXT")
+    _add_col_safe(conn, "dfd_analyses", "cached INTEGER NOT NULL DEFAULT 0")
 
 
 def _init_vec_table(conn: sqlite3.Connection) -> None:

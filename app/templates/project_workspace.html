@@ -1,0 +1,739 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} · {{ team.name }} · Tank{% endblock %}
+
+{% block breadcrumb %}
+  <a class="bc-item" href="/dashboard">Dashboard</a>
+  <span class="bc-sep">›</span>
+  <a class="bc-item" href="/teams/{{ team.id }}" style="color:{{ team.color }}">{{ team.icon }} {{ team.name }}</a>
+  <span class="bc-sep">›</span>
+  <span class="bc-item bc-current" style="color:{{ project.color }}">{{ project.icon or project.emoji }} {{ project.name }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="workspace-page">
+
+  {# ── Persistent project header ── #}
+  <header class="project-header" style="border-left: 4px solid {{ project.color }}">
+    <div class="project-header-icon" style="background:{{ project.color }}22">
+      {{ project.icon or project.emoji }}
+    </div>
+    <div class="project-header-info">
+      <h1 class="project-header-name">{{ project.name }}</h1>
+      <div class="project-header-meta">
+        <span class="badge badge-status badge-status-{{ project.status | replace(' ','-') }}">{{ project.status | title }}</span>
+        <span class="badge badge-risk badge-risk-{{ project.risk_level }}">{{ project.risk_level | title }}</span>
+        {% if project.tags and project.tags != '[]' %}
+        <div class="project-header-tags" id="header-tags" data-tags='{{ project.tags }}'></div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="project-header-actions">
+      <button class="btn-secondary btn-sm" onclick="openEditProjectModal()">Edit</button>
+    </div>
+  </header>
+
+  {# ── Project notes bar ── #}
+  <div class="notes-bar" id="notes-bar">
+    <div class="notes-bar-preview" id="notes-preview" onclick="expandNotes()">
+      {% if project.notes %}
+      <span class="notes-preview-text" id="notes-first-line">{{ (project.notes | string)[:120] }}{% if (project.notes | string | length) > 120 %}…{% endif %}</span>
+      <button class="notes-expand-btn" type="button">Expand</button>
+      {% else %}
+      <span class="notes-placeholder">Document scope, service owner, known risks, compliance requirements. This context is included in every Claude call for this project.</span>
+      <button class="notes-expand-btn" type="button">Edit notes</button>
+      {% endif %}
+    </div>
+    <div class="notes-bar-editor" id="notes-editor" hidden>
+      <textarea class="notes-textarea" id="notes-input" rows="4"
+                placeholder="Document scope, service owner, known risks, compliance requirements. This context will be included in every Claude call within this project.">{{ project.notes or "" }}</textarea>
+      <div class="notes-actions">
+        <span class="notes-save-status" id="notes-save-status"></span>
+        <button class="btn-secondary btn-sm" type="button" onclick="collapseNotes()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  {# ── Tab navigation ── #}
+  <nav class="workspace-tabs">
+    {% set base_url = "/teams/" ~ team.id ~ "/projects/" ~ project.id %}
+    <a class="workspace-tab {% if active_tab == 'overview' %}active{% endif %}" href="{{ base_url }}">Overview</a>
+    <a class="workspace-tab {% if active_tab == 'ingest' %}active{% endif %}" href="{{ base_url }}/ingest">Ingest</a>
+    <a class="workspace-tab {% if active_tab == 'reports' %}active{% endif %}" href="{{ base_url }}/reports">Reports</a>
+    <a class="workspace-tab {% if active_tab == 'threats' %}active{% endif %}" href="{{ base_url }}/threats">Threats</a>
+    <a class="workspace-tab {% if active_tab == 'chat' %}active{% endif %}" href="{{ base_url }}/chat">Chat{% if project.notes %} <span class="tab-context-dot" title="Project notes included">●</span>{% endif %}</a>
+  </nav>
+
+  {# ── Tab content ── #}
+  <div class="workspace-content">
+
+    {# ────── Tab: Overview ────── #}
+    {% if active_tab == "overview" %}
+    <section class="tab-overview">
+      <div class="overview-grid">
+        <div class="overview-stats">
+          <div class="stat-card">
+            <span class="stat-value">{{ stats.doc_count }}</span>
+            <span class="stat-label">Documents</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value">{{ stats.report_count }}</span>
+            <span class="stat-label">Reports</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value">{{ stats.tm_count }}</span>
+            <span class="stat-label">Threat Models</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value">{{ stats.open_followups }}</span>
+            <span class="stat-label">Open Findings</span>
+          </div>
+        </div>
+
+        <div class="quick-actions">
+          <a class="quick-action-btn" href="{{ base_url }}/ingest">📄 Ingest Document</a>
+          <a class="quick-action-btn" href="{{ base_url }}/ingest">🗺️ New Threat Model</a>
+          <a class="quick-action-btn" href="{{ base_url }}/chat">💬 Open Chat</a>
+        </div>
+      </div>
+
+      {% if open_followups %}
+      <div class="overview-section">
+        <h3 class="overview-section-title">Open Findings</h3>
+        <div class="followups-list">
+          {% for f in open_followups %}
+          <div class="followup-item">
+            <span class="followup-status status-{{ f.status }}">{{ f.status }}</span>
+            <span class="followup-title">{{ f.title }}</span>
+            {% if f.due_at %}<span class="followup-due ts" data-ts="{{ f.due_at | int }}"></span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if recent_docs %}
+      <div class="overview-section">
+        <h3 class="overview-section-title">Recent Documents</h3>
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Category</th><th>Ingested</th></tr></thead>
+          <tbody>
+          {% for d in recent_docs[:10] %}
+          <tr>
+            <td>{{ d.title or d.source_path.split("/")[-1] }}</td>
+            <td><span class="tag-pill">{{ d.category }}</span></td>
+            <td class="ts" data-ts="{{ d.ingested_at | int }}"></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if recent_reports %}
+      <div class="overview-section">
+        <h3 class="overview-section-title">Recent Reports</h3>
+        <div class="reports-list">
+          {% for r in recent_reports[:5] %}
+          <a class="report-item" href="/reports/{{ r.id }}">
+            <span class="report-kind-badge">{{ r.kind | replace("_", " ") | title }}</span>
+            <span class="report-title">{{ r.title }}</span>
+            <span class="ts" data-ts="{{ r.created_at | int }}"></span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ────── Tab: Ingest ────── #}
+    {% elif active_tab == "ingest" %}
+    <section class="tab-ingest">
+
+      <div class="ingest-sections">
+        {# Section A: Document ingest #}
+        <div class="ingest-section-card">
+          <h3 class="ingest-section-title">📄 Document Ingest</h3>
+          <p class="ingest-section-desc">Upload PDF, DOCX, TXT, MD, or CSV files for analysis.</p>
+
+          <div class="upload-zone" id="upload-zone"
+               ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+            <div class="upload-zone-inner">
+              <div class="upload-icon">📂</div>
+              <div class="upload-label">Drag files here or</div>
+              <label class="btn-secondary upload-btn">
+                Choose Files
+                <input type="file" id="file-input" multiple hidden
+                       accept=".pdf,.docx,.txt,.md,.csv,.json,.yaml,.yml,.png,.jpg,.jpeg,.webp">
+              </label>
+            </div>
+          </div>
+
+          <div class="ingest-path-row">
+            <input class="form-input" type="text" id="ingest-path-input"
+                   placeholder="Or enter a local file/folder path">
+            <button class="btn-secondary" onclick="ingestPath()">Ingest Path</button>
+          </div>
+
+          <div class="ingest-status" id="ingest-status" hidden></div>
+
+          {% if recent_docs %}
+          <div class="recent-docs-list">
+            <h4 class="recent-list-title">Ingested Documents</h4>
+            <table class="data-table">
+              <thead><tr><th>Name</th><th>Category</th><th>Ingested</th></tr></thead>
+              <tbody>
+              {% for d in recent_docs %}
+              <tr>
+                <td>{{ d.title or d.source_path.split("/")[-1] }}</td>
+                <td><span class="tag-pill">{{ d.category }}</span></td>
+                <td class="ts" data-ts="{{ d.ingested_at | int }}"></td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+        </div>
+
+        {# Section B: DFD #}
+        <div class="ingest-section-card">
+          <h3 class="ingest-section-title">🗺️ DFD & Threat Modeling</h3>
+          <p class="ingest-section-desc">Submit a Data Flow Diagram for automated STRIDE analysis.</p>
+
+          <div class="dfd-tab-bar">
+            <button class="dfd-tab-btn active" onclick="switchDfdTab('mermaid', this)">Mermaid</button>
+            <button class="dfd-tab-btn" onclick="switchDfdTab('image', this)">Image</button>
+          </div>
+
+          <div id="dfd-tab-mermaid">
+            <textarea class="form-textarea dfd-textarea" id="dfd-mermaid-input" rows="10"
+                      placeholder="Paste your Mermaid diagram here…
+e.g.
+graph TD
+  User -->|HTTPS| API
+  API -->|SQL| DB"></textarea>
+            <label class="btn-secondary upload-btn" style="margin-top:0.5rem">
+              Load .mmd file
+              <input type="file" id="dfd-mmd-file" accept=".mmd,.txt" hidden
+                     onchange="loadMmdFile(this)">
+            </label>
+          </div>
+          <div id="dfd-tab-image" hidden>
+            <input class="form-input" type="file" id="dfd-image-input"
+                   accept="image/png,image/jpeg,image/webp">
+          </div>
+
+          <button class="btn-primary" id="dfd-analyze-btn" onclick="analyzeDfd()" style="margin-top:1rem">
+            Analyze with STRIDE
+          </button>
+          <div class="dfd-status" id="dfd-status" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    {# ────── Tab: Reports ────── #}
+    {% elif active_tab == "reports" %}
+    <section class="tab-reports">
+      {% if recent_reports %}
+      <div class="reports-grid">
+        {% for r in recent_reports %}
+        <a class="report-card" href="/reports/{{ r.id }}">
+          <span class="report-kind-badge">{{ r.kind | replace("_"," ") | title }}</span>
+          <div class="report-card-title">{{ r.title }}</div>
+          <div class="report-card-meta">
+            <span class="ts" data-ts="{{ r.created_at | int }}"></span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-title">No reports yet</div>
+        <div class="empty-body">Ingest documents or run a DFD analysis to generate reports.</div>
+        <a class="btn-primary" href="/teams/{{ team.id }}/projects/{{ project.id }}/ingest">Go to Ingest</a>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ────── Tab: Threats ────── #}
+    {% elif active_tab == "threats" %}
+    <section class="tab-threats">
+      {% if all_threats %}
+      <div class="threats-controls">
+        <select class="filter-select" id="threat-filter-stride" onchange="filterThreats()">
+          <option value="">All STRIDE</option>
+          <option value="Spoofing">Spoofing</option>
+          <option value="Tampering">Tampering</option>
+          <option value="Repudiation">Repudiation</option>
+          <option value="Information Disclosure">Information Disclosure</option>
+          <option value="Denial of Service">Denial of Service</option>
+          <option value="Elevation of Privilege">Elevation of Privilege</option>
+        </select>
+        <select class="filter-select" id="threat-filter-severity" onchange="filterThreats()">
+          <option value="">All Severity</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+        <select class="filter-select" id="threat-filter-status" onchange="filterThreats()">
+          <option value="">All Status</option>
+          <option value="open">Open</option>
+          <option value="mitigated">Mitigated</option>
+          <option value="accepted">Accepted</option>
+        </select>
+        <a class="btn-secondary" href="/dfd" target="_blank">View DFD Analyses ↗</a>
+      </div>
+
+      {# Summary bars #}
+      <div class="threat-summary" id="threat-summary"></div>
+
+      <table class="data-table threats-table" id="threats-table">
+        <thead>
+          <tr>
+            <th>Element</th>
+            <th>STRIDE Category</th>
+            <th>Severity</th>
+            <th>Description</th>
+            <th>Mitigation</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="threats-tbody">
+          {% for t in all_threats %}
+          <tr class="threat-row"
+              data-stride="{{ t.stride_category or '' }}"
+              data-severity="{{ t.severity or '' }}"
+              data-status="{{ t.status or 'open' }}"
+              data-dfd="{{ t.dfd_id }}">
+            <td>{{ t.element or t.element_id or "—" }}</td>
+            <td><span class="stride-badge stride-{{ (t.stride_category or '').lower() | replace(' ','-') }}">{{ t.stride_category or "—" }}</span></td>
+            <td><span class="badge badge-risk badge-risk-{{ (t.severity or 'medium') | lower }}">{{ t.severity or "—" }}</span></td>
+            <td>{{ t.description or "—" }}</td>
+            <td>{{ t.mitigation or t.suggested_controls or "—" }}</td>
+            <td>
+              <select class="threat-status-select" data-dfd="{{ t.dfd_id }}" data-idx="{{ loop.index0 }}"
+                      onchange="updateThreatStatus(this)">
+                <option value="open" {% if t.status == "open" %}selected{% endif %}>Open</option>
+                <option value="mitigated" {% if t.status == "mitigated" %}selected{% endif %}>Mitigated</option>
+                <option value="accepted" {% if t.status == "accepted" %}selected{% endif %}>Accepted</option>
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">🗺️</div>
+        <div class="empty-title">No threat findings yet</div>
+        <div class="empty-body">Submit a DFD diagram in the Ingest tab to run STRIDE analysis.</div>
+        <a class="btn-primary" href="/teams/{{ team.id }}/projects/{{ project.id }}/ingest">Go to Ingest</a>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ────── Tab: Chat ────── #}
+    {% elif active_tab == "chat" %}
+    <section class="tab-chat">
+      {% if project.notes %}
+      <div class="chat-context-indicator">
+        💬 Context: <strong>{{ project.name }}</strong> notes included
+      </div>
+      {% endif %}
+
+      <div class="chat-layout">
+        <div class="chat-messages-pane" id="chat-messages-pane">
+          {% for m in messages %}
+          <div class="chat-msg chat-msg-{{ m.role }}">
+            <div class="chat-msg-role">{{ m.role }}</div>
+            <div class="chat-msg-body rendered-md" data-content="{{ m.display_view or m.redacted_view or '' }}"></div>
+          </div>
+          {% endfor %}
+          {# Streaming area #}
+          <div class="chat-stream" id="chat-stream" hidden>
+            <div class="chat-msg chat-msg-assistant">
+              <div class="chat-msg-role">assistant</div>
+              <div class="chat-msg-body" id="chat-stream-body"></div>
+            </div>
+          </div>
+        </div>
+
+        <form class="chat-composer" id="chat-composer" onsubmit="return chatSend(event)">
+          <textarea class="chat-input" id="chat-input" rows="3"
+                    placeholder="Ask about this project…"></textarea>
+          <button class="chat-send-btn" id="chat-send-btn" type="submit">↑ Send</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+
+  </div>{# /workspace-content #}
+</div>{# /workspace-page #}
+
+{# ── Edit Project modal ── #}
+<dialog class="modal" id="edit-project-modal">
+  <div class="modal-header">
+    <span class="modal-title">Edit Project</span>
+    <button class="modal-close" onclick="document.getElementById('edit-project-modal').close()" type="button">✕</button>
+  </div>
+  <form class="modal-body" onsubmit="return submitEditProject(event)">
+    <label class="form-label">Name</label>
+    <input class="form-input" type="text" id="ep-name" value="{{ project.name }}">
+    <label class="form-label">Description</label>
+    <input class="form-input" type="text" id="ep-desc" value="{{ project.description or '' }}">
+    <div class="form-row">
+      <div class="form-col">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="ep-status">
+          <option value="active" {% if project.status == "active" %}selected{% endif %}>Active</option>
+          <option value="in-review" {% if project.status == "in-review" %}selected{% endif %}>In Review</option>
+          <option value="complete" {% if project.status == "complete" %}selected{% endif %}>Complete</option>
+          <option value="archived" {% if project.status == "archived" %}selected{% endif %}>Archived</option>
+        </select>
+      </div>
+      <div class="form-col">
+        <label class="form-label">Risk level</label>
+        <select class="form-select" id="ep-risk">
+          <option value="low" {% if project.risk_level == "low" %}selected{% endif %}>Low</option>
+          <option value="medium" {% if project.risk_level == "medium" %}selected{% endif %}>Medium</option>
+          <option value="high" {% if project.risk_level == "high" %}selected{% endif %}>High</option>
+          <option value="critical" {% if project.risk_level == "critical" %}selected{% endif %}>Critical</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" onclick="document.getElementById('edit-project-modal').close()">Cancel</button>
+      <button type="submit" class="btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+var PROJECT_ID = "{{ project.id }}";
+var TEAM_ID = "{{ team.id }}";
+var BASE_URL = "/teams/" + TEAM_ID + "/projects/" + PROJECT_ID;
+
+// ── Timestamp rendering ──
+(function () {
+  var now = Date.now() / 1000;
+  document.querySelectorAll(".ts[data-ts]").forEach(function (el) {
+    var ts = parseInt(el.dataset.ts, 10);
+    if (!ts) { el.textContent = ""; return; }
+    var diff = now - ts;
+    if (diff < 60) el.textContent = "just now";
+    else if (diff < 3600) el.textContent = Math.floor(diff / 60) + "m ago";
+    else if (diff < 86400) el.textContent = Math.floor(diff / 3600) + "h ago";
+    else el.textContent = Math.floor(diff / 86400) + "d ago";
+  });
+})();
+
+// ── Render Markdown in chat messages ──
+(function () {
+  if (typeof marked === "undefined") return;
+  document.querySelectorAll(".rendered-md[data-content]").forEach(function (el) {
+    el.innerHTML = marked.parse(el.dataset.content || "");
+  });
+})();
+
+// ── Header tags ──
+(function () {
+  var el = document.getElementById("header-tags");
+  if (!el) return;
+  try {
+    var tags = JSON.parse(el.dataset.tags);
+    tags.slice(0, 4).forEach(function (t) {
+      var span = document.createElement("span");
+      span.className = "tag-pill";
+      span.textContent = t;
+      el.appendChild(span);
+    });
+  } catch (e) {}
+})();
+
+// ── Notes bar ──
+function expandNotes() {
+  document.getElementById("notes-preview").hidden = true;
+  document.getElementById("notes-editor").hidden = false;
+  document.getElementById("notes-input").focus();
+}
+function collapseNotes() {
+  document.getElementById("notes-editor").hidden = true;
+  document.getElementById("notes-preview").hidden = false;
+}
+var _notesSaveTimer = null;
+document.getElementById("notes-input") && document.getElementById("notes-input").addEventListener("input", function () {
+  clearTimeout(_notesSaveTimer);
+  document.getElementById("notes-save-status").textContent = "Saving…";
+  _notesSaveTimer = setTimeout(saveNotes, 1200);
+});
+function saveNotes() {
+  var val = document.getElementById("notes-input").value;
+  fetch("/api/projects/" + PROJECT_ID, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({notes: val}),
+  }).then(function () {
+    document.getElementById("notes-save-status").textContent = "Saved ✓";
+    setTimeout(function () {
+      document.getElementById("notes-save-status").textContent = "";
+    }, 2000);
+    // Update preview.
+    var firstLine = document.getElementById("notes-first-line");
+    if (firstLine) firstLine.textContent = val.slice(0, 120) + (val.length > 120 ? "…" : "");
+  }).catch(function () {
+    document.getElementById("notes-save-status").textContent = "Save failed";
+  });
+}
+
+// ── Ingest ──
+function handleDrop(e) {
+  e.preventDefault();
+  var files = Array.from(e.dataTransfer.files);
+  uploadFiles(files);
+}
+document.getElementById("file-input") && document.getElementById("file-input").addEventListener("change", function () {
+  uploadFiles(Array.from(this.files));
+});
+function uploadFiles(files) {
+  if (!files.length) return;
+  var status = document.getElementById("ingest-status");
+  status.hidden = false;
+  status.textContent = "Uploading " + files.length + " file(s)…";
+  var promises = files.map(function (f) {
+    var fd = new FormData();
+    fd.append("file", f);
+    fd.append("category", guessCategory(f.name));
+    return fetch("/api/ingest/file", {method: "POST", body: fd});
+  });
+  Promise.all(promises).then(function () {
+    status.textContent = "Queued " + files.length + " file(s) for processing. Refreshing…";
+    setTimeout(function () { window.location.reload(); }, 2500);
+  }).catch(function () {
+    status.textContent = "Upload failed — check server logs.";
+  });
+}
+function ingestPath() {
+  var p = document.getElementById("ingest-path-input").value.trim();
+  if (!p) return;
+  var status = document.getElementById("ingest-status");
+  status.hidden = false; status.textContent = "Queuing…";
+  fetch("/api/ingest/path", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({path: p, category: "auto"}),
+  }).then(function (r) { return r.json(); })
+    .then(function (d) {
+      status.textContent = "Queued " + (d.queued || 1) + " file(s). Refreshing…";
+      setTimeout(function () { window.location.reload(); }, 2500);
+    }).catch(function () { status.textContent = "Error — check server logs."; });
+}
+function guessCategory(name) {
+  name = name.toLowerCase();
+  if (/architect|design|diagram|dfd|flow/.test(name)) return "architecture";
+  if (/runbook|playbook|sop|people|team|org/.test(name)) return "people_process";
+  if (/cmdb|asset|inventory|config/.test(name)) return "cmdb";
+  if (/\.py$|\.js$|\.go$|\.ts$|\.java$/.test(name)) return "code";
+  return "architecture";
+}
+
+// ── DFD ──
+function switchDfdTab(tab, btn) {
+  document.getElementById("dfd-tab-mermaid").hidden = tab !== "mermaid";
+  document.getElementById("dfd-tab-image").hidden = tab !== "image";
+  document.querySelectorAll(".dfd-tab-btn").forEach(function (b) { b.classList.remove("active"); });
+  btn.classList.add("active");
+}
+function loadMmdFile(input) {
+  var f = input.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    document.getElementById("dfd-mermaid-input").value = e.target.result;
+  };
+  reader.readAsText(f);
+}
+function analyzeDfd() {
+  var btn = document.getElementById("dfd-analyze-btn");
+  var status = document.getElementById("dfd-status");
+  var mmdInput = document.getElementById("dfd-mermaid-input");
+  var imgInput = document.getElementById("dfd-image-input");
+  var fd = new FormData();
+  var isImg = !document.getElementById("dfd-tab-image").hidden && imgInput.files[0];
+  if (isImg) {
+    fd.append("image", imgInput.files[0]);
+  } else {
+    var src = mmdInput.value.trim();
+    if (!src) { alert("Please enter a Mermaid diagram or upload an image."); return; }
+    fd.append("mermaid_src", src);
+  }
+  btn.disabled = true; btn.textContent = "Analyzing… (15–30s)";
+  status.hidden = false; status.textContent = "Running STRIDE analysis…";
+  fetch("/api/dfd/analyze", {method: "POST", body: fd})
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.dfd_id) window.location.href = "/dfd/" + d.dfd_id;
+      else { btn.disabled = false; btn.textContent = "Analyze with STRIDE"; status.textContent = "Error — see server logs."; }
+    })
+    .catch(function () {
+      btn.disabled = false; btn.textContent = "Analyze with STRIDE";
+      status.textContent = "Error — check server logs.";
+    });
+}
+
+// ── Threats filter ──
+function filterThreats() {
+  var stride = document.getElementById("threat-filter-stride").value;
+  var severity = document.getElementById("threat-filter-severity").value;
+  var status = document.getElementById("threat-filter-status").value;
+  document.querySelectorAll(".threat-row").forEach(function (row) {
+    var match = (!stride || row.dataset.stride === stride) &&
+                (!severity || row.dataset.severity === severity) &&
+                (!status || row.dataset.status === status);
+    row.style.display = match ? "" : "none";
+  });
+}
+
+// ── Threat status toggle ──
+function updateThreatStatus(sel) {
+  var dfdId = sel.dataset.dfd;
+  var idx = sel.dataset.idx;
+  var status = sel.value;
+  var row = sel.closest("tr");
+  if (row) row.dataset.status = status;
+  // Persist via API (best-effort — endpoint accepts status updates).
+  fetch("/api/dfd/" + dfdId + "/threat/" + idx + "/status", {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({status: status}),
+  }).catch(function () {});
+}
+
+// ── Chat ──
+{% if active_tab == "chat" %}
+var CONV_ID = "{{ conv_id or '' }}";
+var chatSending = false;
+
+(function () {
+  var pane = document.getElementById("chat-messages-pane");
+  if (pane) pane.scrollTop = pane.scrollHeight;
+  // Render markdown in existing messages.
+  if (typeof marked !== "undefined") {
+    document.querySelectorAll(".rendered-md[data-content]").forEach(function (el) {
+      el.innerHTML = marked.parse(el.dataset.content || "");
+    });
+  }
+})();
+
+function chatSend(e) {
+  e.preventDefault();
+  var content = document.getElementById("chat-input").value.trim();
+  if (!content || chatSending || !CONV_ID) return false;
+  chatSending = true;
+  document.getElementById("chat-input").value = "";
+  document.getElementById("chat-input").disabled = true;
+  document.getElementById("chat-send-btn").disabled = true;
+
+  // Append user message immediately.
+  var pane = document.getElementById("chat-messages-pane");
+  var userMsg = document.createElement("div");
+  userMsg.className = "chat-msg chat-msg-user";
+  userMsg.innerHTML = '<div class="chat-msg-role">you</div><div class="chat-msg-body">' + escapeHtml(content) + "</div>";
+  pane.insertBefore(userMsg, document.getElementById("chat-stream"));
+  var streamEl = document.getElementById("chat-stream");
+  var streamBody = document.getElementById("chat-stream-body");
+  streamEl.hidden = false;
+  streamBody.textContent = "";
+  pane.scrollTop = pane.scrollHeight;
+
+  fetch("/api/conversations/" + CONV_ID + "/messages", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({content: content}),
+  }).then(function () {
+    var es = new EventSource("/api/conversations/" + CONV_ID + "/stream");
+    es.addEventListener("text_delta", function (ev) {
+      streamBody.textContent += JSON.parse(ev.data).text;
+      pane.scrollTop = pane.scrollHeight;
+    });
+    es.addEventListener("done", function () {
+      es.close();
+      var text = streamBody.textContent;
+      streamEl.hidden = true;
+      streamBody.textContent = "";
+      var aMsg = document.createElement("div");
+      aMsg.className = "chat-msg chat-msg-assistant";
+      var bodyDiv = document.createElement("div");
+      bodyDiv.className = "chat-msg-body rendered-md";
+      bodyDiv.innerHTML = (typeof marked !== "undefined") ? marked.parse(text) : escapeHtml(text);
+      aMsg.innerHTML = '<div class="chat-msg-role">assistant</div>';
+      aMsg.appendChild(bodyDiv);
+      pane.insertBefore(aMsg, streamEl);
+      pane.scrollTop = pane.scrollHeight;
+      chatSending = false;
+      document.getElementById("chat-input").disabled = false;
+      document.getElementById("chat-send-btn").disabled = false;
+      document.getElementById("chat-input").focus();
+    });
+    es.addEventListener("error", function () {
+      es.close();
+      streamEl.hidden = true;
+      var errMsg = document.createElement("div");
+      errMsg.className = "chat-msg chat-msg-assistant";
+      errMsg.innerHTML = '<div class="chat-msg-role">assistant</div><div class="chat-msg-body">[Connection error — try again]</div>';
+      pane.insertBefore(errMsg, streamEl);
+      chatSending = false;
+      document.getElementById("chat-input").disabled = false;
+      document.getElementById("chat-send-btn").disabled = false;
+    });
+  }).catch(function () {
+    streamEl.hidden = true;
+    chatSending = false;
+    document.getElementById("chat-input").disabled = false;
+    document.getElementById("chat-send-btn").disabled = false;
+  });
+  return false;
+}
+document.getElementById("chat-input") && document.getElementById("chat-input").addEventListener("keydown", function (e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById("chat-composer").requestSubmit();
+  }
+});
+function escapeHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+{% endif %}
+
+// ── Edit Project modal ──
+function openEditProjectModal() { document.getElementById("edit-project-modal").showModal(); }
+function submitEditProject(e) {
+  e.preventDefault();
+  var payload = {
+    name: document.getElementById("ep-name").value.trim(),
+    description: document.getElementById("ep-desc").value.trim(),
+    status: document.getElementById("ep-status").value,
+    risk_level: document.getElementById("ep-risk").value,
+  };
+  fetch("/api/projects/" + PROJECT_ID, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  }).then(function () { window.location.reload(); });
+  return false;
+}
+
+// ── Track recent ──
+(function () {
+  try {
+    var recent = JSON.parse(localStorage.getItem("tank_recent_projects") || "[]");
+    recent = recent.filter(function (id) { return id !== PROJECT_ID; });
+    recent.unshift(PROJECT_ID);
+    localStorage.setItem("tank_recent_projects", JSON.stringify(recent.slice(0, 10)));
+  } catch (e) {}
+})();
+</script>
+{% endblock %}

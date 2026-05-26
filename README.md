@@ -109,26 +109,51 @@ your morning digest.
 
 ### DFD Threat Modeling
 
-Submit a Data Flow Diagram — as Mermaid text, a `.mmd` file, or a PNG/JPG — and
-Tank runs automated STRIDE threat modeling:
+A three-stage pipeline from diagram input to interactive threat workspace.
+Access via **Pipeline → DFD Analysis** in the sidebar.
 
-- **Identifies STRIDE threats** (Spoofing, Tampering, Repudiation, Information
-  Disclosure, Denial of Service, Elevation of Privilege) per element with
-  Critical / High / Medium / Low severity.
-- **Annotates the diagram** — returns the original Mermaid source with `style`
-  directives that color-code threatened nodes by severity.
-- **Remediation table** — concrete, element-specific mitigations alongside each
-  threat.
-- **Improve incomplete diagrams** — if your DFD is missing trust boundaries,
-  data stores, or services, Tank queries its KB and asks Claude to fill in the
-  gaps, then shows you a bullet list of what was added. You can immediately
-  run STRIDE on the improved diagram.
-- **Re-analyze** — bypass the SHA-256 cache to re-run STRIDE after updating the
-  prompt or ingesting new architecture docs.
-- Export the annotated diagram as `.mmd` or full analysis as `.json`.
+**Stage 1 — Four input modes:**
 
-Access via Ingest → *"Have a Data Flow Diagram?"* callout, or the **DFD Analysis**
-link in the sidebar.
+- **Paste Mermaid** — live preview with 300ms debounce; "Load example" populates
+  a 6-8 node reference DFD (browser → ALB → API → Auth → DB/Cache/S3).
+- **Upload file** — drag-drop `.mmd`, `.txt`, `.png`, `.jpg`, or `.json`.
+  Image files are passed to Claude Vision.
+- **From document** — upload a PDF, DOCX, TXT, or Markdown architecture doc;
+  Claude extracts the data flow and produces Mermaid source for review.
+- **From description** — paste plain-language system description; Claude
+  generates the Mermaid DFD.
+
+**Stage 2 — 4-step SSE progress tracker:**
+Parsing diagram → Identifying system components → Mapping attack surfaces →
+Generating threat model. Analysis typically takes 20–40 seconds.
+
+**Stage 3 — Split-panel interactive workspace:**
+
+- **Diagram panel** (left, 55%) — Mermaid rendered with custom Nyx theme;
+  resizable via drag handle. Click a node to filter threats; hover for
+  tooltip with element name and threat count. Zoom with `+`/`−` or scroll wheel.
+- **Findings panel** (right, 45%) — severity summary strip; threat cards with
+  title, CVSS estimate, STRIDE category, element, description, collapsible
+  mitigation, and OWASP/CWE reference pills. Filter by severity and/or STRIDE
+  category. "Highlight in diagram →" cross-links cards back to nodes.
+- **Cache badge** — ⚡ shown when result was served from the SHA-256 cache.
+- **↺ Run again** — re-runs STRIDE with `force=true`, bypassing cache.
+- **Improve diagram** — KB-aware completion; adds missing trust boundaries,
+  data stores, and services using ingested architecture docs.
+
+**Exports:**
+
+| Format | Content |
+| --- | --- |
+| Print / Save as PDF | Professional @print layout with cover, diagram, threat table, STRIDE coverage matrix, appendix |
+| Annotated `.mmd` | Mermaid source with severity `style` directives |
+| Original `.mmd` | Unmodified input source |
+| JSON | Metadata wrapper + elements + full threat objects (CVSS, refs, etc.) |
+
+**Threat fields:** id, title, STRIDE category, element, severity (Critical/High/Medium/Low),
+CVSS estimate, description, mitigation, OWASP/CWE references.
+
+**Severity colors:** Critical `#DC2626` · High `#EA580C` · Medium `#D97706` · Low `#4F46E5`
 
 ### Second brain (Phase 15)
 
@@ -427,7 +452,7 @@ See `sample_data/README.md` for the full scenario and file list.
 | 2.2 | ✅ | Token cost counter fix — all Claude calls tracked across 3 tables |
 | 2.3 | ✅ | Claude API optimization — Haiku for extraction tasks, token debug flag |
 | 3.1 | ✅ | App redesign — grouped left sidebar nav, empty states |
-| 3.2 | ✅ | DFD threat modeling — STRIDE analysis, diagram annotation, KB-aware improvement |
+| 3.2 | ✅ | DFD threat modeling — 4-mode input, SSE progress, split-panel workspace, interactive threat cards, 4 export formats |
 | 3.3 | ✅ | Projects dashboard — color/notes fields, card grid UI, detail page, project-scoped chat |
 
 Build history with tradeoffs and known gaps: [HISTORY.md](HISTORY.md).

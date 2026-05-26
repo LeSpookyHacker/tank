@@ -13,7 +13,8 @@ from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
     dfd, entities, followups, glossary, iam, ingest, integrations, journal,
     lessons, me, meeting_prep, notes, nudges, onboarding, pages, philosophy,
-    postmortems, projects, reports, settings, subscriptions, tabletops, threat_models,
+    postmortems, projects, reports, settings, subscriptions, tabletops, teams,
+    threat_models, dashboard,
 )
 
 log = logging.getLogger("tank.main")
@@ -67,7 +68,9 @@ def healthz() -> dict:
         "tenure_day": tday,
     }
 
-# Pages + core
+# Navigation hub (replaces pages.router for /, /dashboard, /teams/*, /search)
+app.include_router(dashboard.router)
+# Legacy pages (onboarding, /api/usage/cost; /ingest now lives in project workspace)
 app.include_router(pages.router)
 app.include_router(onboarding.router)
 
@@ -116,8 +119,9 @@ app.include_router(glossary.router)
 app.include_router(me.router)
 app.include_router(philosophy.router)
 
-# Phase 16: project compartmentalization
+# Phase 16 + redesign: project compartmentalization + team hierarchy
 app.include_router(projects.router)
+app.include_router(teams.router)
 
 # DFD threat modeling
 app.include_router(dfd.router)

@@ -26,6 +26,7 @@ class CreateConversation(BaseModel):
     role_mode: str | None = None
     title: str | None = None
     scope: dict | None = None
+    project_id: str | None = None
 
 
 class PostMessage(BaseModel):
@@ -62,6 +63,7 @@ async def create_conversation(body: CreateConversation) -> dict:
     conv_id = conversations_store.create(
         role_mode=role_mode, model=MODEL,
         title=body.title, scope=body.scope or {},
+        project_id=body.project_id,
     )
     return {"id": conv_id}
 
@@ -121,7 +123,11 @@ async def post_message(conv_id: str, body: PostMessage) -> dict:
         display_view=body.content,
     )
 
-    # Kick off the assistant turn in a background task.
+    # Touch last_activity_at on the scoped project.
+    if conv.get("project_id"):
+        from app.storage.projects_store import touch_activity
+        touch_activity(conv["project_id"])
+
     asyncio.create_task(_run_turn_safely(conv_id, body.content))
     return {"user_message_id": user_msg_id}
 

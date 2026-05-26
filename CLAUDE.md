@@ -310,15 +310,27 @@ and open postmortem action items.
 
 ## DFD Threat Modeling
 
-New feature (Phase 3.2). Key files:
+Three-stage pipeline: Stage 1 (4-mode input) → Stage 2 (SSE progress) → Stage 3 (split-panel workspace). Key files:
 
-- `app/claude/dfd_analyzer.py` — `analyze_mermaid(src, force=False)` (SHA-256 cached unless `force=True`), `analyze_image(bytes, media_type)`, `improve_mermaid(src, kb_context)`. Cache bypass is intentional: pass `force=True` to re-run STRIDE after updating `prompts/dfd_stride.md`.
-- `app/routers/dfd.py` — `POST /api/dfd/analyze` (accepts `force` form field), `POST /api/dfd/{id}/improve` (fetches KB context via `hybrid_search`, returns improved diagram + suggestions list), `GET /api/dfd/{id}/export?format=mmd|json`.
-- `app/storage/dfd_store.py` — `insert`, `get`, `get_by_hash`, `list_recent`.
-- `prompts/dfd_stride.md` — STRIDE analysis prompt. `prompts/dfd_improve.md` — diagram-completion prompt.
-- `app/schemas.py` — `DFDAnalysis`, `DFDElement`, `STRIDEThreat`, `DFDImprovement`.
+- **`app/schemas.py`** — `DFDThreat` (renamed from old `STRIDEThreat` to fix naming collision with reports `STRIDEThreat`); added `threat_id`, `element_label`, `title`, `cvss_estimate: float | None`, `references: list[str]`; `DFDMermaidGeneration` schema for generate flows.
+- **`app/claude/dfd_analyzer.py`** — `analyze_mermaid(src, force, project_id, project_notes, input_format)` → `(dfd_id, analysis, from_cache)`; `analyze_image(bytes, media_type, project_id, project_notes)` → same tuple; `generate_from_description(text, project_notes)` → `DFDMermaidGeneration`; `generate_from_document(file_bytes, filename, project_notes)` → `DFDMermaidGeneration`. Uses `pypdf`/`python-docx` for document text extraction.
+- **`app/routers/dfd.py`** — `POST /api/dfd/generate-from-description` and `POST /api/dfd/generate-from-doc` (return `{mermaid, notes}`); `POST /api/dfd/start-analysis` (returns `{task_id}`); `POST /api/dfd/start-analysis-image` (image variant); `GET /api/dfd/task/{task_id}/stream` (SSE drain, reuses `event_bus.py` pattern); `GET /api/dfd/{id}/export?format=mmd|original_mmd|json`. Legacy `POST /api/dfd/analyze` retained for backward compat.
+- **`app/storage/dfd_store.py`** — `insert()` accepts `input_format`, `project_id`, `cached`; `list_recent()` accepts optional `project_id` filter.
+- **`app/db.py`** — `_migrate_dfd_columns()` adds `input_format TEXT`, `project_id TEXT`, `cached INTEGER NOT NULL DEFAULT 0` columns to `dfd_analyses` (idempotent via `_add_col_safe()`).
+- **`prompts/dfd_stride.md`** — STRIDE analysis prompt; updated for new threat fields; Low severity color `#4F46E5` (was `#2563eb`); severity indicator on node labels (`⚠ H`); project context injection.
+- **`prompts/dfd_generate_doc.md`** — new: generate Mermaid from architecture document.
+- **`prompts/dfd_generate_desc.md`** — new: generate Mermaid from plain-language description.
+- **`prompts/dfd_improve.md`** — diagram-completion prompt (unchanged).
 
-The `improve_mermaid` endpoint pulls KB context using `hybrid_search("data flow architecture services trust boundary", k=10)` and sends it alongside the diagram — so ingested architecture docs directly inform what's added to incomplete diagrams.
+**SSE progress pattern:** `POST /api/dfd/start-analysis` → `task_id`; background `asyncio.Task` emits step events to `f"dfd.{task_id}"` topic via `event_bus.publish()`; 4 steps (parsing → components → attack surfaces → threat model); `done` event carries `{dfd_id, cached}`.
+
+**Severity colors (single source of truth):**
+- CSS variables in `:root`: `--sev-critical: #DC2626`, `--sev-high: #EA580C`, `--sev-medium: #D97706`, `--sev-low: #4F46E5`
+- JS constant `SEV_COLORS` in dfd templates mirrors these
+
+**PDF export:** CSS `@media print` only — no jsPDF/html2canvas. Produces cover page, full-width diagram SVG, threat table, STRIDE coverage matrix (6×4), Mermaid appendix.
+
+The `improve_mermaid` endpoint pulls KB context using `hybrid_search("data flow architecture services trust boundary", k=10)` and sends it alongside the diagram.
 
 ## Operations layer (the always-on-VM additions)
 

@@ -1,126 +1,552 @@
 {% extends "base.html" %}
-{% block title %}Tank — DFD Analysis{% endblock %}
+{% block title %}Tank — DFD Threat Analysis{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <h1>DFD Analysis</h1>
-  <p class="lede">Submit a Data Flow Diagram for automated STRIDE threat modeling.
-  Tank will identify threats, annotate the diagram, and generate a remediation table.</p>
-</section>
+<div class="dfd-page">
 
-<section class="dfd-input-section">
-  <div class="tab-bar" id="dfd-tab-bar">
-    <button class="tab-btn active" onclick="switchTab('mermaid')">Mermaid (.mmd)</button>
-    <button class="tab-btn" onclick="switchTab('image')">Image (PNG/JPG)</button>
-  </div>
+  <!-- ─── Stage 1: Input ─────────────────────────────────────────────── -->
+  <div id="stage-input">
+    <section class="dfd-input-header">
+      <h1>DFD Threat Analysis</h1>
+      <p class="lede">Submit a Data Flow Diagram for automated STRIDE threat modeling — from input to an interactive, clickable threat workspace.</p>
+    </section>
 
-  <form id="dfd-form" onsubmit="return submitDFD(event)" enctype="multipart/form-data">
-    <div id="tab-mermaid" class="dfd-tab">
-      <label class="field-label" for="mermaid-input">Paste your Mermaid diagram or upload a .mmd file</label>
-      <textarea id="mermaid-input" name="mermaid_src" class="dfd-textarea mono"
-                rows="14" placeholder="graph TD
-  User -->|HTTPS| WebApp[Web Application]
-  WebApp -->|SQL| DB[(Database)]
-  WebApp -->|RPC| AuthService[Auth Service]
-  DB -.->|Backup| S3[(S3 Bucket)]"></textarea>
-      <div class="dfd-file-hint">
-        Or upload a <code>.mmd</code> file:
-        <input type="file" accept=".mmd,.txt" onchange="loadMmdFile(event)">
+    <!-- Mode selector tabs -->
+    <div class="dfd-mode-tabs" role="tablist">
+      <button class="dfd-mode-tab active" role="tab" data-mode="mermaid" onclick="switchMode('mermaid')">
+        ◈ Paste Mermaid
+      </button>
+      <button class="dfd-mode-tab" role="tab" data-mode="upload" onclick="switchMode('upload')">
+        ↑ Upload File
+      </button>
+      <button class="dfd-mode-tab" role="tab" data-mode="doc" onclick="switchMode('doc')">
+        ◎ From Document
+      </button>
+      <button class="dfd-mode-tab" role="tab" data-mode="desc" onclick="switchMode('desc')">
+        ✎ From Description
+      </button>
+    </div>
+
+    <!-- Mode A: Paste Mermaid -->
+    <div id="mode-mermaid" class="dfd-mode-panel">
+      <div class="dfd-editor-wrap">
+        <div class="dfd-editor-toolbar">
+          <span class="dfd-editor-label">Mermaid DFD source</span>
+          <button class="dfd-link-btn" onclick="loadExample()">Load example ↗</button>
+        </div>
+        <textarea id="mermaid-input" class="dfd-editor"
+                  placeholder="graph TD&#10;  User([User]) -->|HTTPS| API[API Gateway]&#10;  API -->|SQL| DB[(Database)]"
+                  oninput="onMermaidInput()" spellcheck="false"></textarea>
+        <div id="mermaid-preview-area" class="dfd-preview-area" hidden>
+          <div class="dfd-preview-label">Live preview</div>
+          <div id="mermaid-preview" class="dfd-preview-diagram"></div>
+          <div id="mermaid-error" class="dfd-preview-error" hidden></div>
+        </div>
       </div>
     </div>
 
-    <div id="tab-image" class="dfd-tab" hidden>
-      <label class="field-label" for="image-input">Upload a DFD diagram image</label>
-      <input type="file" id="image-input" name="image" accept="image/png,image/jpeg,image/webp"
-             class="dfd-file-input">
-      <p class="dim" style="font-size:0.88rem">Tank will use Claude vision to parse the diagram and perform STRIDE analysis.</p>
+    <!-- Mode B: Upload File -->
+    <div id="mode-upload" class="dfd-mode-panel" hidden>
+      <div class="dfd-dropzone" id="upload-dropzone"
+           ondragover="handleDragOver(event,'upload-dropzone')"
+           ondragleave="handleDragLeave(event,'upload-dropzone')"
+           ondrop="handleFileDrop(event,'upload-dropzone',handleUploadFile)">
+        <div class="dfd-dropzone-icon">↑</div>
+        <div class="dfd-dropzone-text">
+          Drag &amp; drop a file, or <label class="dfd-link-btn" for="upload-file-input">browse</label>
+        </div>
+        <div class="dfd-dropzone-hint">Accepts: .mmd · .txt · .png · .jpg · .jpeg · .svg · .json</div>
+        <input type="file" id="upload-file-input" accept=".mmd,.txt,.png,.jpg,.jpeg,.svg,.json"
+               style="display:none" onchange="handleUploadFileInput(event)">
+      </div>
+      <div id="upload-preview" class="dfd-upload-preview" hidden></div>
+      <div id="upload-image-notice" class="dfd-notice" hidden>
+        Image will be parsed by AI — results may vary. For best accuracy, use Mermaid format.
+      </div>
     </div>
 
+    <!-- Mode C: From Document -->
+    <div id="mode-doc" class="dfd-mode-panel" hidden>
+      <div class="dfd-dropzone" id="doc-dropzone"
+           ondragover="handleDragOver(event,'doc-dropzone')"
+           ondragleave="handleDragLeave(event,'doc-dropzone')"
+           ondrop="handleFileDrop(event,'doc-dropzone',handleDocFile)">
+        <div class="dfd-dropzone-icon">◎</div>
+        <div class="dfd-dropzone-text">
+          Upload an architecture document<br>
+          <label class="dfd-link-btn" for="doc-file-input">Choose file</label>
+        </div>
+        <div class="dfd-dropzone-hint">PDF · DOCX · TXT · MD</div>
+        <input type="file" id="doc-file-input" accept=".pdf,.docx,.txt,.md"
+               style="display:none" onchange="handleDocFileInput(event)">
+      </div>
+      <div id="doc-status" class="dfd-gen-status" hidden></div>
+      <div class="dfd-notice" style="margin-top:0.75rem">
+        Tank will extract the architecture and generate a Mermaid diagram. Review and edit before running threat modeling.
+      </div>
+    </div>
+
+    <!-- Mode D: From Description -->
+    <div id="mode-desc" class="dfd-mode-panel" hidden>
+      <label class="dfd-editor-label">Describe your system in plain language</label>
+      <textarea id="desc-input" class="dfd-editor" rows="8"
+                placeholder="A React frontend that talks to a Node.js REST API. The API authenticates via JWT and stores user data in PostgreSQL. There's a Redis cache layer and an S3 bucket for file uploads. All external traffic goes through an AWS ALB."></textarea>
+      <button class="btn-secondary" style="margin-top:0.75rem" onclick="generateFromDescription()">
+        Generate Mermaid diagram →
+      </button>
+      <div id="desc-status" class="dfd-gen-status" hidden></div>
+      <div class="dfd-notice" style="margin-top:0.75rem">
+        AI-generated DFDs may need adjustments. Review the diagram in Paste Mermaid mode before running threat modeling.
+      </div>
+    </div>
+
+    <!-- Submit row -->
     <div class="dfd-submit-row">
-      <button type="submit" class="btn-primary" id="dfd-submit-btn">Analyze with STRIDE</button>
-      <span id="dfd-status" class="dim" hidden>Analyzing… this may take 15–30 seconds.</span>
+      <button id="analyze-btn" class="btn-primary" onclick="startAnalysis()" disabled>
+        Run Threat Analysis
+      </button>
+      <span id="analyze-hint" class="dfd-analyze-hint dim"></span>
     </div>
-  </form>
-</section>
+  </div>
 
+  <!-- ─── Stage 2: Progress tracker ──────────────────────────────────── -->
+  <div id="stage-progress" class="dfd-progress-stage" hidden>
+    <div class="dfd-progress-card">
+      <h2>Analyzing diagram…</h2>
+      <p class="dfd-progress-eta dim">Threat analysis typically takes 20–40 seconds.</p>
+      <ol class="dfd-steps" id="dfd-steps">
+        <li class="dfd-step" id="step-1" data-status="pending">
+          <span class="step-icon"></span>
+          <span class="step-label">Parsing diagram</span>
+        </li>
+        <li class="dfd-step" id="step-2" data-status="pending">
+          <span class="step-icon"></span>
+          <span class="step-label">Identifying system components</span>
+        </li>
+        <li class="dfd-step" id="step-3" data-status="pending">
+          <span class="step-icon"></span>
+          <span class="step-label">Mapping attack surfaces</span>
+        </li>
+        <li class="dfd-step" id="step-4" data-status="pending">
+          <span class="step-icon"></span>
+          <span class="step-label">Generating threat model</span>
+        </li>
+      </ol>
+      <div id="progress-error" class="dfd-progress-error" hidden>
+        <span id="progress-error-msg"></span>
+        <button class="btn-secondary" style="margin-top:0.75rem" onclick="resetToInput()">← Try again</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Recent analyses -->
 {% if recent %}
-<section class="dfd-recent">
+<section class="dfd-recent-section" id="recent-section">
   <h2>Recent analyses</h2>
-  <ul class="report-list">
+  <ul class="dfd-recent-list">
     {% for d in recent %}
-      <li>
-        <a href="/dfd/{{ d.id }}">
-          <span class="dim">{{ d.created_at | int }}</span>
-          DFD — {{ d.analysis.threats | length }} threats identified
-          {% if d.mermaid_src %}· Mermaid{% else %}· Image{% endif %}
-        </a>
-      </li>
+    <li class="dfd-recent-item">
+      <a href="/dfd/{{ d.id }}" class="dfd-recent-link">
+        <span class="dfd-recent-meta dim">{{ d.created_at | int }}</span>
+        <span class="dfd-recent-threats">{{ d.analysis.threats | length }} threats</span>
+        <span class="dfd-recent-format dim">
+          {% if d.input_format == 'image' %}Image
+          {% elif d.input_format == 'generated_from_doc' %}From document
+          {% elif d.input_format == 'generated_from_description' %}From description
+          {% else %}Mermaid{% endif %}
+        </span>
+      </a>
+    </li>
     {% endfor %}
   </ul>
 </section>
-{% else %}
-<div class="empty-state">
-  <div class="empty-state-icon">◈</div>
-  <h2>No DFD analyses yet</h2>
-  <p>Submit a diagram above to get your first STRIDE threat model.</p>
-</div>
 {% endif %}
 
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 <script>
-  var activeTab = 'mermaid';
+/* ── DFD input page ── */
+var SEV_COLORS = {Critical:'#DC2626', High:'#EA580C', Medium:'#D97706', Low:'#4F46E5'};
 
-  function switchTab(name) {
-    activeTab = name;
-    document.querySelectorAll('.tab-btn').forEach(function(b, i) {
-      b.classList.toggle('active', (i === 0 && name === 'mermaid') || (i === 1 && name === 'image'));
-    });
-    document.getElementById('tab-mermaid').hidden = name !== 'mermaid';
-    document.getElementById('tab-image').hidden = name !== 'image';
+var activeMode = 'mermaid';
+var uploadImageFile = null;   // File object if Mode B has an image
+var uploadMermaidSrc = '';    // Mermaid text if Mode B had .mmd/.txt
+var previewTimer = null;
+var mermaidPreviewId = 0;
+
+mermaid.initialize({
+  startOnLoad: false,
+  theme: document.documentElement.classList.contains('theme-light') ? 'default' : 'base',
+  themeVariables: document.documentElement.classList.contains('theme-light') ? {} : {
+    background: '#0d0d12', primaryColor: '#1a1728', primaryTextColor: '#e8e6f0',
+    primaryBorderColor: '#3d2e6b', lineColor: '#6c5ce7',
+    fontFamily: 'Inter, sans-serif', fontSize: '14px',
+  },
+  securityLevel: 'loose',
+});
+
+// ── Mode switching ──
+function switchMode(mode) {
+  activeMode = mode;
+  document.querySelectorAll('.dfd-mode-tab').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  document.querySelectorAll('.dfd-mode-panel').forEach(function(p) {
+    p.hidden = true;
+  });
+  document.getElementById('mode-' + mode).hidden = false;
+  updateSubmitState();
+}
+
+// ── Submit state ──
+function updateSubmitState() {
+  var btn = document.getElementById('analyze-btn');
+  var hint = document.getElementById('analyze-hint');
+  var ready = false;
+  var label = '';
+
+  if (activeMode === 'mermaid') {
+    var src = (document.getElementById('mermaid-input').value || '').trim();
+    ready = src.length > 10;
+    label = ready ? 'Analyzing Mermaid diagram · STRIDE' : 'Paste a Mermaid diagram to continue';
+  } else if (activeMode === 'upload') {
+    ready = !!(uploadImageFile || uploadMermaidSrc);
+    label = ready ? 'Analyzing uploaded file · STRIDE' : 'Upload a file to continue';
+  } else if (activeMode === 'doc' || activeMode === 'desc') {
+    ready = false;
+    label = 'Generate a Mermaid diagram first, then submit';
   }
 
-  function loadMmdFile(e) {
-    var f = e.target.files[0];
-    if (!f) return;
+  btn.disabled = !ready;
+  hint.textContent = label;
+}
+
+// ── Live Mermaid preview ──
+function onMermaidInput() {
+  updateSubmitState();
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(renderPreview, 300);
+}
+
+async function renderPreview() {
+  var src = (document.getElementById('mermaid-input').value || '').trim();
+  var area = document.getElementById('mermaid-preview-area');
+  var errEl = document.getElementById('mermaid-error');
+  var preEl = document.getElementById('mermaid-preview');
+
+  if (!src) { area.hidden = true; return; }
+  area.hidden = false;
+  preEl.innerHTML = '';
+  errEl.hidden = true;
+
+  try {
+    mermaidPreviewId++;
+    var id = 'prev-' + mermaidPreviewId;
+    var result = await mermaid.render(id, src);
+    preEl.innerHTML = result.svg;
+    errEl.hidden = true;
+  } catch (e) {
+    preEl.innerHTML = '';
+    errEl.hidden = false;
+    errEl.textContent = 'Diagram error: ' + (e.message || String(e)).split('\n')[0];
+  }
+}
+
+// ── Load example ──
+function loadExample() {
+  var example = [
+    'graph TD',
+    '  User([User Browser])',
+    '  ALB[AWS ALB]',
+    '  API[API Gateway]',
+    '  Auth[Auth Service]',
+    '  DB[(PostgreSQL)]',
+    '  Cache[(Redis Cache)]',
+    '  S3[(S3 Bucket)]',
+    '  subgraph internet["Internet"]',
+    '    User',
+    '  end',
+    '  subgraph backend["Internal VPC"]',
+    '    ALB',
+    '    API',
+    '    Auth',
+    '    DB',
+    '    Cache',
+    '    S3',
+    '  end',
+    '  User -->|HTTPS| ALB',
+    '  ALB -->|HTTP| API',
+    '  API -->|JWT verify| Auth',
+    '  Auth -->|session lookup| DB',
+    '  API -->|SQL query| DB',
+    '  API -->|cache read/write| Cache',
+    '  API -->|file upload| S3',
+  ].join('\n');
+  document.getElementById('mermaid-input').value = example;
+  switchMode('mermaid');
+  onMermaidInput();
+}
+
+// ── File drop helpers ──
+function handleDragOver(e, zoneId) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.add('dragover');
+}
+function handleDragLeave(e, zoneId) {
+  document.getElementById(zoneId).classList.remove('dragover');
+}
+function handleFileDrop(e, zoneId, handler) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.remove('dragover');
+  var file = e.dataTransfer.files[0];
+  if (file) handler(file);
+}
+
+// ── Mode B: Upload file ──
+function handleUploadFileInput(e) {
+  var file = e.target.files[0];
+  if (file) handleUploadFile(file);
+}
+
+function handleUploadFile(file) {
+  var name = file.name.toLowerCase();
+  uploadImageFile = null;
+  uploadMermaidSrc = '';
+
+  if (name.endsWith('.mmd') || name.endsWith('.txt')) {
     var reader = new FileReader();
     reader.onload = function(ev) {
-      document.getElementById('mermaid-input').value = ev.target.result;
+      uploadMermaidSrc = ev.target.result;
+      // Switch to Mermaid mode with content pre-filled
+      document.getElementById('mermaid-input').value = uploadMermaidSrc;
+      switchMode('mermaid');
+      onMermaidInput();
     };
-    reader.readAsText(f);
-  }
-
-  async function submitDFD(e) {
-    e.preventDefault();
-    var btn = document.getElementById('dfd-submit-btn');
-    var status = document.getElementById('dfd-status');
-    btn.disabled = true;
-    status.hidden = false;
-
-    var form = document.getElementById('dfd-form');
-    var data = new FormData();
-
-    if (activeTab === 'mermaid') {
-      data.append('mermaid_src', document.getElementById('mermaid-input').value);
-    } else {
-      var img = document.getElementById('image-input').files[0];
-      if (!img) { btn.disabled = false; status.hidden = true; return false; }
-      data.append('image', img);
-    }
-
-    try {
-      var resp = await fetch('/api/dfd/analyze', { method: 'POST', body: data });
-      if (!resp.ok) {
-        var err = await resp.json().catch(function() { return {detail: 'Unknown error'}; });
-        alert('Error: ' + (err.detail || resp.status));
-        btn.disabled = false; status.hidden = true;
-        return false;
+    reader.readAsText(file);
+  } else if (name.endsWith('.json')) {
+    var reader2 = new FileReader();
+    reader2.onload = function(ev) {
+      var preview = document.getElementById('upload-preview');
+      preview.hidden = false;
+      try {
+        var parsed = JSON.parse(ev.target.result);
+        preview.innerHTML = '<pre class="dfd-json-preview">' +
+          escHtml(JSON.stringify(parsed, null, 2).slice(0, 2000)) + '</pre>';
+      } catch (e) {
+        preview.innerHTML = '<span class="dim">Could not parse JSON</span>';
       }
-      var d = await resp.json();
-      window.location.href = '/dfd/' + d.dfd_id;
-    } catch (ex) {
-      alert('Request failed: ' + ex.message);
-      btn.disabled = false; status.hidden = true;
-    }
-    return false;
+      uploadMermaidSrc = ev.target.result;
+      updateSubmitState();
+    };
+    reader2.readAsText(file);
+  } else if (name.match(/\.(png|jpg|jpeg|svg)$/)) {
+    uploadImageFile = file;
+    var preview = document.getElementById('upload-preview');
+    preview.hidden = false;
+    var url = URL.createObjectURL(file);
+    preview.innerHTML = '<img src="' + url + '" class="dfd-img-preview" alt="uploaded diagram">';
+    document.getElementById('upload-image-notice').hidden = false;
+    updateSubmitState();
+  } else {
+    alert('Unsupported file type. Please use .mmd, .txt, .png, .jpg, .jpeg, .svg, or .json');
   }
+}
+
+// ── Mode C: From document ──
+function handleDocFileInput(e) {
+  var file = e.target.files[0];
+  if (file) handleDocFile(file);
+}
+
+async function handleDocFile(file) {
+  var status = document.getElementById('doc-status');
+  status.hidden = false;
+  status.textContent = 'Extracting architecture from document…';
+  status.className = 'dfd-gen-status';
+
+  var fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    var resp = await fetch('/api/dfd/generate-from-doc', {method: 'POST', body: fd});
+    var data = await resp.json();
+    if (!resp.ok) {
+      status.textContent = 'Error: ' + (data.detail || resp.status);
+      status.className = 'dfd-gen-status error';
+      return;
+    }
+    document.getElementById('mermaid-input').value = data.mermaid;
+    switchMode('mermaid');
+    onMermaidInput();
+    status.textContent = 'Diagram generated. Review it in the editor above before analyzing.';
+    status.className = 'dfd-gen-status success';
+  } catch (e) {
+    status.textContent = 'Request failed: ' + e.message;
+    status.className = 'dfd-gen-status error';
+  }
+}
+
+// ── Mode D: From description ──
+async function generateFromDescription() {
+  var text = (document.getElementById('desc-input').value || '').trim();
+  if (!text) { alert('Please enter a description first.'); return; }
+
+  var status = document.getElementById('desc-status');
+  status.hidden = false;
+  status.textContent = 'Generating Mermaid diagram…';
+  status.className = 'dfd-gen-status';
+
+  try {
+    var resp = await fetch('/api/dfd/generate-from-description', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text}),
+    });
+    var data = await resp.json();
+    if (!resp.ok) {
+      status.textContent = 'Error: ' + (data.detail || resp.status);
+      status.className = 'dfd-gen-status error';
+      return;
+    }
+    document.getElementById('mermaid-input').value = data.mermaid;
+    switchMode('mermaid');
+    onMermaidInput();
+    status.textContent = 'Diagram generated. Review it in the editor above before analyzing.';
+    status.className = 'dfd-gen-status success';
+  } catch (e) {
+    status.textContent = 'Request failed: ' + e.message;
+    status.className = 'dfd-gen-status error';
+  }
+}
+
+// ── Start analysis ──
+async function startAnalysis() {
+  var btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+
+  var taskId = null;
+  try {
+    if (activeMode === 'upload' && uploadImageFile) {
+      // Image submission — start-analysis-image endpoint
+      var fd = new FormData();
+      fd.append('image', uploadImageFile);
+      var r = await fetch('/api/dfd/start-analysis-image', {method: 'POST', body: fd});
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.status);
+      taskId = d.task_id;
+    } else {
+      // Mermaid source submission
+      var src = '';
+      if (activeMode === 'mermaid') {
+        src = (document.getElementById('mermaid-input').value || '').trim();
+      } else if (activeMode === 'upload' && uploadMermaidSrc) {
+        src = uploadMermaidSrc;
+      }
+      if (!src) { btn.disabled = false; return; }
+
+      var r2 = await fetch('/api/dfd/start-analysis', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mermaid_src: src, input_format: 'mermaid'}),
+      });
+      var d2 = await r2.json();
+      if (!r2.ok) throw new Error(d2.detail || r2.status);
+      taskId = d2.task_id;
+    }
+  } catch (e) {
+    btn.disabled = false;
+    alert('Failed to start analysis: ' + e.message);
+    return;
+  }
+
+  showProgress();
+  subscribeToProgress(taskId);
+}
+
+// ── Progress UI ──
+function showProgress() {
+  document.getElementById('stage-input').hidden = true;
+  document.getElementById('stage-progress').hidden = false;
+  if (document.getElementById('recent-section')) {
+    document.getElementById('recent-section').hidden = true;
+  }
+}
+
+function resetToInput() {
+  document.getElementById('stage-input').hidden = false;
+  document.getElementById('stage-progress').hidden = true;
+  document.getElementById('progress-error').hidden = true;
+  document.getElementById('analyze-btn').disabled = false;
+  if (document.getElementById('recent-section')) {
+    document.getElementById('recent-section').hidden = false;
+  }
+  // Reset all steps
+  ['step-1','step-2','step-3','step-4'].forEach(function(id) {
+    setStepStatus(id, 'pending');
+  });
+}
+
+function setStepStatus(stepId, status) {
+  var el = document.getElementById(stepId);
+  el.dataset.status = status;
+  var icon = el.querySelector('.step-icon');
+  if (status === 'complete') icon.textContent = '✓';
+  else if (status === 'active') icon.textContent = '⟳';
+  else if (status === 'error') icon.textContent = '✗';
+  else icon.textContent = '';
+}
+
+function subscribeToProgress(taskId) {
+  var es = new EventSource('/api/dfd/task/' + taskId + '/stream');
+
+  es.addEventListener('step', function(e) {
+    var data = JSON.parse(e.data);
+    var stepId = 'step-' + data.step;
+    if (data.status === 'complete') {
+      setStepStatus(stepId, 'complete');
+      // Also mark previous steps complete in case any were missed
+      for (var i = 1; i < data.step; i++) {
+        setStepStatus('step-' + i, 'complete');
+      }
+    } else if (data.status === 'active') {
+      setStepStatus(stepId, 'active');
+    }
+  });
+
+  es.addEventListener('done', function(e) {
+    es.close();
+    var data = JSON.parse(e.data);
+    ['step-1','step-2','step-3','step-4'].forEach(function(id) {
+      setStepStatus(id, 'complete');
+    });
+    setTimeout(function() {
+      window.location.href = '/dfd/' + data.dfd_id + (data.cached ? '?cached=1' : '');
+    }, 400);
+  });
+
+  es.addEventListener('error', function(e) {
+    es.close();
+    var msg = 'Analysis failed';
+    try { msg = JSON.parse(e.data).error || msg; } catch (_) {}
+    document.getElementById('progress-error').hidden = false;
+    document.getElementById('progress-error-msg').textContent = msg;
+  });
+
+  es.onerror = function() {
+    // SSE connection dropped — show error if not already navigating away
+    if (!document.getElementById('progress-error').hidden) return;
+    es.close();
+    document.getElementById('progress-error').hidden = false;
+    document.getElementById('progress-error-msg').textContent = 'Connection lost. Please try again.';
+  };
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Initialize submit state
+updateSubmitState();
 </script>
 {% endblock %}
