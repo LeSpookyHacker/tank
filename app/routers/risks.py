@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import logging
+import os
+import secrets as _secrets
 import time
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -108,13 +110,21 @@ def _run_assessment(risk_id: str) -> None:
 
 # ── Vulnerability intake (for Nyx and other tools) ─────────────────
 
+_NYX_KEY = os.environ.get("TANK_NYX_API_KEY", "")
+
+
 @vuln_api.post("/intake")
-async def intake_vulnerability(body: VulnerabilityIntake) -> dict:
+async def intake_vulnerability(
+    body: VulnerabilityIntake,
+    x_nyx_key: str = Header(default=""),
+) -> dict:
     """Accept a vulnerability finding from an external tool (e.g. Nyx).
 
     Tank redacts the description, looks up service entity IDs by name,
     and creates a `vulnerabilities` row. Returns the new vuln_id.
     """
+    if _NYX_KEY and not _secrets.compare_digest(x_nyx_key, _NYX_KEY):
+        raise HTTPException(401, "invalid API key")
     # Resolve service names → entity IDs.
     affected_ids: list[str] = []
     for name in body.affected_service_names:

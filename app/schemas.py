@@ -593,10 +593,10 @@ class VulnerabilityIntake(BaseModel):
     cve_id: str | None = None
     title: str
     description: str | None = None
-    cvss_score: float | None = None
+    cvss_score: float | None = Field(None, ge=0.0, le=10.0)
     cvss_vector: str | None = None
-    severity: str = "medium"   # critical|high|medium|low|informational
-    source: str = "manual"     # nvd|github_dependabot|scanner|manual|disclosure
+    severity: Literal["critical", "high", "medium", "low", "informational"] = "medium"
+    source: Literal["nvd", "github_dependabot", "scanner", "manual", "disclosure"] = "manual"
     affected_service_names: list[str] = Field(default_factory=list)
     due_at: int | None = None
     external_ref: str | None = None

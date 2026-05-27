@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.claude import scheduler
 from app.config import STATIC_DIR
@@ -37,6 +38,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Tank", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com fonts.googleapis.com; "
+            "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "
+            "font-src fonts.gstatic.com; "
+            "img-src 'self' data:;"
+        )
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
 
 
 @app.get("/healthz")
