@@ -123,7 +123,9 @@ async def intake_vulnerability(
     Tank redacts the description, looks up service entity IDs by name,
     and creates a `vulnerabilities` row. Returns the new vuln_id.
     """
-    if _NYX_KEY and not _secrets.compare_digest(x_nyx_key, _NYX_KEY):
+    if not _NYX_KEY:
+        raise HTTPException(503, "vulnerability intake not configured (set TANK_NYX_API_KEY)")
+    if not _secrets.compare_digest(x_nyx_key, _NYX_KEY):
         raise HTTPException(401, "invalid API key")
     # Resolve service names → entity IDs.
     affected_ids: list[str] = []

@@ -135,10 +135,10 @@ async def post_message(conv_id: str, body: PostMessage) -> dict:
 async def _run_turn_safely(conv_id: str, user_text: str):
     try:
         await run_turn(conv_id, user_text)
-    except Exception as exc:
+    except Exception:
         log.exception("turn failed for %s", conv_id)
         from app.claude.event_bus import publish
-        publish(f"chat.{conv_id}", "error", {"error": str(exc)})
+        publish(f"chat.{conv_id}", "error", {"error": "Response generation failed."})
 
 
 @router.get("/api/conversations/{conv_id}/stream")

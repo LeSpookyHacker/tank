@@ -11,6 +11,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import re
+import socket
 import time
 import urllib.parse
 import urllib.request
@@ -23,6 +24,15 @@ from app.db import LOCK, get_conn
 log = logging.getLogger("tank.watchers.ics")
 
 _BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal"}
+_MAX_ICS_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def _is_private_addr(ip_str: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip_str)
+        return addr.is_private or addr.is_loopback or addr.is_link_local
+    except ValueError:
+        return False
 
 
 def _validate_url(url: str) -> None:
@@ -30,15 +40,30 @@ def _validate_url(url: str) -> None:
     if parsed.scheme not in ("http", "https"):
         raise ValueError(f"unsupported scheme: {parsed.scheme}")
     host = parsed.hostname or ""
+    if not host:
+        raise ValueError("missing host in URL")
     if host in _BLOCKED_HOSTS:
         raise ValueError(f"blocked metadata host: {host}")
+    # Check IP literals directly.
     try:
         addr = ipaddress.ip_address(host)
         if addr.is_private or addr.is_loopback or addr.is_link_local:
             raise ValueError(f"blocked private address: {host}")
+        return  # valid public IP literal
     except ValueError as exc:
         if "blocked" in str(exc):
             raise
+    # host is a DNS name — resolve every returned address and block privates.
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as exc:
+        raise ValueError(f"cannot resolve host {host!r}: {exc}") from exc
+    for info in infos:
+        ip_str = info[4][0]
+        if _is_private_addr(ip_str):
+            raise ValueError(
+                f"host {host!r} resolves to blocked private address {ip_str}"
+            )
 
 
 _EVENT_BLOCK_RE = re.compile(
@@ -93,7 +118,7 @@ class ICSWatcher:
         try:
             _validate_url(url)
             with urllib.request.urlopen(url, timeout=15) as resp:
-                ics_text = resp.read().decode("utf-8", errors="replace")
+                ics_text = resp.read(_MAX_ICS_BYTES).decode("utf-8", errors="replace")
         except Exception as exc:
             return {"error": str(exc)}
 

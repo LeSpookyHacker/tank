@@ -221,9 +221,9 @@ async def executive_brief() -> dict:
                         getattr(resp, "usage", None))
         result: ExecutiveBriefOutput = resp.parsed_output
         return result.model_dump()
-    except Exception as exc:
-        log.warning("executive brief generation failed: %s", exc)
-        return {"error": str(exc)}
+    except Exception:
+        log.warning("executive brief generation failed", exc_info=True)
+        return {"error": "Brief generation failed — check server logs."}
 
 
 # ── HTML page ───────────────────────────────────────────────────────

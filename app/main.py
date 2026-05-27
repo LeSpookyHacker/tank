@@ -48,7 +48,7 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com fonts.googleapis.com; "
+            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; "
             "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "
             "font-src fonts.gstatic.com; "
             "img-src 'self' data:;"
@@ -76,16 +76,10 @@ def healthz() -> dict:
     except Exception as exc:
         db_status = f"error: {exc.__class__.__name__}"
     sched_status = "running" if scheduler.is_running() else "stopped"
-    try:
-        from app.role import tenure_day
-        tday = tenure_day()
-    except Exception:
-        tday = 0
     return {
         "ok": db_status == "ok",
         "scheduler": sched_status,
         "db": db_status,
-        "tenure_day": tday,
     }
 
 # Navigation hub (replaces pages.router for /, /dashboard, /teams/*, /search)

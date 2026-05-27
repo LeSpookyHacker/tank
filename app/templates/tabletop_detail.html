@@ -13,7 +13,7 @@
     </p>
   </header>
 
-  <article class="markdown-body">{{ tabletop.scenario_md | safe }}</article>
+  <article class="markdown-body" id="tt-body-md"></article>
 
   <details open>
     <summary>Capture lessons (after running)</summary>
@@ -39,6 +39,17 @@
 </section>
 
 <script>
+(function () {
+  var raw = {{ tabletop.scenario_md | tojson }};
+  var el = document.getElementById("tt-body-md");
+  function render() {
+    if (!window.marked || !window.DOMPurify || !el) return;
+    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+  }
+  if (window.marked && window.DOMPurify) { render(); }
+  else { window.addEventListener("load", render); }
+})();
+
 async function capture(e) {
   e.preventDefault();
   const f = e.target;

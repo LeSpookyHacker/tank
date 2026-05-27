@@ -30,9 +30,7 @@
     <button class="btn-link text-danger" onclick="deleteRunbook()">delete</button>
   </div>
 
-  <div class="irr-body markdown-body" id="runbook-body">
-    {{ runbook.runbook_md | safe }}
-  </div>
+  <div class="irr-body markdown-body" id="runbook-body"></div>
 </section>
 
 <style>
@@ -58,19 +56,15 @@
 </style>
 
 <script>
-// Render runbook markdown with marked.js if available.
 (function () {
-  var body = document.getElementById("runbook-body");
-  if (!body) return;
   var raw = {{ runbook.runbook_md | tojson }};
-  if (window.marked) {
-    body.innerHTML = (window.DOMPurify ? DOMPurify.sanitize(marked.parse(raw)) : marked.parse(raw));
-  } else {
-    // marked not yet loaded — wait briefly.
-    setTimeout(function () {
-      if (window.marked) body.innerHTML = (window.DOMPurify ? DOMPurify.sanitize(marked.parse(raw)) : marked.parse(raw));
-    }, 500);
+  var el = document.getElementById("runbook-body");
+  function render() {
+    if (!window.marked || !window.DOMPurify || !el) return;
+    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
   }
+  if (window.marked && window.DOMPurify) { render(); }
+  else { window.addEventListener("load", render); }
 })();
 
 async function confirm() {

@@ -253,7 +253,7 @@ Then `ssh tank-vm` and open `http://localhost:8000`.
 
 ```bash
 curl http://127.0.0.1:8000/healthz
-# {"ok": true, "scheduler": "running", "db": "ok", "tenure_day": 42}
+# {"ok": true, "scheduler": "running", "db": "ok"}
 ```
 
 Full ops reference: [docs/operations.md](docs/operations.md).
@@ -380,7 +380,7 @@ to the system font stack — UI still works, looks plainer.
 | `TANK_API_MAX_RETRIES` | no | `4` | Anthropic SDK retry budget |
 | `TANK_API_TIMEOUT_SECONDS` | no | `600` | Per-request ceiling |
 | `TANK_DEBUG_TOKENS` | no | off | Set `1` to log per-call token counts (in/out/cache_read/cache_create) to the console |
-| `TANK_NYX_API_KEY` | no | unset | If set, `/api/vulnerabilities/intake` requires `X-Nyx-Key: <value>` header |
+| `TANK_NYX_API_KEY` | no | unset | Must be set to enable `/api/risks/vuln-intake`; endpoint returns 503 if unset, 401 on wrong key |
 
 ---
 

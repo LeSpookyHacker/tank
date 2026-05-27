@@ -128,11 +128,12 @@ Tank redacts `description`, resolves service names to entity IDs, and
 creates a `vulnerabilities` row (status=open). The full vulnerability
 lifecycle UI is a future addition.
 
-**Authentication:** if `TANK_NYX_API_KEY` is set in the environment,
-the endpoint requires the caller to include `X-Nyx-Key: <value>` in
-the request headers (compared with `secrets.compare_digest` to prevent
-timing attacks). If the env var is not set, the endpoint remains open
-for backwards compatibility.
+**Authentication:** `TANK_NYX_API_KEY` must be set in the environment
+before the endpoint is usable. If the variable is not set, the endpoint
+returns HTTP 503 (`"vulnerability intake not configured"`). When set,
+the caller must include `X-Nyx-Api-Key: <value>` in the request headers
+(compared with `secrets.compare_digest` to prevent timing attacks);
+a wrong key returns HTTP 401.
 
 ---
 

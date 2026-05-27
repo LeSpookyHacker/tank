@@ -13,6 +13,46 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-27 — Adversarial security audit pass 2: 16 vulnerabilities fixed
+
+A full adversarial audit of the codebase (all files, all layers) was conducted
+following the project's security-review methodology. Sixteen vulnerabilities were
+found and fixed in a single session.
+
+### Summary of fixes by severity
+
+| ID | Severity | Fix |
+|----|----------|-----|
+| VULN-001 | Critical | `dfd_analyzer.py` — redact Mermaid source, description text, document content, and project notes before all Claude DFD calls |
+| VULN-002 | High | `ics.py` — SSRF: hostname validation now resolves DNS and checks every returned address for RFC-1918/loopback ranges |
+| VULN-003 | High | `ir_runbook_detail.html` — removed server-side `\| safe` render; client-side rendering requires both marked + DOMPurify |
+| VULN-004 | Medium | `main.py` — removed `fonts.googleapis.com` from `script-src` CSP (it serves fonts, not scripts) |
+| VULN-005 | Medium | `ingest.py` — repo ingest endpoint now calls `.resolve()` + allowlist check (matching the existing `/ingest/path` pattern) |
+| VULN-006 | Medium | `risks.py` — Nyx intake endpoint now returns 503 when `TANK_NYX_API_KEY` is unset instead of silently accepting all requests |
+| VULN-007 | Medium | `chat.py`, `security_program.py` — exception details no longer sent to SSE stream or HTTP response; generic messages used instead |
+| VULN-008 | Medium | `redact/config.py` — `add_custom_rule()` now rejects patterns with nested quantifiers or quantified alternation (ReDoS) |
+| VULN-009 | Low | `main.py` — `tenure_day` removed from `/healthz` response (internal operational state) |
+| VULN-010 | High | `dfd.py` — all three DFD upload endpoints now cap at 20 MB |
+| VULN-011 | Low | `image.py` — images > 20 MB skipped before vision API call |
+| VULN-012 | Medium | `design_review_detail.html`, `postmortem_editor.html`, `tabletop_detail.html`, `threat_model_detail.html` — all `\| safe` removed; client-side marked + DOMPurify |
+| VULN-013 | Medium | `philosophy.html` — same `\| safe` fix |
+| VULN-014 | Medium | `report_detail.html` — unsafe DOMPurify fallback removed; rendering requires both marked + DOMPurify |
+| VULN-015 | Low | `ics.py` — ICS response read capped at 10 MB |
+| VULN-016 | Low | `schemas.py` — `VulnerabilityIntake.cve_id` now validated against `CVE-YYYY-NNNN` format |
+
+### Files changed
+
+`app/claude/dfd_analyzer.py`, `app/ingest/watchers/ics.py`, `app/ingest/parsers/image.py`,
+`app/routers/chat.py`, `app/routers/ingest.py`, `app/routers/risks.py`,
+`app/routers/security_program.py`, `app/routers/dfd.py`, `app/redact/config.py`,
+`app/main.py`, `app/schemas.py`,
+`app/templates/ir_runbook_detail.html`, `app/templates/design_review_detail.html`,
+`app/templates/postmortem_editor.html`, `app/templates/tabletop_detail.html`,
+`app/templates/threat_model_detail.html`, `app/templates/philosophy.html`,
+`app/templates/report_detail.html`
+
+---
+
 ## 2026-05-27 — Security program gaps: risk register, program dashboard, IR runbooks
 
 ### Goal

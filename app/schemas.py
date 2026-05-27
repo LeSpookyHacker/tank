@@ -7,10 +7,11 @@ the data model are visible across every consumer.
 
 from __future__ import annotations
 
+import re as _re
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------- enums ----------
@@ -592,6 +593,13 @@ class VulnerabilityIntake(BaseModel):
     """Payload accepted by POST /api/vulnerabilities/intake (e.g. from Nyx)."""
     cve_id: str | None = None
     title: str
+
+    @field_validator("cve_id")
+    @classmethod
+    def _validate_cve_id(cls, v: str | None) -> str | None:
+        if v is not None and not _re.fullmatch(r"CVE-\d{4}-\d{4,}", v):
+            raise ValueError("cve_id must match CVE-YYYY-NNNN format")
+        return v
     description: str | None = None
     cvss_score: float | None = Field(None, ge=0.0, le=10.0)
     cvss_vector: str | None = None

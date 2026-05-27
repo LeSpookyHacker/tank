@@ -34,6 +34,8 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 log = logging.getLogger("tank.routers.dfd")
 
+_MAX_DFD_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+
 
 # ---------------------------------------------------------------------------
 # HTML pages
@@ -135,7 +137,9 @@ async def generate_from_doc(
 ) -> dict:
     from app.claude import dfd_analyzer
 
-    file_bytes = await file.read()
+    file_bytes = await file.read(_MAX_DFD_UPLOAD_BYTES + 1)
+    if len(file_bytes) > _MAX_DFD_UPLOAD_BYTES:
+        raise HTTPException(413, "file too large (max 20 MB)")
     filename = file.filename or "document.txt"
     project_notes = _get_project_notes(project_id.strip() or None)
 
@@ -178,7 +182,9 @@ async def start_analysis_image(
     force: bool = Form(default=False),
 ) -> dict:
     """Start a background image STRIDE analysis task. Returns task_id for SSE stream."""
-    image_bytes = await image.read()
+    image_bytes = await image.read(_MAX_DFD_UPLOAD_BYTES + 1)
+    if len(image_bytes) > _MAX_DFD_UPLOAD_BYTES:
+        raise HTTPException(413, "image too large (max 20 MB)")
     media_type = image.content_type or "image/png"
     task_id = uuid.uuid4().hex
     asyncio.create_task(_run_image_analysis_task(task_id, image_bytes, media_type,
@@ -302,7 +308,9 @@ async def analyze_dfd(
     project_notes = _get_project_notes(pid)
 
     if image and image.filename:
-        image_bytes = await image.read()
+        image_bytes = await image.read(_MAX_DFD_UPLOAD_BYTES + 1)
+        if len(image_bytes) > _MAX_DFD_UPLOAD_BYTES:
+            raise HTTPException(413, "image too large (max 20 MB)")
         media_type = image.content_type or "image/png"
         dfd_id, _, from_cache = await asyncio.get_event_loop().run_in_executor(
             None,

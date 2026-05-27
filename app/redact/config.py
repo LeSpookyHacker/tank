@@ -95,15 +95,31 @@ def set_category_enabled(category: str, enabled: bool) -> None:
             )
 
 
+def _reject_redos(pattern: str) -> None:
+    """Raise re.error if the pattern contains constructs known to cause ReDoS."""
+    # Nested quantifiers: (X+)+ / (X*)* etc. — guaranteed exponential backtracking.
+    if re.search(r"\([^)]*[+*]\)\s*[+*?{]", pattern):
+        raise re.error(
+            "pattern contains nested quantifiers susceptible to catastrophic backtracking"
+        )
+    # Quantified alternation group with overlapping branches: (a|ab)+ style.
+    if re.search(r"\([^)]*\|[^)]*\)\s*[+*]", pattern):
+        raise re.error(
+            "pattern contains quantified alternation group susceptible to catastrophic backtracking"
+        )
+
+
 def add_custom_rule(category: str, pattern: str,
                     placeholder_fmt: str | None = None,
                     description: str | None = None) -> int:
     """Add a user-supplied regex rule.
 
-    Validates the regex compiles. Categories should be prefixed `custom:`
-    by convention to avoid collisions with built-ins.
+    Validates the regex compiles and checks for ReDoS-prone constructs.
+    Categories should be prefixed `custom:` by convention to avoid
+    collisions with built-ins.
     """
-    re.compile(pattern)   # raises re.error on bad regex
+    re.compile(pattern)   # raises re.error on bad regex syntax
+    _reject_redos(pattern)
     if not category.startswith("custom:"):
         category = f"custom:{category}"
     conn = get_conn()

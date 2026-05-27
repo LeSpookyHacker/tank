@@ -12,7 +12,7 @@
     </p>
   </header>
 
-  <article class="markdown-body">{{ pm.body_md | safe }}</article>
+  <article class="markdown-body" id="pm-body-md"></article>
 
   {% if pm.status == 'draft' %}
   <div class="action-bar">
@@ -55,6 +55,17 @@
 </section>
 
 <script>
+(function () {
+  var raw = {{ pm.body_md | tojson }};
+  var el = document.getElementById("pm-body-md");
+  function render() {
+    if (!window.marked || !window.DOMPurify || !el) return;
+    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+  }
+  if (window.marked && window.DOMPurify) { render(); }
+  else { window.addEventListener("load", render); }
+})();
+
 async function saveFields(e) {
   e.preventDefault();
   const f = e.target;

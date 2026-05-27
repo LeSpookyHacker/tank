@@ -29,9 +29,7 @@
     {% endif %}
   </div>
 
-  <article class="markdown-body">
-    {{ tm.body_md | safe }}
-  </article>
+  <article class="markdown-body" id="tm-body-md"></article>
 
   <details class="versions">
     <summary>Version history ({{ versions|length }})</summary>
@@ -46,4 +44,17 @@
     </ul>
   </details>
 </section>
+
+<script>
+(function () {
+  var raw = {{ tm.body_md | tojson }};
+  var el = document.getElementById("tm-body-md");
+  function render() {
+    if (!window.marked || !window.DOMPurify || !el) return;
+    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+  }
+  if (window.marked && window.DOMPurify) { render(); }
+  else { window.addEventListener("load", render); }
+})();
+</script>
 {% endblock %}

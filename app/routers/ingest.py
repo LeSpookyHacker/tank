@@ -116,7 +116,10 @@ async def ingest_path(req: IngestPathRequest,
 @router.post("/ingest/repo")
 async def ingest_repo_endpoint(req: IngestRepoRequest,
                                background_tasks: BackgroundTasks) -> dict:
-    p = Path(req.path).expanduser()
+    p = Path(req.path).expanduser().resolve()
+    if not any(p == r or str(p).startswith(str(r) + os.sep)
+               for r in _ALLOWED_INGEST_ROOTS):
+        raise HTTPException(403, "path outside allowed ingest directories")
     if not p.is_dir():
         raise HTTPException(404, f"no such directory: {req.path}")
     background_tasks.add_task(_do_ingest_repo, p, req.category)

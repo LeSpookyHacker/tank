@@ -144,7 +144,7 @@ Verify:
 systemctl --user status tank
 journalctl --user -u tank -f
 curl http://127.0.0.1:8000/healthz
-# {"ok": true, "scheduler": "running", "db": "ok", "tenure_day": 0}
+# {"ok": true, "scheduler": "running", "db": "ok"}
 ```
 
 > ⬜ **Screenshot placeholder**: `systemctl --user status tank`
@@ -193,8 +193,7 @@ curl -s http://127.0.0.1:8000/healthz | python -m json.tool
 # {
 #     "ok": true,
 #     "scheduler": "running",
-#     "db": "ok",
-#     "tenure_day": 0
+#     "db": "ok"
 # }
 ```
 

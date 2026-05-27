@@ -38,14 +38,15 @@ Drag-and-drop or click to browse:
 | `.json` | Formatted preview shown inline |
 
 Images are analyzed by Claude Vision — results may vary with low-resolution or
-stylized diagrams.
+stylized diagrams. **Maximum file size: 20 MB.** Larger files are rejected with
+HTTP 413.
 
 ### Tab C: From document
 
 Upload a PDF, DOCX, TXT, or Markdown architecture document. Tank extracts the
 text locally (`pypdf` / `python-docx`), sends it to Claude, and generates a
 Mermaid DFD. The result appears in Tab A with a "Review before analyzing" notice
-— inspect and edit before running STRIDE.
+— inspect and edit before running STRIDE. **Maximum file size: 20 MB.**
 
 ### Tab D: From description
 
