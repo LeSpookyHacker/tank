@@ -11,10 +11,10 @@ from app.config import STATIC_DIR
 from app.db import get_conn
 from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
-    dfd, entities, followups, glossary, iam, ingest, integrations, journal,
-    lessons, me, meeting_prep, notes, nudges, onboarding, pages, philosophy,
-    postmortems, projects, reports, risks, security_program, settings,
-    subscriptions, tabletops, teams, threat_models, dashboard,
+    dfd, entities, followups, glossary, iam, ingest, integrations, ir_runbooks,
+    journal, lessons, me, meeting_prep, notes, nudges, onboarding, pages,
+    philosophy, postmortems, projects, reports, risks, security_program,
+    settings, subscriptions, tabletops, teams, threat_models, dashboard,
 )
 
 log = logging.getLogger("tank.main")
@@ -129,3 +129,6 @@ app.include_router(dfd.router)
 # Security program health + risk register
 app.include_router(risks.router)
 app.include_router(security_program.router)
+
+# Gap 5: IR runbooks
+app.include_router(ir_runbooks.router)

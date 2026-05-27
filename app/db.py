@@ -592,6 +592,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _seed_org_team(conn)
     _migrate_dfd_columns(conn)
     _migrate_risk_register(conn)
+    _migrate_ir_runbooks(conn)
     _init_vec_table(conn)
 
 
@@ -768,6 +769,33 @@ def _seed_org_team(conn: sqlite3.Connection) -> None:
         "[TANK MIGRATION] Created org %s, team 'Unassigned' (%s), "
         "migrated %d existing projects, %d orphan artifact rows → 'Imported Data'",
         org_id, team_id, count, orphan_total,
+    )
+
+
+def _migrate_ir_runbooks(conn: sqlite3.Connection) -> None:
+    """Create the ir_runbooks table (Gap 5)."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS ir_runbooks (
+            id                  TEXT PRIMARY KEY,
+            service_entity_id   TEXT REFERENCES entities(id) ON DELETE SET NULL,
+            threat_scenario     TEXT NOT NULL,
+            severity_trigger    TEXT NOT NULL DEFAULT 'any',
+            runbook_md          TEXT NOT NULL,
+            runbook_md_redacted TEXT NOT NULL,
+            contacts_json       TEXT NOT NULL DEFAULT '[]',
+            escalation_json     TEXT NOT NULL DEFAULT '[]',
+            version             INTEGER NOT NULL DEFAULT 1,
+            generated_at        INTEGER NOT NULL,
+            confirmed_by_user   INTEGER NOT NULL DEFAULT 0,
+            tabletop_id         TEXT REFERENCES tabletops(id) ON DELETE SET NULL,
+            project_id          TEXT REFERENCES projects(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ir_service
+            ON ir_runbooks(service_entity_id, generated_at);
+        CREATE INDEX IF NOT EXISTS idx_ir_generated
+            ON ir_runbooks(generated_at);
+        """
     )
 
 

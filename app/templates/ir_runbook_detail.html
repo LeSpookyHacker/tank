@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Tank — IR runbook{% endblock %}
+
+{% block content %}
+<section class="irr-detail">
+  <header class="page-head">
+    <div class="back-link"><a href="/ir-runbooks">← IR runbooks</a></div>
+    <div class="irr-meta">
+      {% if service_name %}
+        <span class="badge">{{ service_name }}</span>
+      {% endif %}
+      <code>{{ runbook.severity_trigger }}</code>
+      {% if runbook.tabletop_id %}
+        <a href="/tabletops/{{ runbook.tabletop_id }}" class="dim small">from tabletop</a>
+      {% endif %}
+      {% if runbook.confirmed_by_user %}
+        <span class="badge badge-green">confirmed</span>
+      {% else %}
+        <span class="badge badge-warn">unconfirmed</span>
+      {% endif %}
+    </div>
+    <h1>{{ runbook.threat_scenario }}</h1>
+  </header>
+
+  <div class="irr-actions">
+    {% if not runbook.confirmed_by_user %}
+    <button class="btn" onclick="confirm()">confirm runbook</button>
+    {% endif %}
+    <button class="btn-secondary" onclick="window.print()">print / export PDF</button>
+    <button class="btn-link text-danger" onclick="deleteRunbook()">delete</button>
+  </div>
+
+  <div class="irr-body markdown-body" id="runbook-body">
+    {{ runbook.runbook_md | safe }}
+  </div>
+</section>
+
+<style>
+.irr-detail { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem; }
+.back-link { margin-bottom: .5rem; }
+.back-link a { color: var(--text-muted); font-size: .875rem; text-decoration: none; }
+.irr-meta { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem;
+  flex-wrap: wrap; }
+.irr-actions { display: flex; gap: .75rem; align-items: center; margin: 1rem 0 1.5rem;
+  flex-wrap: wrap; }
+.text-danger { color: var(--sev-critical, #DC2626) !important; }
+.badge-green { background: #16a34a22; color: #16a34a; padding: .15rem .5rem;
+  border-radius: 10px; font-size: .75rem; }
+.badge-warn { background: #d9770622; color: #d97706; padding: .15rem .5rem;
+  border-radius: 10px; font-size: .75rem; }
+
+/* Print styles — clean runbook PDF */
+@media print {
+  .global-header, .global-chat-widget, footer, .irr-actions, .back-link { display: none !important; }
+  .irr-detail { max-width: 100%; padding: 0; }
+  .irr-body { font-size: 11pt; }
+}
+</style>
+
+<script>
+// Render runbook markdown with marked.js if available.
+(function () {
+  var body = document.getElementById("runbook-body");
+  if (!body) return;
+  var raw = {{ runbook.runbook_md | tojson }};
+  if (window.marked) {
+    body.innerHTML = marked.parse(raw);
+  } else {
+    // marked not yet loaded — wait briefly.
+    setTimeout(function () {
+      if (window.marked) body.innerHTML = marked.parse(raw);
+    }, 500);
+  }
+})();
+
+async function confirm() {
+  await fetch("/api/ir-runbooks/{{ runbook.id }}/confirm", {method: "POST"});
+  window.location.reload();
+}
+
+async function deleteRunbook() {
+  if (!window.confirm("Delete this runbook? This cannot be undone.")) return;
+  await fetch("/api/ir-runbooks/{{ runbook.id }}", {method: "DELETE"});
+  window.location.href = "/ir-runbooks";
+}
+</script>
+{% endblock %}

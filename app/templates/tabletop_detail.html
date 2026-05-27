@@ -28,6 +28,14 @@
       <button class="btn">save lessons</button>
     </form>
   </details>
+
+  <details>
+    <summary>Generate IR runbook from this scenario</summary>
+    <p class="dim">Produce a five-phase (detect / contain / eradicate / recover / comms) runbook
+      grounded in your KB. Takes 20-60 seconds.</p>
+    <button class="btn" onclick="generateRunbook()">generate runbook</button>
+    <p id="rb-status" class="dim small" hidden></p>
+  </details>
 </section>
 
 <script>
@@ -43,6 +51,32 @@ async function capture(e) {
   });
   window.location.reload();
   return false;
+}
+
+async function generateRunbook() {
+  const btn = event.target;
+  const status = document.getElementById("rb-status");
+  btn.disabled = true;
+  btn.textContent = "generating…";
+  status.textContent = "Running Claude against your KB…";
+  status.hidden = false;
+  try {
+    const resp = await fetch("/api/tabletops/{{ tabletop.id }}/generate-runbook", {
+      method: "POST",
+    });
+    const d = await resp.json();
+    if (d.runbook_id) {
+      window.location.href = "/ir-runbooks/" + d.runbook_id;
+    } else {
+      status.textContent = "Error: " + JSON.stringify(d);
+      btn.disabled = false;
+      btn.textContent = "generate runbook";
+    }
+  } catch (err) {
+    status.textContent = "Error: " + err.message;
+    btn.disabled = false;
+    btn.textContent = "generate runbook";
+  }
 }
 </script>
 {% endblock %}

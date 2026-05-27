@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Tank — IR runbooks{% endblock %}
+
+{% block content %}
+<section class="irr-page">
+  <header class="page-head">
+    <h1>IR runbooks</h1>
+    <p class="dim">Per-service, per-scenario incident response playbooks generated
+      from your KB. A 3am on-call engineer should be able to follow one without asking
+      questions.</p>
+  </header>
+
+  <details class="gen-form-wrap">
+    <summary>+ generate runbook</summary>
+    <form id="gen-form" class="gen-form" onsubmit="return generateRunbook(event);">
+      <label>Threat scenario
+        <textarea name="threat_scenario" rows="3" required
+                  placeholder="e.g. Attacker has obtained a valid API key and is exfiltrating customer data via the /export endpoint"></textarea>
+      </label>
+      <div class="form-row">
+        <label>Service (optional)
+          <select name="service_entity_id">
+            <option value="">— not service-specific —</option>
+            {% for s in services %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Severity trigger
+          <select name="severity">
+            <option value="any">any</option>
+            <option value="sev1">sev1</option>
+            <option value="sev2">sev2</option>
+            <option value="sev3">sev3</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn" type="submit">generate</button>
+      <p id="gen-status" class="dim small" hidden></p>
+    </form>
+  </details>
+
+  {% if runbooks %}
+  <table class="irr-table">
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th>Service</th>
+        <th>Severity</th>
+        <th>Source</th>
+        <th>Confirmed</th>
+        <th>Generated</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for rb in runbooks %}
+      <tr>
+        <td>
+          <a href="/ir-runbooks/{{ rb.id }}"><strong>{{ rb.threat_scenario[:80] }}{% if rb.threat_scenario|length > 80 %}…{% endif %}</strong></a>
+        </td>
+        <td>{{ rb.service_name or '—' }}</td>
+        <td><code>{{ rb.severity_trigger }}</code></td>
+        <td>
+          {% if rb.tabletop_id %}
+            <a href="/tabletops/{{ rb.tabletop_id }}" class="dim small">tabletop</a>
+          {% else %}
+            <span class="dim small">manual</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if rb.confirmed_by_user %}
+            <span class="badge badge-green">✓</span>
+          {% else %}
+            <span class="dim small">pending</span>
+          {% endif %}
+        </td>
+        <td class="dim small">{{ rb.generated_at }}</td>
+        <td>
+          <a href="/ir-runbooks/{{ rb.id }}" class="btn-link">view</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <p class="dim">No runbooks yet. Generate one from the form above, or from a
+      tabletop exercise once you've captured its lessons.</p>
+  </div>
+  {% endif %}
+</section>
+
+<style>
+.irr-page { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
+.gen-form-wrap { margin: 1rem 0 1.5rem; }
+.gen-form-wrap summary { cursor: pointer; font-weight: 500; color: var(--accent); }
+.gen-form { margin-top: .75rem; display: grid; gap: .75rem; max-width: 640px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.irr-table { width: 100%; border-collapse: collapse; }
+.irr-table th, .irr-table td { padding: .6rem .75rem; border-bottom: 1px solid var(--border); text-align: left; }
+.irr-table th { font-size: .75rem; text-transform: uppercase; color: var(--text-muted); }
+.badge-green { background: #16a34a22; color: #16a34a; padding: .15rem .5rem;
+  border-radius: 10px; font-size: .75rem; }
+.empty-state { text-align: center; padding: 3rem 1rem; }
+</style>
+
+<script>
+async function generateRunbook(e) {
+  e.preventDefault();
+  const f = e.target;
+  const payload = {
+    threat_scenario: f.threat_scenario.value,
+    service_entity_id: f.service_entity_id.value || null,
+    severity: f.severity.value,
+  };
+  const btn = f.querySelector("button[type=submit]");
+  const status = document.getElementById("gen-status");
+  btn.disabled = true;
+  btn.textContent = "generating…";
+  status.textContent = "Running Claude against your KB. This takes 20-60 seconds…";
+  status.hidden = false;
+
+  try {
+    const resp = await fetch("/api/ir-runbooks/generate-sync", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    const d = await resp.json();
+    if (d.runbook_id) {
+      window.location.href = "/ir-runbooks/" + d.runbook_id;
+    } else {
+      status.textContent = "Error: " + JSON.stringify(d);
+      btn.disabled = false;
+      btn.textContent = "generate";
+    }
+  } catch (err) {
+    status.textContent = "Network error: " + err.message;
+    btn.disabled = false;
+    btn.textContent = "generate";
+  }
+  return false;
+}
+</script>
+{% endblock %}

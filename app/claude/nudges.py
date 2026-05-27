@@ -34,7 +34,8 @@ def generate_nudges() -> list[str]:
                _contradiction, _abandoned_thread,
                _question_of_week, _journal_followup_suggestion,
                _architecture_drift, _decision_expiring,
-               _unaddressed_threat, _risk_review_due):
+               _unaddressed_threat, _risk_review_due,
+               _missing_ir_runbook):
         if nudges_store.count_open_today() >= _DAILY_CAP:
             break
         try:
@@ -310,6 +311,36 @@ def _risk_review_due() -> str | None:
                  "residual_score": r["residual_score"]},
         priority=65,
     )
+
+
+def _missing_ir_runbook() -> str | None:
+    """Services with a high/critical threat in their TM but no IR runbook."""
+    try:
+        from app.storage import threat_models_store, ir_runbooks_store
+    except Exception:
+        return None
+    covered = ir_runbooks_store.services_with_runbook()
+    tms = threat_models_store.list_all_latest()
+    for tm in tms:
+        sid = tm.get("service_entity_id")
+        if not sid or sid in covered:
+            continue
+        threats = tm.get("threats") or []
+        has_critical = any(
+            t.get("likelihood") == "high" and t.get("impact") == "high"
+            for t in threats
+        )
+        if has_critical:
+            return nudges_store.insert(
+                kind="missing_ir_runbook",
+                title=f"No IR runbook for {tm['title']!r}",
+                body=f"{tm['title']} has high-impact threats in its threat model "
+                     f"but no incident-response runbook. Generate one from the "
+                     f"IR runbooks page.",
+                payload={"service_entity_id": sid, "tm_id": tm["id"]},
+                priority=72,
+            )
+    return None
 
 
 def _unaddressed_threat() -> str | None:

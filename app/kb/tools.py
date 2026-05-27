@@ -245,6 +245,23 @@ TOOL_SCHEMAS: list[dict] = [
         },
     },
     {
+        "name": "find_ir_runbooks",
+        "description": (
+            "Return IR runbooks, optionally filtered by service. "
+            "Use when the user asks 'what's the runbook for X' or "
+            "'what do we do if Y happens'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "service_name": {"type": "string"},
+                "service_id": {"type": "string"},
+                "limit": {"type": "integer", "default": 10,
+                          "minimum": 1, "maximum": 50},
+            },
+        },
+    },
+    {
         "name": "get_risk_register",
         "description": (
             "Return entries from the risk register, optionally filtered "
@@ -405,6 +422,26 @@ def execute_tool(name: str, args: dict[str, Any]) -> dict | list:
         return {"lessons": lessons_store.search(
             args["query"], tag=args.get("tag"), limit=20,
         )}
+
+    if name == "find_ir_runbooks":
+        from app.storage import ir_runbooks_store
+        sid = args.get("service_id")
+        if not sid and args.get("service_name"):
+            card = kb_entities.find_by_name("Service", args["service_name"])
+            if card:
+                sid = card["id"]
+        rows = ir_runbooks_store.list_all(
+            service_entity_id=sid,
+            limit=int(args.get("limit", 10)),
+        )
+        return {"runbooks": [
+            {"id": r["id"],
+             "threat_scenario": r["threat_scenario"],
+             "severity_trigger": r["severity_trigger"],
+             "confirmed": bool(r.get("confirmed_by_user")),
+             "generated_at": r["generated_at"]}
+            for r in rows
+        ]}
 
     if name == "get_risk_register":
         from app.storage import risks_store

@@ -83,6 +83,27 @@ def publish(pm_id: str) -> dict:
     except Exception as exc:
         log.warning("lesson extraction on publish failed: %s", exc)
 
+    # Nudge for missing IR runbooks on affected services (Gap 5).
+    try:
+        from app.storage import ir_runbooks_store, nudges_store
+        covered = ir_runbooks_store.services_with_runbook()
+        for sid in (pm.get("services_affected") or []):
+            if sid not in covered:
+                from app.storage import entities_store
+                svc = entities_store.get_entity(sid)
+                svc_name = svc["name"] if svc else sid[:8]
+                nudges_store.insert(
+                    kind="missing_ir_runbook",
+                    title=f"No IR runbook for {svc_name!r} after incident",
+                    body=f"A postmortem was just published for {svc_name} but "
+                         f"there's no IR runbook for this service. Generate one "
+                         f"from the IR runbooks page.",
+                    payload={"service_entity_id": sid, "postmortem_id": pm_id},
+                    priority=68,
+                )
+    except Exception as exc:
+        log.warning("runbook nudge on publish failed: %s", exc)
+
     return {"postmortem_id": pm_id, "followup_ids": fu_ids,
             "lesson_ids": lesson_ids,
             "services_affected": pm.get("services_affected") or []}

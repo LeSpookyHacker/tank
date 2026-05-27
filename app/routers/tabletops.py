@@ -59,6 +59,22 @@ async def capture(tt_id: str, body: LessonsCapture) -> dict:
     return {"lesson_ids": lesson_ids}
 
 
+@api.post("/{tt_id}/generate-runbook")
+async def generate_runbook(tt_id: str) -> dict:
+    """Generate an IR runbook from this tabletop scenario."""
+    tt = tabletops_store.get(tt_id)
+    if not tt:
+        raise HTTPException(404, "not found")
+    from app.claude.ir_runbook import generate as _gen
+    rid = _gen(
+        service_entity_id=tt.get("scope_service_id"),
+        threat_scenario=tt.get("threat_kind") or "General security incident",
+        severity="any",
+        tabletop_id=tt_id,
+    )
+    return {"runbook_id": rid}
+
+
 @router.get("/tabletops", response_class=HTMLResponse)
 def page_list(request: Request):
     return templates.TemplateResponse(
