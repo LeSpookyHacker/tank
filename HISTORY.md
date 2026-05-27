@@ -13,6 +13,85 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-27 — Security program gaps: risk register, program dashboard, IR runbooks
+
+### Goal
+
+A newly-hired first security engineer evaluated Tank against the needs of a first-hire security role at a large tech company (application/cloud security, bug bounty, IR/DR, SOC 2/HIPAA/ISO 27001, SIEM). Tank covered onboarding, threat modeling, decisions, design reviews, postmortems, tabletops, and coverage tooling well — but lacked the **operational** layer: a formal risk register, a program-health dashboard to show leadership, and per-service incident-response runbooks for on-call engineers.
+
+Three gaps were closed in this session. A fourth (disclosure triage) is deferred to a separate tool called [Nyx](https://github.com/LeSpookyHacker/nyx), which will push validated findings into Tank via an intake endpoint.
+
+---
+
+### Gap 3 — Formal risk register (`/risks`)
+
+**What was missing:** The decisions log tracked deliberate choices (`accepted_risk`, `deferred_fix`, etc.) but had no concept of inherent exposure, residual risk after controls, or treatment strategy. A real risk register requires likelihood × impact scoring at two levels (before and after controls) plus treatment (mitigate / accept / transfer / avoid).
+
+**What was built:**
+
+- **`app/storage/risks_store.py`** — CRUD, `review_overdue()`, `update_assessment()`, `counts_by_status()`. `_hydrate()` computes `inherent_score = L × I` and `residual_score = L × I`.
+- **`app/claude/risk_register.py`** — `assess(risk_id)` pulls the service card, latest threat model, and existing decisions; calls Sonnet with `output_format=RiskAssessmentOutput`; persists residual scores + treatment; sets 90-day `review_at`.
+- **`prompts/risk_assessment.md`** — 1-5 scoring guide; control-evidence grounding; structured `RiskAssessmentOutput` schema.
+- **`prompts/report_risk_register.md`** — heat-map-style aggregate report for the `risk_register` report kind.
+- **`app/routers/risks.py`** — full REST API (`GET/POST /api/risks`, `POST /api/risks/{id}/assess`, `PUT /api/risks/{id}/status`) plus HTML pages (`/risks`, `/risks/{id}`).
+- **`app/templates/risks.html`** — filterable list with heat-color badges (≥20 critical, ≥12 high, ≥6 medium, else low), add-risk form, close action.
+- **`app/templates/risk_detail.html`** — inherent vs residual score cards, "Re-assess with KB" button, close action.
+- **`app/db.py`** — `risks` table via `_migrate_risk_register()`.
+- **`app/schemas.py`** — `RiskAssessmentOutput`, `RiskRegisterReport`.
+- **`app/claude/nudges.py`** — `_risk_review_due()` gate: risks past their `review_at` with no update.
+- **`app/kb/tools.py`** — `get_risk_register(category?, treatment?, limit?)` chat tool.
+- **`app/claude/reports.py`** — `risk_register` added to `REPORT_REGISTRY`.
+
+**Nyx integration hook:** `POST /api/vulnerabilities/intake` (defined in `app/routers/risks.py`) accepts `{title, description, cvss_score, severity, source, affected_service_names, external_ref}` from Nyx and creates a row in the `vulnerabilities` table (status=open, service names resolved to entity IDs). This endpoint is the only surface Nyx touches; Tank handles redaction.
+
+---
+
+### Gap 4 — Security program health dashboard (`/security-program`)
+
+**What was missing:** No single page aggregated Tank's data into leadership-visible KPIs. Showing program progress required manual quarterly reporting.
+
+**What was built:**
+
+- **`app/routers/security_program.py`** — `_collect_metrics()` does pure DB aggregation across 6 domains with no Claude call (instant page load). Domains: threat models (total / drifted / updated 30d), vulns (open by severity, avg age), risk register (open / review overdue), compliance (controls with evidence vs. without), incidents (postmortems published 90d, followups open/done), design reviews (open / approved 90d). `take_snapshot()` persists to `security_program_snapshots`. `POST /api/security-program/executive-brief` calls Sonnet with `output_format=ExecutiveBriefOutput` to generate a 1-page board-level brief with green/yellow/red health indicator.
+- **`app/templates/security_program.html`** — 6 metric cards, executive-brief generation with `marked.js` rendering, 12-week trend table.
+- **`app/db.py`** — `security_program_snapshots` table (snapshot_at + metrics_json).
+- **`app/schemas.py`** — `SecurityProgramMetrics`, `ExecutiveBriefOutput`.
+- **`prompts/executive_security_brief.md`** — board/exec-level brief prompt: green/yellow/red health, achievements, risks, priorities.
+- **`app/claude/scheduler.py`** — `_fire_security_program_snapshot` fires Sunday 09:30 (after the attack-surface snapshot at 09:00), persisting weekly metrics for the 12-week trend.
+
+---
+
+### Gap 5 — IR runbooks (`/ir-runbooks`)
+
+**What was missing:** Tabletops existed for drills; postmortems existed for after-the-fact. But there was no per-service, per-scenario *runbook* — the artifact a 3am on-call engineer reads to know exactly what to do.
+
+**What was built:**
+
+- **`app/storage/ir_runbooks_store.py`** — `create()`, `get()`, `list_all(service_entity_id?)`, `services_with_runbook()` (set of service_entity_ids with at least one runbook), `confirm()`, `delete()`.
+- **`app/claude/ir_runbook.py`** — `generate(service_entity_id, threat_scenario, severity, tabletop_id, project_id)` builds context from service card + linked chunks, latest threat-model threats, recent postmortem body, and hybrid KB search on the scenario; calls `client.messages.parse(..., output_format=IRRunbookOutput)` with adaptive thinking; calls `_render()` to produce 5-phase Markdown (🔍 Detect / 🛑 Contain / 🧹 Eradicate / ♻️ Recover / 📢 Comms) with time boxes, decision points, and success criteria; stores via `ir_runbooks_store.create()`; calls `_register_as_entity()` to create a Runbook entity with a `has_control` edge to the service so the KB graph reflects it.
+- **`prompts/ir_runbook.md`** — 5-phase prompt: concrete steps, decision points, time-box, success criteria, escalation path, comms template. "A 3am on-call engineer should be able to follow this without asking anyone."
+- **`app/routers/ir_runbooks.py`** — `POST /api/ir-runbooks/generate-sync` (blocking, returns runbook_id for redirect), `POST /api/ir-runbooks/generate` (background), CRUD, confirm/delete. HTML pages: `/ir-runbooks` (list + generate form), `/ir-runbooks/{id}` (rendered runbook + print CSS).
+- **`app/templates/ir_runbooks.html`** + **`app/templates/ir_runbook_detail.html`** — list table with generate form; detail page with marked.js rendering, confirm/delete, `@media print` export.
+- **`app/db.py`** — `ir_runbooks` table via `_migrate_ir_runbooks()`.
+- **`app/schemas.py`** — `IRRunbookPhase`, `IRRunbookOutput`.
+- **`app/claude/nudges.py`** — `_missing_ir_runbook()` gate: services with high/high TM threats but no runbook.
+- **`app/kb/tools.py`** — `find_ir_runbooks(service_name?, service_id?, limit?)` chat tool.
+- **`app/routers/tabletops.py`** — `POST /api/tabletops/{id}/generate-runbook` endpoint pre-fills service + threat from the tabletop.
+- **`app/templates/tabletop_detail.html`** — collapsible "Generate IR runbook from this scenario" section.
+- **`app/claude/postmortem_authoring.py`** — `publish()` now checks `ir_runbooks_store.services_with_runbook()` and inserts a `missing_ir_runbook` nudge for any affected service that lacks a runbook.
+- **`app/main.py`** — `ir_runbooks` router wired.
+
+---
+
+### Tradeoffs / known gaps
+
+- Vulnerability management (full tracker + SLA enforcement) is deferred — the `vulnerabilities` table schema exists for the Nyx hook but there is no Tank-native vuln lifecycle UI. When Nyx pushes a finding, it lands but there's no triage workflow yet.
+- Disclosure triage (HackerOne / Bugcrowd workflow) is wholly deferred to Nyx.
+- IR runbook generation is a blocking call in the list-page form (20-60s). A background-task + SSE-progress pattern (like DFD) would be nicer but wasn't needed for MVP.
+- Risk assessments auto-trigger immediately on create (background task). If the KB has no data for the service, the assessment is still created with default low scores and a note to re-assess after ingest.
+
+---
+
 ## 2026-05-26 — Comprehensive sample data expansion (3.4)
 
 ### Goal

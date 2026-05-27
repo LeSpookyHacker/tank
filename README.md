@@ -10,7 +10,8 @@ security engineers. You point it at your new employer's docs, code, CMDB, and
 people info. It builds a typed knowledge graph, redacts sensitive identifiers
 locally, and uses Claude to help you map the threat landscape, surface gaps,
 prepare for meetings, author postmortems and design reviews, run tabletops,
-track decisions, capture lessons, and stay sharp across your tenure.
+track decisions, maintain a risk register, generate incident-response runbooks,
+capture lessons, and stay sharp across your tenure.
 
 > 📖 **Full documentation lives in [docs/](docs/)** — installation
 > walkthroughs, architecture deep-dives, per-feature references, FAQ,
@@ -40,6 +41,15 @@ detection rules, IAM policies, control frameworks) and it produces:
 - An **ATT&CK coverage map** + **compliance evidence collection** +
   **IAM policy translator** + **attack-surface ledger** over your ingested
   data.
+- A **risk register** (`/risks`) — formal inherent/residual scoring (1-5 L×I),
+  treatment strategies (mitigate / accept / transfer / avoid), Sonnet KB-grounded
+  assessment, 90-day review scheduling, and `risk_review_due` nudge.
+- A **security program dashboard** (`/security-program`) — instant-load page
+  aggregating all of Tank's data into 6 KPI domains; on-demand executive brief
+  (green / yellow / red health indicator); weekly 12-week trend snapshots.
+- **IR runbooks** (`/ir-runbooks`) — per-service, per-scenario 5-phase
+  incident-response playbooks (Detect / Contain / Eradicate / Recover / Comms)
+  grounded in your KB; integrated with tabletops and postmortems.
 - A **personal ownership dashboard** with per-entity risk scoring.
 - A curated **security philosophy doc** Tank evolves with you.
 
@@ -70,9 +80,9 @@ them even if asked.
   your current view, collapsible to a pill, resizable by dragging the left
   edge, conversation preserved across navigation. Full-screen chat available
   at `/chat` for focused sessions.
-- SSE-streamed chat with 13 tools (search KB, get entity, list relationships,
+- SSE-streamed chat with 15 tools (search KB, get entity, list relationships,
   find control gaps, get threat model, find decisions, find detections,
-  find IAM risks, search lessons, …).
+  find IAM risks, search lessons, get risk register, find IR runbooks, …).
 - Citations on every reply; click to source chunks.
 - **Tenure-aware lens** — Map / Prioritize / Execute / Maintain — shifts
   framing automatically over time.
@@ -80,13 +90,13 @@ them even if asked.
   include that project's notes in the system prompt. The global side panel never
   injects project notes.
 
-### Reports (10 kinds)
+### Reports (11 kinds)
 
 `threat_landscape`, `cross_service_gaps`, `plan_30_60_90`, `stakeholder_map`,
 `questions_for_team`, `control_matrix`, `oncall_handoff`,
-`weekly_security_digest`, `attack_mapping`, `iam_audit`. Subscribe any of
-them on a daily/weekly/monthly cadence; diffs against the prior run land in
-your morning digest.
+`weekly_security_digest`, `attack_mapping`, `iam_audit`, `risk_register`.
+Subscribe any of them on a daily/weekly/monthly cadence; diffs against the
+prior run land in your morning digest.
 
 ### Workstream artifacts (Phase 13)
 
@@ -180,6 +190,7 @@ CVSS estimate, description, mitigation, OWASP/CWE references.
 - **Sunday weekly backup** at 03:00 — `sqlite3.Connection.backup()`,
   rotation keeps last 8.
 - **Sunday attack-surface snapshot** at 09:00.
+- **Sunday security program snapshot** at 09:30 — persists metrics for the 12-week trend on the program dashboard.
 
 ---
 
@@ -470,6 +481,9 @@ checklist.
 | 3.2 | ✅ | DFD threat modeling — 4-mode input, SSE progress, split-panel workspace, interactive threat cards, 4 export formats |
 | 3.3 | ✅ | Projects dashboard — color/notes fields, card grid UI, detail page, project-scoped chat |
 | 3.4 | ✅ | Sample data expansion — 16 new files (arch docs, detections, IAM, compliance, runbook, postmortem), 4 DFD Mermaid sources, `seed_db.py` idempotent DB seed for all living-artifact features |
+| Gap 3 | ✅ | Risk register — formal inherent/residual risk tracking, Sonnet KB-grounded assessment, 90-day review scheduling, `get_risk_register` chat tool, `risk_register` report |
+| Gap 4 | ✅ | Security program dashboard — 6-domain KPI aggregation, on-demand executive brief (green/yellow/red), 12-week trend snapshots, Nyx vulnerability intake endpoint |
+| Gap 5 | ✅ | IR runbooks — per-service 5-phase incident-response playbooks grounded in KB; tabletop integration; postmortem nudge; `find_ir_runbooks` chat tool; Runbook entity registration |
 
 Build history with tradeoffs and known gaps: [HISTORY.md](HISTORY.md).
 
@@ -509,7 +523,7 @@ The full docs live in [docs/](docs/):
 - [docs/first-run.md](docs/first-run.md) — onboarding walkthrough
 - [docs/using-tank.md](docs/using-tank.md) — day-to-day workflows
 - [docs/architecture.md](docs/architecture.md) — internals deep-dive
-- [docs/features/](docs/features/) — per-phase feature reference (includes [projects](docs/features/projects.md), [DFD analysis](docs/features/dfd-analysis.md), [threat models](docs/features/threat-models-decisions.md), and more)
+- [docs/features/](docs/features/) — per-phase feature reference (includes [projects](docs/features/projects.md), [DFD analysis](docs/features/dfd-analysis.md), [threat models](docs/features/threat-models-decisions.md), [security program + risk register + IR runbooks](docs/features/security-program.md), and more)
 - [docs/operations.md](docs/operations.md) — running on a VM, backups, healthz, scheduler
 - [docs/faq.md](docs/faq.md) — common questions
 - [docs/troubleshooting.md](docs/troubleshooting.md) — known issues and fixes
