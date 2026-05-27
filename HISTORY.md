@@ -1333,4 +1333,115 @@ python -m pytest -q             # → 28/28
 # /threat-models to see drift detection ready for v2.
 ```
 
+---
 
+## Security hardening pass (2026-05-27)
+
+### Goal
+
+An adversarial audit of the codebase found 20 numbered vulnerabilities.
+14 were fixed in this pass (VULN-002 through VULN-020). Six were
+deferred as architectural decisions or new-dependency questions (see
+below).
+
+### What was fixed
+
+**P0 — Privacy contract (prevent unredacted text reaching Claude)**
+
+Project notes injected into the chat system prompt are now passed
+through `apply_redactions()` before the prompt is assembled
+(`app/claude/chat.py`). The same fix was applied to `threat_kind` and
+`scenario_hook` in `tabletop.py`, and to `title` fields in
+`design_review.py` and `postmortem_authoring.py`. Previously only the
+main freewrite body was guaranteed to be redacted; secondary fields
+were sent in cleartext.
+
+**P1 — High-impact exploitable**
+
+- **SSRF (VULN-004):** the ICS calendar watcher now validates URLs
+  before fetching — blocks RFC1918 / loopback / link-local private IPs,
+  hardcoded cloud-metadata endpoints (`169.254.169.254`,
+  `metadata.google.internal`), and non-http/https schemes.
+- **Rehydration scope leak (VULN-009):** chat rehydration is now
+  restricted to placeholders that appeared in the outgoing prompt.
+  A prompt-injection attack can no longer force Tank to rehydrate
+  arbitrary `redaction_map` entries that were never in scope.
+- **XSS (VULN-011):** all `marked.parse()` calls are now wrapped with
+  `DOMPurify.sanitize()` across four templates (`ir_runbook_detail`,
+  `security_program`, `report_detail`, `project_workspace`).
+  DOMPurify loaded via CDN in `base.html`.
+- **Vuln intake auth (VULN-010):** `/api/vulnerabilities/intake` now
+  requires an `X-Nyx-Key` header matching `TANK_NYX_API_KEY` when that
+  env var is set; `cvss_score` validated in [0.0, 10.0]; `severity` and
+  `source` now use `Literal` types.
+- **Path ingest scope (VULN-005):** `/api/ingest/path` is restricted to
+  the user's home directory subtree.
+
+**P2 — Defense in depth**
+
+- `SecurityHeadersMiddleware` added to `app/main.py` — sets
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, and a
+  `Content-Security-Policy` on all responses.
+- `search_kb` tool `top_k` clamped to [1, 25]; `query` truncated to 500
+  chars (VULN-016).
+- `UpdateProject.notes` limited to 10,000 chars (VULN-018).
+- Upload hardening: 100 MB size limit; filename sanitized with
+  `os.path.basename()` + `.lstrip(".")[:200]`; `target.parent.mkdir`
+  that could create arbitrary directories removed (VULN-006, VULN-014).
+
+**P3 — Hardening**
+
+- Tool execution errors now return a generic `"Tool execution failed."`
+  string to Claude instead of the raw Python exception message
+  (VULN-019).
+- `_PLACEHOLDER_RE` in `chat.py` is now built dynamically from all
+  registered redaction rules, so new categories are automatically
+  recognized (VULN-020).
+
+### New env var
+
+`TANK_NYX_API_KEY` — if set, `/api/vulnerabilities/intake` requires
+`X-Nyx-Key: <value>`. If unset, the endpoint remains open (backwards
+compatible).
+
+### Known gaps deferred
+
+- **VULN-001** — no authentication layer. All users who can reach the
+  port can access Tank. Deferred: requires design choice on session
+  model.
+- **VULN-007** — `/api/wipe` is unauthenticated (the phrase challenge
+  provides friction but not security). Deferred with VULN-001.
+- **VULN-012** — no CSRF tokens on state-changing forms. Deferred:
+  requires middleware + template work.
+- **VULN-015** — f-string SQL construction in one query path. Deferred:
+  requires audit + parameterization pass.
+- **VULN-017** — no rate limiting. Deferred: requires a new dependency
+  (e.g. `slowapi`) and architectural decision on where to enforce.
+
+### Files changed
+
+```
+app/claude/chat.py
+app/claude/design_review.py
+app/claude/postmortem_authoring.py
+app/claude/tabletop.py
+app/ingest/watchers/ics.py
+app/kb/tools.py
+app/main.py
+app/routers/ingest.py
+app/routers/projects.py
+app/routers/risks.py
+app/schemas.py
+app/templates/base.html
+app/templates/ir_runbook_detail.html
+app/templates/project_workspace.html
+app/templates/report_detail.html
+app/templates/security_program.html
+```
+
+### How to verify
+
+```bash
+python -m pytest -q   # 28/28 still pass
+```

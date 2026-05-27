@@ -380,6 +380,7 @@ to the system font stack — UI still works, looks plainer.
 | `TANK_API_MAX_RETRIES` | no | `4` | Anthropic SDK retry budget |
 | `TANK_API_TIMEOUT_SECONDS` | no | `600` | Per-request ceiling |
 | `TANK_DEBUG_TOKENS` | no | off | Set `1` to log per-call token counts (in/out/cache_read/cache_create) to the console |
+| `TANK_NYX_API_KEY` | no | unset | If set, `/api/vulnerabilities/intake` requires `X-Nyx-Key: <value>` header |
 
 ---
 
@@ -484,6 +485,7 @@ checklist.
 | Gap 3 | ✅ | Risk register — formal inherent/residual risk tracking, Sonnet KB-grounded assessment, 90-day review scheduling, `get_risk_register` chat tool, `risk_register` report |
 | Gap 4 | ✅ | Security program dashboard — 6-domain KPI aggregation, on-demand executive brief (green/yellow/red), 12-week trend snapshots, Nyx vulnerability intake endpoint |
 | Gap 5 | ✅ | IR runbooks — per-service 5-phase incident-response playbooks grounded in KB; tabletop integration; postmortem nudge; `find_ir_runbooks` chat tool; Runbook entity registration |
+| Security audit | ✅ | Adversarial audit — 14 vulnerabilities fixed (P0: privacy contract; P1: SSRF, XSS, rehydration leak; P2: security headers, input validation; P3: hardening) |
 
 Build history with tradeoffs and known gaps: [HISTORY.md](HISTORY.md).
 

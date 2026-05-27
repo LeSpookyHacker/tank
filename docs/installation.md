@@ -55,6 +55,7 @@ TANK_ENV=prod                            # disables uvicorn --reload — use thi
 TANK_TIMEZONE=America/Los_Angeles        # critical on a UTC VM
 TANK_API_MAX_RETRIES=4                   # SDK retry budget
 TANK_API_TIMEOUT_SECONDS=600             # per-request ceiling
+TANK_NYX_API_KEY=                        # if set, /api/vulnerabilities/intake requires X-Nyx-Key header
 ```
 
 ---

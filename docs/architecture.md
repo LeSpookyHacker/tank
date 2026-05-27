@@ -30,6 +30,31 @@ at send time) — `chunks.text_redacted` is what flows out;
 > through `apply_redactions` first and rehydrate the response with
 > `rehydrate(text, load_rehydration_map(used_placeholders))`.
 
+### Defense-in-depth improvements (security audit 2026-05-27)
+
+The privacy contract was tightened in a focused hardening pass:
+
+- **Rehydration is now scoped to the outgoing prompt.** Chat rehydration
+  only substitutes placeholders that appeared in the prompt Claude
+  actually received. A prompt-injection attack cannot force Tank to
+  rehydrate arbitrary `redaction_map` entries that were never in scope.
+- **All user-supplied text fields pass through `apply_redactions`.**
+  Previously the main freewrite body was redacted but secondary fields
+  (project notes, artifact titles, tabletop scenario hooks) were not.
+  Every field injected into a Claude prompt now goes through the engine.
+- **Security headers on every response.** `SecurityHeadersMiddleware`
+  in `app/main.py` sets `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, and a
+  `Content-Security-Policy` on all responses.
+- **Upload hardening.** File uploads are limited to 100 MB;
+  filenames are sanitized with `os.path.basename()` + `.lstrip(".")[:200]`;
+  the path-ingest endpoint is restricted to the user's home directory subtree.
+- **ICS SSRF protection.** The calendar watcher validates URLs before
+  fetching — blocks RFC1918 / loopback / link-local IPs, the cloud
+  metadata endpoint (`169.254.169.254`, `metadata.google.internal`),
+  and non-http/https schemes.
+
 ### Determinism
 
 `key = sha256(category + ":" + lower(strip(match)))`. The same email
