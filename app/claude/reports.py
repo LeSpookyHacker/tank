@@ -25,8 +25,9 @@ from app.redact.store import load_rehydration_map
 from app.role import get_state
 from app.schemas import (ControlMatrix, ControlMatrixRow,
                          CrossServiceGapsReport, OnCallHandoff,
-                         PlanReport, QuestionList, StakeholderMap,
-                         ThreatLandscapeReport, WeeklySecurityDigest)
+                         PlanReport, QuestionList, RiskRegisterReport,
+                         StakeholderMap, ThreatLandscapeReport,
+                         WeeklySecurityDigest)
 from app.storage import reports_store
 
 log = logging.getLogger("tank.reports")
@@ -452,6 +453,58 @@ def iam_audit() -> str:
                      content_md_redacted=md, usage={})
 
 
+def risk_register() -> str:
+    """Risk register report — ranked by residual score with coverage notes."""
+    from app.storage import risks_store as rs
+    from app.storage import entities_store
+
+    risks = rs.list_all(status="open", limit=100)
+
+    context_lines = ["## Current risk register entries"]
+    for r in risks:
+        owner_name = "unassigned"
+        if r.get("owner_entity_id"):
+            ent = entities_store.get_entity(r["owner_entity_id"])
+            if ent:
+                owner_name = ent["name"]
+        context_lines.append(
+            f"- [{r['category']}] {r['title']} | inherent={r['inherent_score']} "
+            f"residual={r['residual_score']} treatment={r['treatment']} owner={owner_name}"
+        )
+
+    parsed, usage = _run(
+        "report_risk_register", RiskRegisterReport,
+        user_task="\n".join(context_lines) + "\n\nProduce the risk register report.",
+    )
+    if parsed is None:
+        raise RuntimeError("risk_register generation returned no output")
+
+    lines = ["# Risk register", "", parsed.summary, ""]
+    if parsed.top_risks:
+        lines.append("## Critical risks (residual score ≥ 12)")
+        for r in parsed.top_risks:
+            lines.append(f"- {r}")
+        lines.append("")
+    if parsed.risks:
+        lines.append("| Risk | Category | Inherent | Residual | Treatment | Owner |")
+        lines.append("|---|---|---|---|---|---|")
+        for r in parsed.risks:
+            lines.append(
+                f"| {r.get('title','?')} | {r.get('category','?')} | "
+                f"{r.get('inherent_score','?')} | {r.get('residual_score','?')} | "
+                f"{r.get('treatment','?')} | {r.get('owner','?')} |"
+            )
+        lines.append("")
+    if parsed.control_coverage_notes:
+        lines.append("## Control coverage notes")
+        for n in parsed.control_coverage_notes:
+            lines.append(f"- {n}")
+
+    md = "\n".join(lines)
+    return _finalize(kind="risk_register", title="Risk register",
+                     content_md_redacted=md, usage=usage)
+
+
 REPORT_REGISTRY = {
     "threat_landscape": threat_landscape,
     "cross_service_gaps": cross_service_gaps,
@@ -463,4 +516,5 @@ REPORT_REGISTRY = {
     "weekly_security_digest": weekly_security_digest,
     "attack_mapping": attack_mapping,
     "iam_audit": iam_audit,
+    "risk_register": risk_register,
 }

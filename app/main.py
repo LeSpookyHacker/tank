@@ -13,8 +13,8 @@ from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
     dfd, entities, followups, glossary, iam, ingest, integrations, journal,
     lessons, me, meeting_prep, notes, nudges, onboarding, pages, philosophy,
-    postmortems, projects, reports, settings, subscriptions, tabletops, teams,
-    threat_models, dashboard,
+    postmortems, projects, reports, risks, security_program, settings,
+    subscriptions, tabletops, teams, threat_models, dashboard,
 )
 
 log = logging.getLogger("tank.main")
@@ -125,3 +125,7 @@ app.include_router(teams.router)
 
 # DFD threat modeling
 app.include_router(dfd.router)
+
+# Security program health + risk register
+app.include_router(risks.router)
+app.include_router(security_program.router)

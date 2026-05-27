@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block title %}Tank — security program{% endblock %}
+
+{% block content %}
+<section class="sp-page">
+  <header class="page-head">
+    <h1>Security program</h1>
+    <p class="dim">Aggregated metrics across all Tank subsystems. Updated weekly
+      by the scheduler; manually refresh anytime.</p>
+    <div class="sp-actions">
+      <button class="btn-secondary" onclick="takeSnapshot()">snapshot now</button>
+      <button class="btn" onclick="generateBrief()">generate executive brief</button>
+    </div>
+  </header>
+
+  <div class="sp-grid">
+
+    <!-- Threat models -->
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <span class="sp-icon">🛡️</span>
+        <a href="/threat-models" class="sp-card-title">Threat models</a>
+      </div>
+      <div class="sp-metrics">
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.threat_models_total }}</div>
+          <div class="sp-lbl">services covered</div>
+        </div>
+        <div class="sp-metric {% if metrics.threat_models_drifted > 0 %}sp-warn{% endif %}">
+          <div class="sp-val">{{ metrics.threat_models_drifted }}</div>
+          <div class="sp-lbl">possibly drifted (>60d)</div>
+        </div>
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.threat_models_updated_30d }}</div>
+          <div class="sp-lbl">updated (30d)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vulnerabilities -->
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <span class="sp-icon">🔓</span>
+        <a href="#" class="sp-card-title">Vulnerabilities</a>
+      </div>
+      <div class="sp-metrics">
+        <div class="sp-metric sp-critical">
+          <div class="sp-val">{{ metrics.vulns_open_critical }}</div>
+          <div class="sp-lbl">critical</div>
+        </div>
+        <div class="sp-metric sp-high">
+          <div class="sp-val">{{ metrics.vulns_open_high }}</div>
+          <div class="sp-lbl">high</div>
+        </div>
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.vulns_open_medium }}</div>
+          <div class="sp-lbl">medium</div>
+        </div>
+        <div class="sp-metric sp-dim">
+          <div class="sp-val">{{ metrics.vulns_avg_age_days }}</div>
+          <div class="sp-lbl">avg age (days)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk register -->
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <span class="sp-icon">⚖️</span>
+        <a href="/risks" class="sp-card-title">Risk register</a>
+      </div>
+      <div class="sp-metrics">
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.risks_open }}</div>
+          <div class="sp-lbl">open risks</div>
+        </div>
+        <div class="sp-metric {% if metrics.risks_review_overdue > 0 %}sp-warn{% endif %}">
+          <div class="sp-val">{{ metrics.risks_review_overdue }}</div>
+          <div class="sp-lbl">review overdue</div>
+        </div>
+        <div class="sp-metric {% if metrics.decisions_accepted_risk_open > 5 %}sp-warn{% endif %}">
+          <div class="sp-val">{{ metrics.decisions_accepted_risk_open }}</div>
+          <div class="sp-lbl">accepted risks (open)</div>
+        </div>
+        <div class="sp-metric {% if metrics.decisions_expiring_30d > 0 %}sp-warn{% endif %}">
+          <div class="sp-val">{{ metrics.decisions_expiring_30d }}</div>
+          <div class="sp-lbl">decisions expiring 30d</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compliance -->
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <span class="sp-icon">✅</span>
+        <a href="/compliance" class="sp-card-title">Compliance</a>
+      </div>
+      <div class="sp-metrics">
+        <div class="sp-metric">
+          <div class="sp-val">{{ compliance_pct }}%</div>
+          <div class="sp-lbl">controls with evidence</div>
+        </div>
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.compliance_controls_with_evidence }} / {{ metrics.compliance_controls_total }}</div>
+          <div class="sp-lbl">covered / total</div>
+        </div>
+      </div>
+      {% if metrics.compliance_controls_total > 0 %}
+      <div class="sp-progress-bar">
+        <div class="sp-progress-fill" style="width: {{ compliance_pct }}%"></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Incidents & postmortems -->
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <span class="sp-icon">🚨</span>
+        <a href="/postmortems" class="sp-card-title">Incidents</a>
+      </div>
+      <div class="sp-metrics">
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.postmortems_published_90d }}</div>
+          <div class="sp-lbl">postmortems (90d)</div>
+        </div>
+        <div class="sp-metric">
+          <div class="sp-val">{{ followup_done_pct }}%</div>
+          <div class="sp-lbl">action items closed</div>
+        </div>
+        <div class="sp-metric {% if metrics.followups_open > 10 %}sp-warn{% endif %}">
+          <div class="sp-val">{{ metrics.followups_open }}</div>
+          <div class="sp-lbl">open action items</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Design reviews -->
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <span class="sp-icon">📋</span>
+        <a href="/design-reviews" class="sp-card-title">Design reviews</a>
+      </div>
+      <div class="sp-metrics">
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.design_reviews_open }}</div>
+          <div class="sp-lbl">in progress</div>
+        </div>
+        <div class="sp-metric">
+          <div class="sp-val">{{ metrics.design_reviews_approved_90d }}</div>
+          <div class="sp-lbl">approved (90d)</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /sp-grid -->
+
+  <!-- Executive brief output area -->
+  <div id="brief-area" hidden class="sp-brief">
+    <div class="sp-brief-head">
+      <h2>Executive brief</h2>
+      <div id="brief-health" class="brief-health"></div>
+    </div>
+    <h3 id="brief-headline" class="brief-headline"></h3>
+    <div class="brief-sections">
+      <div>
+        <h4>Key achievements</h4>
+        <ul id="brief-achievements"></ul>
+      </div>
+      <div>
+        <h4>Top risks</h4>
+        <ul id="brief-risks"></ul>
+      </div>
+      <div>
+        <h4>Recommended priorities</h4>
+        <ul id="brief-priorities"></ul>
+      </div>
+    </div>
+    <div id="brief-summary" class="brief-summary"></div>
+  </div>
+
+  <!-- Trend sparklines (last 12 snapshots) -->
+  {% if history|length > 1 %}
+  <div class="sp-history">
+    <h2>12-week trend</h2>
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>Week</th>
+          <th>TM total</th>
+          <th>Vuln (C/H/M)</th>
+          <th>Risks open</th>
+          <th>Compliance %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in history %}
+        <tr>
+          <td>{{ h.snapshot_at | int if h.snapshot_at else '—' }}</td>
+          <td>{{ h.get('threat_models_total', '—') }}</td>
+          <td>{{ h.get('vulns_open_critical', 0) }} /
+              {{ h.get('vulns_open_high', 0) }} /
+              {{ h.get('vulns_open_medium', 0) }}</td>
+          <td>{{ h.get('risks_open', '—') }}</td>
+          <td>
+            {% set ct = h.get('compliance_controls_total', 0) %}
+            {% set ce = h.get('compliance_controls_with_evidence', 0) %}
+            {% if ct > 0 %}{{ (100 * ce // ct) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</section>
+
+<style>
+.sp-page { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.sp-actions { display: flex; gap: .75rem; margin-top: .75rem; }
+.sp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem; margin-top: 1.5rem; }
+.sp-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.25rem; }
+.sp-card-head { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+.sp-icon { font-size: 1.2rem; }
+.sp-card-title { font-weight: 600; text-decoration: none; color: var(--text); font-size: .95rem; }
+.sp-metrics { display: flex; flex-wrap: wrap; gap: .75rem; }
+.sp-metric { min-width: 70px; }
+.sp-val { font-size: 1.5rem; font-weight: 700; }
+.sp-lbl { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; }
+.sp-warn .sp-val { color: var(--sev-high, #EA580C); }
+.sp-critical .sp-val { color: var(--sev-critical, #DC2626); }
+.sp-high .sp-val { color: var(--sev-high, #EA580C); }
+.sp-dim .sp-val { color: var(--text-muted); }
+.sp-progress-bar { height: 6px; background: var(--border); border-radius: 3px;
+  margin-top: .75rem; }
+.sp-progress-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+.sp-brief { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.5rem; margin-top: 2rem; }
+.sp-brief-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.brief-health { padding: .25rem .75rem; border-radius: 12px; font-size: .8rem;
+  font-weight: 600; text-transform: uppercase; }
+.brief-health.green { background: #16a34a22; color: #16a34a; }
+.brief-health.yellow { background: #d9770622; color: #d97706; }
+.brief-health.red { background: #dc262622; color: #dc2626; }
+.brief-headline { font-size: 1.1rem; margin: .5rem 0 1rem; }
+.brief-sections { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;
+  margin-bottom: 1rem; }
+.brief-sections h4 { font-size: .8rem; text-transform: uppercase; color: var(--text-muted);
+  margin: 0 0 .5rem; }
+.brief-summary { font-size: .9rem; line-height: 1.6; color: var(--text); }
+.sp-history { margin-top: 2rem; }
+.history-table { width: 100%; border-collapse: collapse; margin-top: .75rem; font-size: .875rem; }
+.history-table th, .history-table td { padding: .5rem .75rem; border-bottom: 1px solid var(--border); text-align: left; }
+.history-table th { font-size: .7rem; text-transform: uppercase; color: var(--text-muted); }
+</style>
+
+<script>
+async function takeSnapshot() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = "snapshotting…";
+  try {
+    const r = await fetch("/api/security-program/snapshot", {method: "POST"});
+    const d = await r.json();
+    btn.textContent = "snapshot now";
+    btn.disabled = false;
+    alert("Snapshot saved: " + d.snapshot_id);
+    window.location.reload();
+  } catch (e) {
+    btn.textContent = "snapshot now";
+    btn.disabled = false;
+  }
+}
+
+async function generateBrief() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = "generating…";
+  const area = document.getElementById("brief-area");
+  area.hidden = false;
+  area.querySelector("h2").textContent = "Executive brief — generating…";
+
+  try {
+    const r = await fetch("/api/security-program/executive-brief", {method: "POST"});
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+
+    area.querySelector("h2").textContent = "Executive brief";
+    document.getElementById("brief-headline").textContent = d.headline || "";
+
+    const health = document.getElementById("brief-health");
+    health.textContent = d.program_health || "";
+    health.className = "brief-health " + (d.program_health || "yellow");
+
+    const achList = document.getElementById("brief-achievements");
+    achList.innerHTML = (d.key_achievements || []).map(x => `<li>${x}</li>`).join("");
+    const riskList = document.getElementById("brief-risks");
+    riskList.innerHTML = (d.top_risks || []).map(x => `<li>${x}</li>`).join("");
+    const priList = document.getElementById("brief-priorities");
+    priList.innerHTML = (d.recommended_priorities || []).map(x => `<li>${x}</li>`).join("");
+
+    const summaryEl = document.getElementById("brief-summary");
+    if (window.marked && d.summary_md) {
+      summaryEl.innerHTML = marked.parse(d.summary_md);
+    } else {
+      summaryEl.textContent = d.summary_md || "";
+    }
+
+    area.scrollIntoView({behavior: "smooth"});
+  } catch (e) {
+    area.querySelector("h2").textContent = "Error: " + e.message;
+  } finally {
+    btn.textContent = "generate executive brief";
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

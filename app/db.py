@@ -591,6 +591,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_projects_team_fields(conn)
     _seed_org_team(conn)
     _migrate_dfd_columns(conn)
+    _migrate_risk_register(conn)
     _init_vec_table(conn)
 
 
@@ -767,6 +768,76 @@ def _seed_org_team(conn: sqlite3.Connection) -> None:
         "[TANK MIGRATION] Created org %s, team 'Unassigned' (%s), "
         "migrated %d existing projects, %d orphan artifact rows → 'Imported Data'",
         org_id, team_id, count, orphan_total,
+    )
+
+
+def _migrate_risk_register(conn: sqlite3.Connection) -> None:
+    """Create risk register, vulnerabilities intake, and program snapshot tables."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS risks (
+            id                   TEXT PRIMARY KEY,
+            title                TEXT NOT NULL,
+            description          TEXT NOT NULL,
+            category             TEXT NOT NULL,
+            inherent_likelihood  INTEGER NOT NULL DEFAULT 3,
+            inherent_impact      INTEGER NOT NULL DEFAULT 3,
+            controls_json        TEXT NOT NULL DEFAULT '[]',
+            residual_likelihood  INTEGER NOT NULL DEFAULT 3,
+            residual_impact      INTEGER NOT NULL DEFAULT 3,
+            treatment            TEXT NOT NULL DEFAULT 'mitigate',
+            treatment_rationale  TEXT,
+            owner_entity_id      TEXT REFERENCES entities(id),
+            status               TEXT NOT NULL DEFAULT 'open',
+            review_at            INTEGER,
+            scope_entity_ids     TEXT NOT NULL DEFAULT '[]',
+            decision_id          TEXT REFERENCES decisions(id),
+            project_id           TEXT REFERENCES projects(id),
+            created_at           INTEGER NOT NULL,
+            updated_at           INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_risks_status
+            ON risks(status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_risks_category
+            ON risks(category);
+        CREATE INDEX IF NOT EXISTS idx_risks_review_at
+            ON risks(review_at);
+
+        CREATE TABLE IF NOT EXISTS vulnerabilities (
+            id                   TEXT PRIMARY KEY,
+            cve_id               TEXT,
+            title                TEXT NOT NULL,
+            description          TEXT,
+            cvss_score           REAL,
+            cvss_vector          TEXT,
+            severity             TEXT NOT NULL DEFAULT 'medium',
+            status               TEXT NOT NULL DEFAULT 'open',
+            source               TEXT NOT NULL DEFAULT 'manual',
+            affected_service_ids TEXT NOT NULL DEFAULT '[]',
+            owner_entity_id      TEXT REFERENCES entities(id),
+            due_at               INTEGER,
+            accepted_rationale   TEXT,
+            source_doc_id        TEXT REFERENCES documents(id),
+            external_ref         TEXT,
+            project_id           TEXT REFERENCES projects(id),
+            created_at           INTEGER NOT NULL,
+            updated_at           INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_vulns_status_severity
+            ON vulnerabilities(status, severity);
+        CREATE INDEX IF NOT EXISTS idx_vulns_source
+            ON vulnerabilities(source);
+        CREATE INDEX IF NOT EXISTS idx_vulns_due_at
+            ON vulnerabilities(due_at);
+
+        CREATE TABLE IF NOT EXISTS security_program_snapshots (
+            id           TEXT PRIMARY KEY,
+            snapshot_at  INTEGER NOT NULL,
+            metrics_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_sps_snapshot_at
+            ON security_program_snapshots(snapshot_at);
+        """
     )
 
 

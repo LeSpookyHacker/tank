@@ -34,7 +34,7 @@ def generate_nudges() -> list[str]:
                _contradiction, _abandoned_thread,
                _question_of_week, _journal_followup_suggestion,
                _architecture_drift, _decision_expiring,
-               _unaddressed_threat):
+               _unaddressed_threat, _risk_review_due):
         if nudges_store.count_open_today() >= _DAILY_CAP:
             break
         try:
@@ -287,6 +287,27 @@ def _decision_expiring() -> str | None:
         body=f"This {d['kind']} expires within 7 days. Reaffirm "
              f"(extend 90 days) or withdraw?",
         payload={"decision_id": d["id"], "kind": d["kind"]},
+        priority=65,
+    )
+
+
+def _risk_review_due() -> str | None:
+    """A risk register entry is past its scheduled review date."""
+    try:
+        from app.storage import risks_store
+    except Exception:
+        return None
+    overdue = risks_store.review_overdue()
+    if not overdue:
+        return None
+    r = overdue[0]
+    return nudges_store.insert(
+        kind="risk_review_due",
+        title=f"Risk review overdue: {r['title']!r}",
+        body=f"This {r['category']} risk (residual score {r['residual_score']}) "
+             f"is past its scheduled review date. Reassess or close it.",
+        payload={"risk_id": r["id"], "category": r["category"],
+                 "residual_score": r["residual_score"]},
         priority=65,
     )
 

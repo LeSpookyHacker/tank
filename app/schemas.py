@@ -545,6 +545,75 @@ class DFDMermaidGeneration(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+# ---------- Risk register ----------
+
+class RiskAssessmentOutput(BaseModel):
+    """Claude's assessment of a single risk entry."""
+    residual_likelihood: int = Field(ge=1, le=5)
+    residual_impact: int = Field(ge=1, le=5)
+    assessment_summary: str
+    recommended_treatment: str   # mitigate|accept|transfer|avoid
+    treatment_rationale: str
+    control_gaps: list[str] = Field(default_factory=list)
+    suggested_next_steps: list[str] = Field(default_factory=list)
+
+
+class RiskRegisterReport(BaseModel):
+    """Output for the risk_register report generator."""
+    risks: list[dict]   # [{title, category, inherent_score, residual_score, treatment, owner}]
+    summary: str
+    top_risks: list[str] = Field(default_factory=list)
+    control_coverage_notes: list[str] = Field(default_factory=list)
+
+
+class VulnerabilityIntake(BaseModel):
+    """Payload accepted by POST /api/vulnerabilities/intake (e.g. from Nyx)."""
+    cve_id: str | None = None
+    title: str
+    description: str | None = None
+    cvss_score: float | None = None
+    cvss_vector: str | None = None
+    severity: str = "medium"   # critical|high|medium|low|informational
+    source: str = "manual"     # nvd|github_dependabot|scanner|manual|disclosure
+    affected_service_names: list[str] = Field(default_factory=list)
+    due_at: int | None = None
+    external_ref: str | None = None
+
+
+class SecurityProgramMetrics(BaseModel):
+    """Aggregated metrics snapshot for the program health dashboard."""
+    threat_models_total: int = 0
+    threat_models_drifted: int = 0
+    threat_models_updated_30d: int = 0
+    vulns_open_critical: int = 0
+    vulns_open_high: int = 0
+    vulns_open_medium: int = 0
+    vulns_open_low: int = 0
+    vulns_avg_age_days: float = 0.0
+    risks_open: int = 0
+    risks_review_overdue: int = 0
+    decisions_accepted_risk_open: int = 0
+    decisions_expiring_30d: int = 0
+    compliance_controls_total: int = 0
+    compliance_controls_with_evidence: int = 0
+    postmortems_published_90d: int = 0
+    followups_open: int = 0
+    followups_done_90d: int = 0
+    design_reviews_open: int = 0
+    design_reviews_approved_90d: int = 0
+    snapshot_at: float = 0.0
+
+
+class ExecutiveBriefOutput(BaseModel):
+    """Claude's one-page executive security brief."""
+    headline: str
+    program_health: str        # green|yellow|red
+    key_achievements: list[str] = Field(default_factory=list)
+    top_risks: list[str] = Field(default_factory=list)
+    recommended_priorities: list[str] = Field(default_factory=list)
+    summary_md: str
+
+
 # ---------- Phase 13/14: additional NudgeKind values ----------
 # (Kept as plain strings — NudgeKind Literal stays advisory; the DB
 # accepts any string and the dispatch table is the source of truth.)
