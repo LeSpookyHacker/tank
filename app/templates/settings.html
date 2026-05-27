@@ -81,18 +81,16 @@
       and nudges. Backups under <code>~/.tank/backups/</code> are
       <em>not</em> touched by this — restore from one if you need to.
     </p>
-    <form method="post" action="/api/wipe"
-          onsubmit="return confirm('Type the phrase exactly. Last chance.');">
+    <div>
       <label>
         Type <code>delete tank</code> to confirm:
-        <input type="text" name="confirm_phrase"
+        <input type="text" id="wipe-phrase"
                autocomplete="off"
                spellcheck="false"
-               required
                placeholder="delete tank">
       </label>
-      <button type="submit" class="btn-secondary danger">Wipe everything</button>
-    </form>
+      <button class="btn-secondary danger" onclick="doWipe()">Wipe everything</button>
+    </div>
   </details>
 </section>
 
@@ -118,6 +116,23 @@ async function toggleCategory(cat, enabled) {
     method: "POST", headers: {"Content-Type": "application/json"},
     body: JSON.stringify({category: cat, enabled}),
   });
+}
+async function doWipe() {
+  const phrase = document.getElementById("wipe-phrase").value;
+  if (!confirm("This is irreversible. Last chance — proceed?")) return;
+  const body = new URLSearchParams();
+  body.set("confirm_phrase", phrase);
+  const r = await fetch("/api/wipe", {
+    method: "POST",
+    headers: {"X-Confirm": "delete-tank"},
+    body: body,
+  });
+  if (r.redirected) {
+    window.location = r.url;
+  } else if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    alert("Wipe failed: " + (j.detail || r.statusText));
+  }
 }
 </script>
 {% endblock %}

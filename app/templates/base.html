@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Tank{% endblock %}</title>
 
-  {# Synchronous theme init — prevents flash on return visits. #}
+  {# Synchronous init: theme + API key. Both read from localStorage before body renders. #}
   <script>
     (function () {
       try {
@@ -16,6 +16,21 @@
         }
         if (t === "light") document.documentElement.classList.add("theme-light");
       } catch (e) {}
+
+      // API key gate: if TANK_API_KEY is set server-side, the middleware
+      // requires X-Tank-Key on every request. Store the key in localStorage
+      // under "tank-api-key" and it is automatically attached by patchFetch().
+      try {
+        var _tankKey = localStorage.getItem("tank-api-key") || "";
+        if (_tankKey) {
+          var _origFetch = window.fetch;
+          window.fetch = function (url, opts) {
+            opts = opts || {};
+            opts.headers = Object.assign({"X-Tank-Key": _tankKey}, opts.headers || {});
+            return _origFetch(url, opts);
+          };
+        }
+      } catch (e) {}
     })();
   </script>
 
@@ -24,9 +39,9 @@
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/static/style.css">
-  <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js" defer></script>
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js" defer></script>
 </head>
 <body>
   {# ── Global header ── #}

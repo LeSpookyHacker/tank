@@ -9,6 +9,7 @@ rules that get compiled and applied alongside the built-ins.
 from __future__ import annotations
 
 import re
+import signal
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -96,17 +97,41 @@ def set_category_enabled(category: str, enabled: bool) -> None:
 
 
 def _reject_redos(pattern: str) -> None:
-    """Raise re.error if the pattern contains constructs known to cause ReDoS."""
-    # Nested quantifiers: (X+)+ / (X*)* etc. — guaranteed exponential backtracking.
-    if re.search(r"\([^)]*[+*]\)\s*[+*?{]", pattern):
+    """Raise re.error if the pattern causes catastrophic backtracking.
+
+    Runs the compiled pattern against a 40-character adversarial string
+    (`aaaa...!`) under a 1-second SIGALRM deadline. A ReDoS-prone pattern
+    hits exponential backtracking at that length (2^40 paths) and always
+    triggers the alarm; a safe pattern finishes in well under 1 ms.
+
+    SIGALRM is Unix-only and must be called from the main thread.  Both
+    conditions hold here: Tank runs on Linux and async FastAPI routes execute
+    on the event-loop (main) thread.  Tests run on the main pytest thread.
+    """
+    compiled = re.compile(pattern)
+    adversarial = "a" * 40 + "!"
+
+    def _alarm(signum, frame):
         raise re.error(
-            "pattern contains nested quantifiers susceptible to catastrophic backtracking"
+            "pattern timed out against adversarial input — "
+            "likely susceptible to catastrophic backtracking (ReDoS)"
         )
-    # Quantified alternation group with overlapping branches: (a|ab)+ style.
-    if re.search(r"\([^)]*\|[^)]*\)\s*[+*]", pattern):
-        raise re.error(
-            "pattern contains quantified alternation group susceptible to catastrophic backtracking"
-        )
+
+    old_handler = signal.signal(signal.SIGALRM, _alarm)
+    signal.alarm(1)
+    try:
+        compiled.search(adversarial)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+
+# Only allow placeholder formats of the form [PREFIX_{n}] or [PREFIX_{n:03d}].
+# This prevents format-string injection via oversized width specs ({n:9999999d})
+# or attribute traversal ({n.__class__}) in store.upsert_match.
+_VALID_PLACEHOLDER_FMT = re.compile(
+    r"^\[[A-Z][A-Z0-9_]{0,30}_\{n(?::\d{1,3}d)?\}\]$"
+)
 
 
 def add_custom_rule(category: str, pattern: str,
@@ -114,12 +139,18 @@ def add_custom_rule(category: str, pattern: str,
                     description: str | None = None) -> int:
     """Add a user-supplied regex rule.
 
-    Validates the regex compiles and checks for ReDoS-prone constructs.
+    Validates the regex compiles, checks for ReDoS-prone constructs, and
+    restricts placeholder_fmt to the safe [PREFIX_{n:03d}] form.
     Categories should be prefixed `custom:` by convention to avoid
     collisions with built-ins.
     """
     re.compile(pattern)   # raises re.error on bad regex syntax
     _reject_redos(pattern)
+    if placeholder_fmt is not None and not _VALID_PLACEHOLDER_FMT.match(placeholder_fmt):
+        raise ValueError(
+            "placeholder_fmt must match [PREFIX_{n}] or [PREFIX_{n:03d}], "
+            "e.g. [CUSTOM_EMAIL_{n:03d}]"
+        )
     if not category.startswith("custom:"):
         category = f"custom:{category}"
     conn = get_conn()

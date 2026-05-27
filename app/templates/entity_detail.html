@@ -103,7 +103,9 @@ async function explainIAM(id) {
   const j = await r.json();
   if (j.explanation_md) {
     const w = window.open("", "_blank");
-    w.document.write("<pre>" + j.explanation_md + "</pre>");
+    const pre = w.document.createElement("pre");
+    pre.textContent = j.explanation_md;   // textContent prevents XSS
+    w.document.body.appendChild(pre);
   } else {
     alert("Failed to explain.");
   }

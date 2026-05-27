@@ -670,7 +670,11 @@ function chatSend(e) {
       aMsg.className = "chat-msg chat-msg-assistant";
       var bodyDiv = document.createElement("div");
       bodyDiv.className = "chat-msg-body rendered-md";
-      bodyDiv.innerHTML = (typeof marked !== "undefined") ? (window.DOMPurify ? DOMPurify.sanitize(marked.parse(text)) : marked.parse(text)) : escapeHtml(text);
+      // Require both marked AND DOMPurify before using innerHTML — if either
+      // CDN script failed to load, fall back to safe textContent rendering.
+      bodyDiv.innerHTML = (typeof marked !== "undefined" && window.DOMPurify)
+        ? DOMPurify.sanitize(marked.parse(text))
+        : escapeHtml(text);
       aMsg.innerHTML = '<div class="chat-msg-role">assistant</div>';
       aMsg.appendChild(bodyDiv);
       pane.insertBefore(aMsg, streamEl);

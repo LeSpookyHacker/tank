@@ -257,6 +257,11 @@
 </style>
 
 <script>
+function escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = String(s);
+  return d.innerHTML;
+}
 async function takeSnapshot() {
   const btn = event.target;
   btn.disabled = true;
@@ -295,15 +300,15 @@ async function generateBrief() {
     health.className = "brief-health " + (d.program_health || "yellow");
 
     const achList = document.getElementById("brief-achievements");
-    achList.innerHTML = (d.key_achievements || []).map(x => `<li>${x}</li>`).join("");
+    achList.innerHTML = (d.key_achievements || []).map(x => `<li>${escHtml(x)}</li>`).join("");
     const riskList = document.getElementById("brief-risks");
-    riskList.innerHTML = (d.top_risks || []).map(x => `<li>${x}</li>`).join("");
+    riskList.innerHTML = (d.top_risks || []).map(x => `<li>${escHtml(x)}</li>`).join("");
     const priList = document.getElementById("brief-priorities");
-    priList.innerHTML = (d.recommended_priorities || []).map(x => `<li>${x}</li>`).join("");
+    priList.innerHTML = (d.recommended_priorities || []).map(x => `<li>${escHtml(x)}</li>`).join("");
 
     const summaryEl = document.getElementById("brief-summary");
-    if (window.marked && d.summary_md) {
-      summaryEl.innerHTML = window.DOMPurify ? DOMPurify.sanitize(marked.parse(d.summary_md)) : marked.parse(d.summary_md);
+    if (window.marked && window.DOMPurify && d.summary_md) {
+      summaryEl.innerHTML = DOMPurify.sanitize(marked.parse(d.summary_md));
     } else {
       summaryEl.textContent = d.summary_md || "";
     }

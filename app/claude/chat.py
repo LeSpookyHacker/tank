@@ -237,6 +237,10 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
         iteration += 1
         if iteration > 8:
             log.warning("chat loop hit iteration cap (8)")
+            publish(topic, "warning", {
+                "message": "Tool-use loop capped at 8 iterations. "
+                           "The response may be incomplete.",
+            })
             break
 
         stream_cm = await loop.run_in_executor(None, _run_stream)

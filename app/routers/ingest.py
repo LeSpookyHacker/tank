@@ -39,6 +39,11 @@ def _do_ingest_file(path: Path, category: str, project_id: str | None = None) ->
         ingest(path, category=category, project_id=project_id)
     except Exception:
         pass  # status='error' already recorded in documents
+    finally:
+        # Clean up temp upload dirs created by ingest_file().
+        # Regular path/repo ingests use the user's own filesystem — don't touch.
+        if "tank-upload-" in str(path.parent):
+            shutil.rmtree(path.parent, ignore_errors=True)
     if project_id:
         from app.storage.projects_store import touch_activity
         touch_activity(project_id)

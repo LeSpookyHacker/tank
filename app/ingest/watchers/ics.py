@@ -30,6 +30,11 @@ _MAX_ICS_BYTES = 10 * 1024 * 1024  # 10 MB
 def _is_private_addr(ip_str: str) -> bool:
     try:
         addr = ipaddress.ip_address(ip_str)
+        # Unwrap IPv4-mapped IPv6 addresses (::ffff:169.254.169.254) before
+        # checking — on Python 3.9 these return False for is_private/is_link_local
+        # but connect to the underlying IPv4 address.
+        if addr.version == 6 and addr.ipv4_mapped:
+            return _is_private_addr(str(addr.ipv4_mapped))
         return addr.is_private or addr.is_loopback or addr.is_link_local
     except ValueError:
         return False
@@ -44,11 +49,11 @@ def _validate_url(url: str) -> None:
         raise ValueError("missing host in URL")
     if host in _BLOCKED_HOSTS:
         raise ValueError(f"blocked metadata host: {host}")
-    # Check IP literals directly.
+    # Check IP literals directly (uses _is_private_addr to handle IPv4-mapped IPv6).
     try:
-        addr = ipaddress.ip_address(host)
-        if addr.is_private or addr.is_loopback or addr.is_link_local:
+        if _is_private_addr(host):
             raise ValueError(f"blocked private address: {host}")
+        ipaddress.ip_address(host)   # raises ValueError if not a valid IP literal
         return  # valid public IP literal
     except ValueError as exc:
         if "blocked" in str(exc):

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import logging
+import os
+import secrets as _secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -46,6 +49,12 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains"
+        )
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+        )
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; "
@@ -57,6 +66,31 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(_SecurityHeadersMiddleware)
+
+
+# ── Optional API-key gate (VULN-001) ──────────────────────────────────────────
+# Set TANK_API_KEY in .env to require the key on every request.
+# Exempted: /healthz, /static/* (no sensitive data served there).
+# The browser UI sends the key via the X-Tank-Key header (set in base.html).
+_TANK_API_KEY = os.environ.get("TANK_API_KEY", "").strip()
+
+_AUTH_EXEMPT_PREFIXES = ("/healthz", "/static/")
+
+
+class _APIKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if not _TANK_API_KEY:
+            return await call_next(request)
+        path = request.url.path
+        if any(path == p or path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES):
+            return await call_next(request)
+        provided = request.headers.get("X-Tank-Key", "")
+        if not _secrets.compare_digest(provided, _TANK_API_KEY):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        return await call_next(request)
+
+
+app.add_middleware(_APIKeyMiddleware)
 
 
 @app.get("/healthz")
