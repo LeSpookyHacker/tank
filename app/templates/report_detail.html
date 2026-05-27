@@ -38,12 +38,13 @@
   (function () {
     var raw = {{ report.content_md | tojson }};
     var el = document.getElementById("report-md-output");
+    var _safe = function(md) { return window.DOMPurify ? DOMPurify.sanitize(marked.parse(md)) : marked.parse(md); };
     if (window.marked && el) {
-      el.innerHTML = marked.parse(raw);
+      el.innerHTML = _safe(raw);
     } else {
       // marked not yet loaded (defer) — render after load
       window.addEventListener("load", function () {
-        if (window.marked && el) el.innerHTML = marked.parse(raw);
+        if (window.marked && el) el.innerHTML = _safe(raw);
       });
     }
   })();

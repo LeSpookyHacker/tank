@@ -290,8 +290,8 @@ def execute_tool(name: str, args: dict[str, Any]) -> dict | list:
     """Execute a tool call locally. Returns JSON-serializable output."""
     if name == "search_kb":
         hits = hybrid_search(
-            args["query"],
-            k=int(args.get("top_k", 10)),
+            str(args.get("query", ""))[:500],
+            k=max(1, min(25, int(args.get("top_k", 10)))),
             type_filter=args.get("type_filter"),
         )
         return {

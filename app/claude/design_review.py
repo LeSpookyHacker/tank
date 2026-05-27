@@ -104,7 +104,8 @@ def _generate_intake(title: str, redacted_freewrite: str
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user",
                        "content": [
-                           {"type": "text", "text": f"# {title}"},
+                           {"type": "text",
+                            "text": f"# {apply_redactions(title).redacted_text}"},
                            {"type": "text", "text": redacted_freewrite},
                            {"type": "text",
                             "text": "Produce the structured intake."},

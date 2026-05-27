@@ -303,7 +303,7 @@ async function generateBrief() {
 
     const summaryEl = document.getElementById("brief-summary");
     if (window.marked && d.summary_md) {
-      summaryEl.innerHTML = marked.parse(d.summary_md);
+      summaryEl.innerHTML = window.DOMPurify ? DOMPurify.sanitize(marked.parse(d.summary_md)) : marked.parse(d.summary_md);
     } else {
       summaryEl.textContent = d.summary_md || "";
     }

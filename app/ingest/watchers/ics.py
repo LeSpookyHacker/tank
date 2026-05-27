@@ -8,9 +8,11 @@ upcoming weekly schedule.
 """
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
 import time
+import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime
@@ -19,6 +21,24 @@ from typing import Iterable
 from app.db import LOCK, get_conn
 
 log = logging.getLogger("tank.watchers.ics")
+
+_BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal"}
+
+
+def _validate_url(url: str) -> None:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"unsupported scheme: {parsed.scheme}")
+    host = parsed.hostname or ""
+    if host in _BLOCKED_HOSTS:
+        raise ValueError(f"blocked metadata host: {host}")
+    try:
+        addr = ipaddress.ip_address(host)
+        if addr.is_private or addr.is_loopback or addr.is_link_local:
+            raise ValueError(f"blocked private address: {host}")
+    except ValueError as exc:
+        if "blocked" in str(exc):
+            raise
 
 
 _EVENT_BLOCK_RE = re.compile(
@@ -71,6 +91,7 @@ class ICSWatcher:
     def scan(self, watcher: dict) -> dict:
         url = watcher["target"]
         try:
+            _validate_url(url)
             with urllib.request.urlopen(url, timeout=15) as resp:
                 ics_text = resp.read().decode("utf-8", errors="replace")
         except Exception as exc:
