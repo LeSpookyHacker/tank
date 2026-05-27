@@ -12,6 +12,55 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-05-27] — Security hardening: adversarial audit passes 1–3 (34 vulnerabilities)
+
+### Security
+
+**Pass 1 — Authentication, CSRF, headers, cleanup (11 findings)**
+
+- **VULN-001 (High):** Added `TANK_API_KEY` middleware — when the env var is set, all requests except `/healthz` and `/static/*` require an `X-Tank-Key` header; uses `secrets.compare_digest` to prevent timing attacks (`main.py`)
+- **VULN-002 (High):** CSRF hardening on `/api/wipe` — now requires `X-Confirm: delete-tank` custom header; browsers cannot forge custom headers in cross-site form submissions (`settings.py`)
+- **VULN-003 (Medium):** ReDoS prevention — custom redaction patterns now validated via `signal.SIGALRM` with a 1-second deadline; tests run at 40, 100, and 200 chars of adversarial `a...!` input to catch patterns that pass short-string tests but backtrack catastrophically on longer inputs (`redact/config.py`)
+- **VULN-004 (Medium):** SSRF / DNS rebinding — ICS watcher now resolves DNS once, stores the IP, and passes it via `urllib.request.Request` with an explicit `Host` header; added `ipv4_mapped` check for IPv4-mapped IPv6 addresses (`ics.py`)
+- **VULN-005 (Medium):** Prompt injection labeling — KB chunks now wrapped in a structural delimiter in the system prompt marking them as untrusted user data (`claude/caching.py`)
+- **VULN-006 (Medium):** LLM tool-use cap surfaced — chat loop iteration-cap warning now emitted as a user-visible SSE event in addition to the server log (`claude/chat.py`)
+- **VULN-007 (Medium):** CSP `fonts.googleapis.com` removed from `script-src` — it serves fonts, not scripts; `style-src` unchanged (`main.py`)
+- **VULN-008 (Low):** Temporary ingest files cleaned up — `_do_ingest_file` now deletes the temp directory in a `finally` block after every ingest attempt, success or failure (`routers/ingest.py`)
+- **VULN-009 (Low):** `placeholder_fmt` format-string injection — custom redaction rule placeholder validated against `^\[?[A-Z0-9_]+\{n(?::\d+d)?\}\]?$` before storage (`redact/store.py`, `routers/settings.py`)
+- **VULN-010 (Low):** Added `Strict-Transport-Security` and `Permissions-Policy` headers to `_SecurityHeadersMiddleware` (`main.py`)
+- **VULN-011 (Info):** `tenure_day` removed from `/healthz` response to avoid leaking internal state to any network-exposed probe
+
+**Pass 2 — Privacy contract, parser bombs, input bounds (10 findings)**
+
+- **Redaction bypass (High):** Reports scope block (`_build_scope_block`), `questions_for()`, and `risk_register()` now call `apply_redactions()` on entity names, descriptions, and owner names before Claude calls (`claude/reports.py`)
+- **Parser bomb (Medium):** Ingest pipeline hard-caps file size at 50 MB before any parsing begins (`ingest/pipeline.py`)
+- **Parser bomb (Medium):** PDF parser capped at 2,000 pages; `PdfReader` wrapped in try/except to handle malformed archives gracefully (`ingest/parsers/pdf.py`)
+- **Parser bomb (Medium):** DOCX parser wraps `docx.Document()` in try/except; malformed ZIP archives (decompression bombs) are caught and return an empty `ParsedDocument` (`ingest/parsers/docx.py`)
+- **Parser bomb (Low):** CSV parser bounded at 50,000 rows to prevent memory exhaustion on large dumps (`ingest/parsers/csv_json.py`)
+- **Input bounds (Low):** Entity graph endpoints: `limit` 1–1000, `hops` 1–5, `depth` 1–5 (`routers/entities.py`)
+- **Input bounds (Low):** Decisions endpoints: `within_days` 1–365, `days` 1–730 (`routers/decisions.py`)
+- **Input validation (Low):** Tabletop `threat_kind` capped at 200 chars, `scenario_hook` at 1,000 chars (`routers/tabletops.py`)
+- **Watcher SSRF (Medium):** Integrations router validates watcher kind against an allowlist (`folder`, `ics_url`, `cve_feed`, `github_repo`); folder watcher target validated against blocked system directories (`/etc`, `/proc`, `/sys`, `/dev`, `/root`, `~/.ssh`, `~/.gnupg`) (`routers/integrations.py`)
+- **UI security:** `X-Tank-Key` header injected into all `fetch()` calls and `EventSource` connections by `base.html`; key read from `localStorage` and settable via a new Settings field
+
+**Pass 3 — Redaction bypasses, FTS5 injection, symlink traversal, secret patterns (13 findings)**
+
+- **Redaction bypass (Medium):** Threat model scope block redacts entity names and descriptions (`claude/threat_modeling.py`)
+- **Redaction bypass (Medium):** Decisions context redacts document titles before Claude calls (`claude/decisions.py`)
+- **Redaction bypass (Medium):** Tabletop scenario prompt redacts entity card names and descriptions (`claude/tabletop.py`)
+- **Redaction bypass (Medium):** Meeting prep brief redacts attendee, time, and extras fields (`claude/meeting_prep.py`)
+- **Redaction bypass (Medium):** Philosophy doc context redacts decision titles (`claude/philosophy.py`)
+- **Redaction bypass (Medium):** ATT&CK attack mapping redacts threat titles, descriptions, and service names (`claude/attack_mapping.py`)
+- **Redaction bypass (Medium):** IAM translator redacts policy entity names and descriptions (`claude/iam_translator.py`)
+- **Symlink traversal (Medium):** Folder watcher scan phase resolves symlinks and skips files whose resolved path escapes the watched directory root (`ingest/watchers/folder.py`)
+- **FTS5 operator injection (Medium):** Full-text search queries wrapped in `"..."` phrase quotes (inner `"` doubled) to prevent AND/OR/NOT/`*` operator injection changing query semantics (`kb/search.py`)
+- **Dead code / logic bug (Low):** `graph_for_type()` BFS now correctly respects the `depth` parameter (was dead code before); entity graph traversal properly bounded at the requested depth (`kb/relationships.py`)
+- **Secret detection expansion (Medium):** Added 5 new regex patterns to `_EXTRA_SECRET_RES`: AWS STS session keys (`ASIA[A-Z0-9]{16}`), GitHub fine-grained PATs (`github_pat_...`), GitHub classic PATs (`ghp_...`), GCP API keys (`AIza...`), Azure connection strings (`redact/secrets.py`)
+- **Input bounds (Low):** Nudge snooze hours 1–8760; journal recent days 1–365; attack-surface history limit 1–100; lessons days 1–1825 and limits bounded (`routers/nudges.py`, `routers/journal.py`, `routers/attack_surface.py`, `routers/lessons.py`)
+- **Input validation (Low):** Onboarding cadence `digest_time` validated against `HH:MM` pattern; `reflection_day` restricted to valid weekday names via `Literal` (`routers/onboarding.py`)
+
+---
+
 ## [2026-05-27] — Security audit pass 2
 
 ### Security

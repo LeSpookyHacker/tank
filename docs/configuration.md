@@ -28,6 +28,7 @@ cp .env.example .env
 |----------|------|---------|-------------|
 | `TANK_BIND_HOST` | string | `127.0.0.1` | Host uvicorn listens on. Keep at `127.0.0.1` unless you are putting Tank behind a reverse proxy. Never bind to `0.0.0.0` without a firewall rule in front. |
 | `TANK_BIND_PORT` | integer | `8000` | Port uvicorn listens on. Change if 8000 conflicts with another service. |
+| `TANK_API_KEY` | string | `""` (disabled) | Optional static API key. When set, **every** HTTP request to Tank must include an `X-Tank-Key: <value>` header matching this value (compared via `secrets.compare_digest` to prevent timing attacks). Exempted paths: `/healthz`, `/static/*`. The browser UI reads the key from `localStorage` and injects the header automatically. Strongly recommended if `TANK_BIND_HOST` is changed from `127.0.0.1`. Generate a secure key with: `python3 -c "import secrets; print(secrets.token_hex(32))"`. |
 
 ### Redaction
 
@@ -86,6 +87,9 @@ ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
 # Keep 127.0.0.1 unless you put Tank behind a reverse proxy.
 TANK_BIND_HOST=127.0.0.1
 TANK_BIND_PORT=8000
+# Optional API key — strongly recommended if TANK_BIND_HOST is not 127.0.0.1.
+# Generate: python3 -c "import secrets; print(secrets.token_hex(32))"
+# TANK_API_KEY=your-64-char-hex-token-here
 
 # ── Redaction ─────────────────────────────────────────────────────────────────
 # Replace with your employer's internal domain.
