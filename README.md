@@ -197,7 +197,7 @@ CVSS estimate, description, mitigation, OWASP/CWE references.
 ## Quickstart (laptop)
 
 ```bash
-git clone <repo-url> tank
+git clone https://github.com/LeSpookyHacker/tank.git tank
 cd tank
 cp .env.example .env                # paste your ANTHROPIC_API_KEY
 ./scripts/start.sh                  # creates .venv, installs deps, inits DB, runs uvicorn
@@ -220,7 +220,7 @@ designed around.
 
 ```bash
 # On the VM, one-time:
-git clone <repo-url> ~/projects/tank
+git clone https://github.com/LeSpookyHacker/tank.git ~/projects/tank
 cd ~/projects/tank
 cp .env.example .env                       # paste ANTHROPIC_API_KEY
 echo 'TANK_ENV=prod' >> .env               # never run --reload under a supervisor
@@ -521,14 +521,19 @@ the outside. Same energy.
 
 The full docs live in [docs/](docs/):
 
+- [docs/quickstart.md](docs/quickstart.md) — zero to running in 10 minutes
 - [docs/installation.md](docs/installation.md) — local + VM install + systemd
-- [docs/first-run.md](docs/first-run.md) — onboarding walkthrough
+- [docs/configuration.md](docs/configuration.md) — all environment variables, annotated `.env` example
+- [docs/concepts.md](docs/concepts.md) — core mental model: entities, chunks, lens, projects
+- [docs/first-run.md](docs/first-run.md) — onboarding wizard walkthrough
 - [docs/using-tank.md](docs/using-tank.md) — day-to-day workflows
 - [docs/architecture.md](docs/architecture.md) — internals deep-dive
 - [docs/features/](docs/features/) — per-phase feature reference (includes [projects](docs/features/projects.md), [DFD analysis](docs/features/dfd-analysis.md), [threat models](docs/features/threat-models-decisions.md), [security program + risk register + IR runbooks](docs/features/security-program.md), and more)
 - [docs/operations.md](docs/operations.md) — running on a VM, backups, healthz, scheduler
 - [docs/faq.md](docs/faq.md) — common questions
 - [docs/troubleshooting.md](docs/troubleshooting.md) — known issues and fixes
+- [docs/contributing.md](docs/contributing.md) — dev setup, tests, PR process
+- [CHANGELOG.md](CHANGELOG.md) — version history
 
 Future-Claude / future-you: [CLAUDE.md](CLAUDE.md) has architecture guidance
 for when you're working on the codebase.

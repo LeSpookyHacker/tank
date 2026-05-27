@@ -258,3 +258,46 @@ enough to be useful.
 
 No. (Though if you're getting flamed in production, Tank can help
 with the postmortem.)
+
+---
+
+## Performance
+
+### How large can the KB get?
+
+Tank is designed for a single engineer's corpus — typically 50–200 documents and 1–5 repos. At that scale (~10,000–50,000 chunks), retrieval is fast and fits comfortably in 4 GB RAM.
+
+There is no hard limit. Above ~100,000 chunks, you'll see:
+- Slower ingest (the embedding model is the bottleneck — CPU-bound, ~0.5s/chunk)
+- Slightly slower FTS5 queries (still under 100ms in practice)
+- Larger prompt context windows (more tokens retrieved = higher cost per chat turn)
+
+Vector search degrades gracefully — ANN is approximate by design and stays fast at scale.
+
+### What's the slowest operation?
+
+Initial bulk ingest, because entity extraction is rate-limited to 2 concurrent Claude calls. A 200-document corpus takes 20–40 minutes to fully ingest. Subsequent ingests of new documents are fast (seconds to minutes per file).
+
+DFD analysis takes 20–40 seconds (single Claude call, no chunking). Reports take 30–90 seconds each depending on KB size.
+
+### Does Tank get slower over time?
+
+Not noticeably. SQLite in WAL mode handles the data volumes a single user accumulates over 2+ years without degradation. Run `sqlite3 ~/.tank/db.sqlite "VACUUM;"` if you want to reclaim disk space after many ingests/deletions.
+
+---
+
+## Contributing
+
+### How do I report a bug?
+
+Open an issue at [github.com/LeSpookyHacker/tank/issues](https://github.com/LeSpookyHacker/tank/issues). Include: your platform (`uname -a && python3 --version`), the commit (`git rev-parse HEAD`), the full error message, and steps to reproduce. Redact anything personal before posting.
+
+For Claude API errors, run with `TANK_DEBUG_TOKENS=1` and paste the `[tokens]` lines from the console — they show exactly what token counts came back.
+
+### How do I request a feature?
+
+Open an issue describing the problem you're trying to solve, how you'd expect it to work, and which existing Tank pattern it's closest to. For anything that touches what goes to the Anthropic API, include how you'd keep the privacy guarantee intact.
+
+### How do I set up a dev environment?
+
+See [contributing.md](contributing.md) for the full walkthrough — it's a 3-command setup and the test suite runs in under a second.

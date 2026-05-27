@@ -399,13 +399,53 @@ python -m scripts.verify_privacy --db ~/.tank/db.sqlite --fixture-pack
 
 ---
 
+## Enabling debug logging
+
+### Token usage per Claude call
+
+```bash
+TANK_DEBUG_TOKENS=1 uvicorn app.main:app --reload
+```
+
+Every Claude call logs a `[tokens]` line to the console:
+
+```
+INFO:tank.tokens:[tokens] site=chat model=claude-sonnet-4-6 in=4821 out=312 cr=3940 cc=0
+```
+
+`in` = input tokens, `out` = output tokens, `cr` = cache read tokens (discounted ~90%), `cc` = cache creation tokens (~25% surcharge on first write). Use this to understand cost and cache hit rates.
+
+### Full uvicorn logs
+
+Uvicorn emits structured access logs at INFO level by default. To see debug-level application logs:
+
+```bash
+uvicorn app.main:app --reload --log-level debug
+```
+
+### Systemd logs (VM install)
+
+```bash
+# Stream live
+journalctl --user -u tank -f
+
+# Last hour
+journalctl --user -u tank --since "1 hour ago"
+
+# Since last boot
+journalctl --user -u tank -b
+```
+
+---
+
 ## Filing a bug
 
-If you hit something not covered here:
+If you hit something not covered here, open an issue at [github.com/LeSpookyHacker/tank/issues](https://github.com/LeSpookyHacker/tank/issues) with:
 
-1. Capture the logs: `journalctl --user -u tank --since "1 hour ago" > /tmp/tank.log`
-2. Note the version: `git -C ~/projects/tank rev-parse HEAD`
-3. Note your platform: `uname -a && python3 --version`
-4. Redact anything personal from the log before sharing.
-5. Open an issue with the above + a description of what you were
-   doing.
+1. **Platform:** `uname -a && python3 --version`
+2. **Commit:** `git -C ~/projects/tank rev-parse HEAD`
+3. **Error text:** the full stack trace or error message
+4. **Token debug output** (if Claude-related): run with `TANK_DEBUG_TOKENS=1` and paste the `[tokens]` lines
+5. **Logs:** `journalctl --user -u tank --since "1 hour ago" > /tmp/tank.log`
+6. **Steps to reproduce:** what you were doing
+7. Redact anything personal before sharing.

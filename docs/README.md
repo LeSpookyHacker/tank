@@ -14,7 +14,10 @@ top-level [README.md](../README.md) is faster to scan.
 
 | File | What's in it |
 | --- | --- |
+| [quickstart.md](quickstart.md) | Zero to running Tank in 10 minutes |
 | [installation.md](installation.md) | Local laptop install, dev-VM install, systemd unit, SSH tunnel setup |
+| [configuration.md](configuration.md) | All environment variables with defaults and descriptions; annotated `.env` example |
+| [concepts.md](concepts.md) | Core mental model: entities, chunks, lens, projects, nudges |
 | [first-run.md](first-run.md) | The 5-step conversational onboarding walkthrough |
 | [using-tank.md](using-tank.md) | Day-to-day workflows for a security engineer |
 | [architecture.md](architecture.md) | Internals: the three big subsystems, privacy contract, data model |
@@ -22,6 +25,7 @@ top-level [README.md](../README.md) is faster to scan.
 | [operations.md](operations.md) | Running Tank on a dev VM: backups, healthz, scheduler, time zones |
 | [faq.md](faq.md) | Common questions |
 | [troubleshooting.md](troubleshooting.md) | Known issues and fixes |
+| [contributing.md](contributing.md) | Dev environment setup, test suite, code style, PR process |
 | [images/](images/README.md) | Where to drop screenshots when you take them |
 
 ---
@@ -107,5 +111,4 @@ For the change history with tradeoffs and known gaps, see
 
 ## License
 
-TBD — see the top-level [README.md](../README.md) for the current
-status.
+See [README.md](../README.md) for the current license status and acknowledgements.

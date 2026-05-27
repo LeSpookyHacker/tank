@@ -19,7 +19,7 @@ always-on dev VM with systemd (for real use). Pick one.
 ## Local laptop install
 
 ```bash
-git clone <repo-url> tank
+git clone https://github.com/LeSpookyHacker/tank.git tank
 cd tank
 cp .env.example .env             # paste your ANTHROPIC_API_KEY
 ./scripts/start.sh
@@ -91,7 +91,7 @@ ssh you@your-dev-vm
 # Ubuntu/Debian:
 sudo apt update && sudo apt install -y python3.12 python3.12-venv git
 
-git clone <repo-url> ~/projects/tank
+git clone https://github.com/LeSpookyHacker/tank.git ~/projects/tank
 cd ~/projects/tank
 cp .env.example .env
 ```

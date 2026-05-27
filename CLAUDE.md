@@ -12,7 +12,7 @@ frameworks. Tank redacts internal hostnames/emails/IPs/secrets
 locally, builds a typed knowledge graph, and uses Claude Sonnet 4.6
 for:
 
-- Chat with 13 tools over the KB.
+- Chat with 15 tools over the KB.
 - 10 report kinds (threat landscape, cross-service gaps, 30/60/90,
   stakeholder map, questions-for-team, control matrix, on-call
   handoff, weekly security digest, ATT&CK mapping, IAM audit).
