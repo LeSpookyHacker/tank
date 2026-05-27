@@ -76,7 +76,7 @@ Tank ships in phases. The current state:
 | --- | --- | --- |
 | 1 | Skeleton, DB schema, config, start.sh, README | ✅ |
 | 2 | Redaction engine + 28/28 unit tests | ✅ |
-| 2.5 | Helix Robotics sample data pack (26 files, 2 repos, full parser coverage) | ✅ |
+| 2.5 | Helix Robotics sample data — initial pack (26 files, 2 repos, full parser coverage) | ✅ |
 | 3 | Ingestion pipeline (parse → chunk → redact → embed → store) | ✅ |
 | 4 | KB layer (hybrid retrieval + 6 chat tools) | ✅ |
 | 5 | Remaining parsers (DOCX, vision, CSV, repo summary) | ✅ |
@@ -92,6 +92,13 @@ Tank ships in phases. The current state:
 | 15 | Continuous learning (lessons, glossary, ownership, philosophy) | ✅ |
 | Ops | systemd, healthz, weekly backup, retries, durable scheduler state | ✅ |
 | UI  | Nyx theme + day/night toggle | ✅ |
+| 2.1 | Markdown rendering in reports; PDF + Markdown download export | ✅ |
+| 2.2 | Token cost counter fix — all Claude calls tracked across 3 tables | ✅ |
+| 2.3 | Haiku for extraction tasks; `TANK_DEBUG_TOKENS` per-call debug flag | ✅ |
+| 3.1 | App redesign — grouped left sidebar nav, empty states | ✅ |
+| 3.2 | DFD threat modeling — 4-mode input, SSE progress, split-panel workspace, 4 export formats | ✅ |
+| 3.3 | Projects dashboard — color/notes, card grid, detail page, project-scoped chat | ✅ |
+| 3.4 | Sample data expansion — 42 files + 4 DFD Mermaid sources + `seed_db.py` seed script | ✅ |
 
 For the change history with tradeoffs and known gaps, see
 [HISTORY.md](../HISTORY.md).

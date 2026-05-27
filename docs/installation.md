@@ -211,17 +211,31 @@ python -m pytest -q
 ## Ingesting the sample data
 
 Tank ships with synthetic "Helix Robotics" sample data in `sample_data/`
-so you can test all features without exposing real data. First generate
-the binary artifacts (PDF, DOCX, PNG) from their markdown sources:
+so you can test all features without exposing real data. Two scripts are
+required for full coverage:
+
+**Step 1 — file ingest** (exercises all parser types, ~$5-10 in API spend):
 
 ```bash
 source .venv/bin/activate
-python -m scripts._gen_fixtures             # generate PDF/DOCX/PNG
-python -m scripts.load_fixtures --dry-run   # show what would happen
-python -m scripts.load_fixtures             # actual ingest — costs ~$5-10
+python -m scripts._gen_fixtures             # generate PDF/DOCX/PNG (once)
+python -m scripts.load_fixtures --dry-run   # preview what would happen
+python -m scripts.load_fixtures             # actual ingest
 ```
 
-After it runs:
+**Step 2 — DB seed** (living artifacts, no API cost, idempotent):
+
+```bash
+python -m scripts.seed_db
+```
+
+This creates: org name "Helix Robotics", 3 teams, 4 projects, 2 pre-cached
+DFD analyses with 18 STRIDE threats, 4 decisions (2 expiring soon to trigger
+nudges), 10 unconfirmed glossary terms, 5 lessons, 1 tabletop scenario,
+3 journal entries, and 3 follow-ups. Safe to re-run — each section checks
+for existing records before inserting.
+
+**Step 3 — verify the ingest:**
 
 ```bash
 sqlite3 ~/.tank/db.sqlite \
@@ -238,6 +252,13 @@ Then verify nothing leaked:
 python -m scripts.verify_privacy --fixture-pack
 # PRIVACY ASSERTION PASSED. No fixture identifiers found in any redacted field.
 ```
+
+**Step 4 — test the DFD tool:**
+
+Upload any `.mmd` file from `sample_data/dfd/` via the sidebar →
+Pipeline → DFD Analysis → Stage 1 "Upload file" tab. Because `seed_db.py`
+pre-cached the payments-api and identity-svc analyses, those will load
+instantly in Stage 3 with no API call (⚡ cache badge shown).
 
 ---
 

@@ -415,20 +415,35 @@ rm -rf ~/.tank/
 ## Sample data
 
 Tank ships with a synthetic company ("Helix Robotics") in `sample_data/`
-so you can test everything without exposing real data:
+so you can test every feature without exposing real data. Two scripts — one
+for file ingest, one for DB seeding — are needed for full coverage:
 
 ```bash
 source .venv/bin/activate
-python -m scripts._gen_fixtures             # generate PDF/DOCX/PNG from sources
-python -m scripts.load_fixtures --dry-run   # show what would happen
-python -m scripts.load_fixtures             # ingest — ~$5-10 in Anthropic spend
+python -m scripts._gen_fixtures             # generate PDF/DOCX/PNG from sources (once)
+python -m scripts.load_fixtures --dry-run   # preview what would be ingested
+python -m scripts.load_fixtures             # ingest all files — ~$5-10 in Anthropic spend
+python -m scripts.seed_db                   # seed DB records — no API cost
 ```
 
-26 files + 2 small repos (Python FastAPI + Go) covering every parser type
-(Markdown, PDF, DOCX, PNG/vision, CSV, Sigma, IAM policy, control framework,
-and code repo summarization), with planted edge cases that exercise every
-redaction category, contradiction surfacing, gap detection, and coverage feature.
-See `sample_data/README.md` for the full scenario and file list.
+**What's included:**
+
+- **42 files + 2 repos** — Markdown, PDF, DOCX, PNG/vision, CSV, Sigma rules (4),
+  IAM policies (JSON + YAML K8s RBAC), control frameworks (SOC 2 + NIST CSF 2.0),
+  and code repo summarization — every parser type exercised.
+- **4 DFD Mermaid source files** (`sample_data/dfd/`) — ready to upload into the
+  DFD tool's Stage 1 "Upload file" tab. Covers payments-api, identity-svc, pii-vault,
+  and webhook-router.
+- **DB seed** (`scripts/seed_db.py`) — idempotent; seeds: 3 teams, 4 projects, 2
+  pre-cached DFD analyses (18 total STRIDE threats), 4 decisions (2 expiring to
+  trigger nudges), 10 unconfirmed glossary terms, 5 lessons, 1 tabletop scenario,
+  3 journal entries, and 3 follow-ups. Exercises every living-artifact feature with
+  no API calls.
+
+Planted edge cases exercise every redaction category, contradiction surfacing,
+gap detection, expiring decisions, and coverage reporting. See
+`sample_data/README.md` for the full file inventory, scenario, and spot-check
+checklist.
 
 ---
 
@@ -437,7 +452,7 @@ See `sample_data/README.md` for the full scenario and file list.
 | Phase | Status | What |
 | --- | --- | --- |
 | 1-2 | ✅ | Skeleton + redaction engine (28/28 tests) |
-| 2.5 | ✅ | Helix Robotics sample data (26 files + 2 repos, full parser coverage) |
+| 2.5 | ✅ | Helix Robotics sample data — initial pack (26 files + 2 repos, full parser coverage) |
 | 3-7 | ✅ | Ingest, KB, chat, 6 reports |
 | 8 | ✅ | Partner mode (daily companion) |
 | 9-10 | ✅ | UI polish + privacy assertion |
@@ -454,6 +469,7 @@ See `sample_data/README.md` for the full scenario and file list.
 | 3.1 | ✅ | App redesign — grouped left sidebar nav, empty states |
 | 3.2 | ✅ | DFD threat modeling — 4-mode input, SSE progress, split-panel workspace, interactive threat cards, 4 export formats |
 | 3.3 | ✅ | Projects dashboard — color/notes fields, card grid UI, detail page, project-scoped chat |
+| 3.4 | ✅ | Sample data expansion — 16 new files (arch docs, detections, IAM, compliance, runbook, postmortem), 4 DFD Mermaid sources, `seed_db.py` idempotent DB seed for all living-artifact features |
 
 Build history with tradeoffs and known gaps: [HISTORY.md](HISTORY.md).
 

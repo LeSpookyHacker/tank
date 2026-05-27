@@ -196,6 +196,58 @@ add them?").
 
 ---
 
+## Threat modeling a service with DFD (30-60 min, per service)
+
+```
+Sidebar → Pipeline → DFD Analysis → "+ New analysis"
+```
+
+**Stage 1 — get your diagram in.** Four ways:
+
+| Tab | When to use |
+| --- | --- |
+| Paste Mermaid | You have a `.mmd` file or are comfortable writing Mermaid source |
+| Upload file | Drag-drop a `.mmd`, `.png`, or `.jpg` — images go to Claude Vision |
+| From document | Upload an architecture PDF or DOCX — Claude extracts the data flow |
+| From description | Paste a plain-English description — Claude generates Mermaid for you |
+
+Click "Load example" on Tab A to get a reference DFD to start from.
+The sample data pack includes four ready-to-use `.mmd` files in
+`sample_data/dfd/` (payments-api, identity-svc, pii-vault, webhook-router).
+
+**Stage 2 — SSE progress tracker.** Four steps: parsing diagram →
+identifying components → mapping attack surfaces → generating threat
+model. Typically 20-40 seconds.
+
+**Stage 3 — interactive workspace.** Split-panel layout:
+
+- **Left (diagram)**: Mermaid rendered with severity `style` directives.
+  Click a node to filter threats to that element. Hover for element name
+  + threat count. Zoom with `+`/`−` or scroll wheel.
+- **Right (findings)**: Severity summary strip at top. Each threat card
+  shows title, CVSS estimate, STRIDE category, element, description,
+  collapsible mitigation, and OWASP/CWE reference pills. Use the filter
+  pills to focus on Critical/High only or a single STRIDE category.
+  Click "Highlight in diagram →" to cross-link a card to its node.
+
+**Cache**: results are SHA-256 cached — revisiting the same diagram
+loads instantly. The ⚡ badge confirms a cache hit. Click "↺ Run again"
+to force a fresh STRIDE pass.
+
+**Improve diagram**: if the auto-generated Mermaid is missing trust
+boundaries or services Tank knows about, click "Improve diagram" — Tank
+uses your KB to add missing context.
+
+**Exports:**
+
+- **Print / Save as PDF** — professional print layout with cover page,
+  full diagram SVG, threat table, STRIDE 6×4 coverage matrix, Mermaid appendix.
+- **Annotated `.mmd`** — Mermaid source with `style` directives showing severity.
+- **Original `.mmd`** — unmodified input.
+- **JSON** — metadata + elements + full threat objects (CVSS, references, etc.)
+
+---
+
 ## Running a tabletop (60-90 min, periodic)
 
 ```

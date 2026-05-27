@@ -39,7 +39,7 @@ no per-feature doc.
   builder, personal ownership dashboard, security philosophy doc,
   security-focused anniversary retros.
 
-## Update batch (2.1 / 2.2 / 2.3 / 3.1 / 3.2)
+## Update batch (2.1 / 2.2 / 2.3 / 3.1 / 3.2 / 3.3 / 3.4)
 
 - **2.1** — Markdown rendering in all report detail pages (`marked.js`); PDF
   export via `window.print()` with print stylesheet; Markdown file download.
@@ -54,6 +54,16 @@ no per-feature doc.
   (Workspace / Pipeline / Workstreams / System). Empty states added on first
   load. Cost badge moved to sidebar footer.
 - **3.2** — [dfd-analysis.md](dfd-analysis.md) — STRIDE threat modeling for
-  Data Flow Diagrams.
+  Data Flow Diagrams: 4-mode input, 4-step SSE progress tracker, split-panel
+  interactive workspace, threat cards with CVSS + OWASP/CWE references, and
+  4 export formats (PDF, annotated `.mmd`, original `.mmd`, JSON).
 - **3.3** — [projects.md](projects.md) — project dashboard with color/notes
   fields, detail page, last-opened memory, and project-scoped chat context.
+- **3.4** — Sample data expansion: 16 new fixture files covering service-level
+  architecture docs, 3 additional Sigma rules (T1552.005/T1530/T1552.001),
+  over-broad IAM policies with planted findings, NIST CSF 2.0 compliance
+  framework, a PII breach runbook, and a postmortem for webhook-router. Plus
+  `scripts/seed_db.py` — an idempotent DB seed script that populates org/team/
+  project hierarchy, pre-cached DFD analyses (18 STRIDE threats across 2 services),
+  4 decisions, 10 glossary terms, 5 lessons, 1 tabletop, 3 journal entries, and
+  3 follow-ups. Exercises every living-artifact feature with no API cost.

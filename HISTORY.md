@@ -13,6 +13,118 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-26 — Comprehensive sample data expansion (3.4)
+
+### Goal
+
+The existing Helix Robotics fixture set (26 files + 2 repos) exercised the
+ingest pipeline and redaction engine well, but left every living-artifact
+feature untested — no org/team/project hierarchy, no DFD analyses, no
+decisions log, no glossary, no lessons, no tabletop, no journal. The goal
+was to build a **complete** sample dataset that exercises every Tank feature
+before real-employer use.
+
+### What got built
+
+**Track A — 16 new files in `sample_data/`** (ingested by `load_fixtures.py`):
+
+- `architecture/05-identity-svc-detail.md` — OIDC/OAuth2 internals, JWT
+  signing (RS256 + Vault), Redis session store, RDS gap (HELIX-2108: password
+  auth instead of IAM auth), JWKS cache gap (HELIX-2110), rate-limit gap (HELIX-2112).
+- `architecture/06-pii-vault-detail.md` — mTLS-only inbound (payments-api sole
+  caller, CN check at app layer), CMK-encrypted RDS (IAM auth, migrated 2024-Q4),
+  isolated EKS node group ng-pii, no internet egress, break-glass two-person
+  approval. Gap: break-glass audit not automated (HELIX-2095).
+- `people/team-directory.csv` — 18-person roster across 5 teams (Platform
+  Security, AppSec, Threat Intelligence, SRE, Data Engineering). Includes Mei
+  Watanabe (start_date 2026-04-28, the "new hire" persona), Jordan Lee VP Eng,
+  Tom Brandt CTO, Sara Goldstein CEO.
+- `policies/secrets-management.md` — SEC-POL-003: Vault-dynamic requirement,
+  rotation SLA table (8h dynamic / 30d PKI / 90d static), approval workflow,
+  known exemption HELIX-2031 (analytics-pipeline Snowflake static creds).
+- `runbooks/respond-to-pii-breach.md` — 6-step PII breach runbook: assemble,
+  containment (scale down pii-vault, revoke mTLS cert, rotate Vault token, CMK
+  rotation), scope assessment (Vault audit logs + CloudTrail RDS), notification
+  timelines (GDPR 72h, OEM 24h), remediation, post-incident. Includes shell
+  commands and SQL for scope assessment.
+- `postmortems/2025-11-device-cert-exposure.md` — INC-2025-0047, P1. webhook-router
+  set S3 pre-signed URL TTL to 7 days. 240 URLs generated in 6h window; no confirmed
+  exfil. Fix: S3 Object Lock max 10min TTL. Closes the "no postmortem for
+  webhook-router" gap in the original fixture set.
+- `detections/helix-ec2-metadata-ssrf.yml` — Sigma rule: HTTP calls to
+  169.254.169.254 from app processes. ATT&CK T1552.005. References HELIX-1822.
+- `detections/helix-s3-bulk-download.yml` — Sigma rule: >500 S3 GetObject in
+  5 minutes by non-automation principal. ATT&CK T1530.
+- `detections/helix-vault-token-anomaly.yml` — Sigma rule: Vault auth success
+  from IP outside known CIDRs. ATT&CK T1552.001.
+- `iam/analytics-cross-account-role.json` — Cross-account IAM role (staging
+  account 888877776666 assumes into prod 999988887777). Intentionally over-broad:
+  three planted findings (HELIX-2098/2099/2100) for the IAM audit report.
+- `iam/k8s-rbac-pii-vault.yaml` — K8s ServiceAccount + ClusterRole + ClusterRoleBinding
+  + NetworkPolicy for pii-vault-sa. Mild over-permission: `secrets/get` is
+  cluster-wide (HELIX-2101). Tests the YAML IAM parser path.
+- `compliance/controls-nist-csf.json` — NIST CSF 2.0 fragment (8 controls across
+  GV/ID/PR/DE functions) with `helix_implementation` and `gap` fields. Enables
+  cross-framework gap analysis alongside the existing SOC 2 fixture.
+- `dfd/payments-api-dfd.mmd` + `dfd/identity-svc-dfd.mmd` + `dfd/pii-vault-dfd.mmd`
+  + `dfd/webhook-router-dfd.mmd` — four Mermaid DFD source files for manual upload
+  into Stage 1 Tab B of the DFD tool. The `dfd/` directory is excluded from
+  `load_fixtures.py` (not a pipeline-ingest target).
+
+**Track B — `scripts/seed_db.py`** (idempotent, no API calls):
+
+Seeds every living-artifact table through Tank's own store modules (same write
+paths the app uses):
+
+- Org: renames "My Organization" → "Helix Robotics".
+- Teams: Platform Security (purple), AppSec (blue), Threat Intelligence (red).
+- Projects: Auth Hardening Q2 2026 (high, active), PII Data Program (critical,
+  active), Threat Model Coverage (medium, active), SOC 2 Evidence Sprint (medium,
+  archived).
+- DFD analyses: 2 pre-cached entries (`dfd_analyses` table) — payments-api (10
+  STRIDE threats T001–T010, CVSS 3.1–9.8) and identity-svc (8 threats T001–T008).
+  Both are marked `cached=1` so the Stage 3 workspace loads instantly without an
+  API call.
+- Decisions: 4 entries across all four `kind` values. Two have `expires_at` set
+  within the next 36–67 days, which triggers the `decision_expiring` nudge on boot.
+- Glossary: 10 terms, all `confirmed=False`, to exercise the confirmation UX.
+- Lessons: 5 entries extracted from postmortem + design-review patterns, tagged
+  across `vault`, `pii`, `s3`, `incident-response`, `gdpr`, `cmdb`, `oncall`.
+- Tabletop: "Ransomware via compromised analytics pipeline" — 4 timed injects
+  from AssumeRole anomaly (T+0) through ransom email (T+25m).
+- Journal: 3 entries from Mei Watanabe's first weeks (2026-04-28, 2026-05-07,
+  2026-05-19), inserted with historical `date_label` via direct DB write (bypasses
+  the `upsert_for_today` constraint).
+- Follow-ups: 3 entries due in 7/14/30 days — HELIX-2108 RDS IAM auth, HELIX-1822
+  SSRF fix timeline, annual Stripe SOC 2 report.
+
+**Documentation:**
+
+- `sample_data/README.md` — complete rewrite: full file inventory with tree,
+  parser coverage table (all 10 parser types now), living-artifacts seed table,
+  edge-case table (now 17 planted items), open-issues cross-reference table,
+  and 13-item verification spot-check checklist.
+- Root `README.md` — sample data section updated: new counts, all three script
+  steps, summary of what's included.
+- `docs/installation.md` — 4-step sample data ingest section with `seed_db.py`
+  and DFD test instructions.
+- `docs/using-tank.md` — new "Threat modeling a service with DFD" workflow section.
+- `docs/README.md` — phase table updated to include 2.1/2.2/2.3/3.1/3.2/3.3/3.4.
+- `docs/features/README.md` — 3.4 entry added.
+
+### Tradeoffs / known gaps
+
+- `seed_db.py` inserts journal entries with historical dates via direct SQL
+  (bypasses `upsert_for_today`). This is the only place Tank writes journal rows
+  outside the store module. Acceptable for a seed script.
+- DFD `.mmd` files are intentionally excluded from `load_fixtures.py`. The DFD
+  tool's ingest path is the Stage 1 upload UI, not the pipeline. The seed script
+  pre-populates the analysis results so the UI shortcircuits straight to Stage 3.
+- NIST CSF fixture is a fragment (8 controls, not the full 106). Enough to exercise
+  cross-framework gap analysis without ballooning the token cost of a full ingest.
+
+---
+
 ## 2026-05-26 — DFD & Threat Model Revamp (3.2 rewrite)
 
 ### Goal
