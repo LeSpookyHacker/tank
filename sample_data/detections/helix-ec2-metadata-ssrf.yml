@@ -1,0 +1,38 @@
+title: Helix Robotics — EC2 Instance Metadata SSRF Attempt
+status: experimental
+description: >
+  Detects HTTP requests to the EC2 instance metadata service (169.254.169.254)
+  originating from application processes. Helix services run on EKS (IMDSv2
+  required), but a successful SSRF from a web-facing service (e.g., webhook-router
+  parsing customer-provided URLs) could allow credential theft.
+
+  Open risk: HELIX-1822 — webhook-router does not deny private IP ranges on
+  outbound HTTP calls. A malicious OEM customer could craft a webhook URL pointing
+  to 169.254.169.254 to retrieve the EKS node's IAM role credentials.
+logsource:
+  product: aws
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    errorCode|startswith: Client.
+    requestParameters.url|contains: "169.254.169.254"
+  selection_proxy:
+    userAgent|contains:
+      - "webhook-router"
+      - "orders-api"
+      - "python-requests"
+      - "go-http-client"
+  condition: selection or selection_proxy
+falsepositives:
+  - IMDSv2 token refresh from legitimate service (these should not appear in CloudTrail)
+  - Security scanners running SSRF detection tests (coordinate with security team)
+level: high
+tags:
+  - attack.credential_access
+  - attack.t1552.005
+  - helix.ssrf
+  - helix.webhook-router
+references:
+  - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+  - https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html

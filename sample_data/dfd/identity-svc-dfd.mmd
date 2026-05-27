@@ -1,0 +1,38 @@
+flowchart TD
+  subgraph internet["Internet (Untrusted)"]
+    Browser([End User / Browser\nOAuth2 Client])
+    Device([OEM Device\nM2M client_credentials])
+    Okta([Okta IdP\nSSO Federation])
+  end
+
+  subgraph vpc["VPC — prod account 999988887777 / us-west-2"]
+    subgraph dmz["DMZ Subnet"]
+      ALB[ALB / WAF\nTLS + WAF Rules\nVPN for /admin/*]
+    end
+
+    subgraph app_tier["App Tier — EKS ng-general"]
+      IdSvc[identity-svc\nGo / OIDC Provider\nTier-0 Critical]
+      Admin[Admin Dashboard\n/admin/* endpoints\nMFA-gated]
+    end
+
+    subgraph data_tier["Data Tier — Private Subnet"]
+      DB[(identity-prod-pg\nRDS PostgreSQL\nPassword auth via Vault\nNOT IAM auth — HELIX-2108)]
+      Redis[(Redis / ElastiCache\nSession + rate-limit store\nNo auth — VPC-private)]
+    end
+
+    subgraph secrets["Secrets / Infra"]
+      Vault[HashiCorp Vault\nJWT signing key\nDynamic DB creds\nAudit log]
+    end
+  end
+
+  Browser -->|"HTTPS — authorization code PKCE"| ALB
+  Device -->|"HTTPS — client_credentials"| ALB
+  ALB -->|"HTTPS"| IdSvc
+  ALB -->|"HTTPS — VPN CIDR only"| Admin
+  IdSvc -->|"Vault Agent IRSA\nFetch JWT signing key\nRotate DB creds"| Vault
+  IdSvc -->|"TLS + dynamic password\n(Vault lease 24h fallback)\nNOT IAM auth"| DB
+  IdSvc -->|"TLS — no auth\nVPC-private only\nSession + rate-limit"| Redis
+  IdSvc -->|"HTTPS — OIDC federation\nSSO login redirect"| Okta
+  Admin -->|"TLS + dynamic password\n(same RDS instance)"| DB
+  Vault -->|"Dynamic PostgreSQL creds\n(TTL 8h)"| IdSvc
+  Vault -->|"RS256 private signing key\n(never leaves Vault — sign API)"| IdSvc

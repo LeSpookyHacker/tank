@@ -1,0 +1,29 @@
+flowchart TD
+  subgraph callers["Authorized Callers Only"]
+    PaymentsAPI[payments-api\nSole authorized caller\nmTLS CN=payments-api]
+  end
+
+  subgraph admin_path["Break-glass Admin Path\n(two-person approval required)"]
+    BreakGlass([Security Engineer\nVault break-glass token])
+  end
+
+  subgraph isolated_vpc["Isolated VPC — prod account 999988887777"]
+    subgraph isolated_node["EKS ng-pii — Dedicated Node Group"]
+      PiiV[pii-vault\nPython\nTier-2 Critical\nNo internet egress\nNo SSH / exec access]
+    end
+
+    subgraph infra["Secrets / Audit"]
+      Vault[HashiCorp Vault\nAppRole auth\nAudit log → Datadog\nBreak-glass alerts — MANUAL ONLY\nHELIX-2095]
+    end
+
+    subgraph pii_data["Isolated Data Tier"]
+      DB[(pii-prod-pg\nRDS PostgreSQL\nCMK encryption alias/helix-pii-prod\nIAM auth — migrated 2024-Q4\nIsolated subnet no cross-routing)]
+    end
+  end
+
+  PaymentsAPI -->|"mTLS + Vault bearer token\nCN check at app layer\nPort 443 only"| PiiV
+  PiiV -->|"AppRole auth\nRead pii-vault policy\nAudit every call"| Vault
+  PiiV -->|"IAM auth\nVault db role pii-vault-db-role\nSELECT INSERT UPDATE DELETE\npii schema only"| DB
+  Vault -->|"Dynamic DB creds TTL 1h\nAudit log"| PiiV
+  BreakGlass -->|"Break-glass token\ntwo-person approval\nAudit logged"| Vault
+  Vault -->|"Admin DB creds\nBreak-glass only"| DB

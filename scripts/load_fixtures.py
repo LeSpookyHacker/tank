@@ -36,12 +36,16 @@ def categorize(path: Path) -> str | None:
 
     if top == "README.md" or rel.name == "README.md" and len(parts) == 1:
         return None      # top-level readme is not ingested
+    if rel.name == "README.md":
+        return None      # per-subdirectory READMEs are meta-docs, not content
     if rel.name == "company.md":
         return "people_process"
     if top == "architecture":
         return "architecture"
     if top == "repos":
         return None      # repos are handled at the directory level (see plan_repo_ingest)
+    if top == "dfd":
+        return None      # DFD Mermaid source files — upload manually into Tank's DFD tool
     if top == "cmdb":
         return "cmdb"
     if top in {"people", "policies", "runbooks", "postmortems", "seeds"}:
@@ -49,7 +53,7 @@ def categorize(path: Path) -> str | None:
     if top == "detections":
         return "architecture"
     if top == "iam":
-        return "cmdb"
+        return "cmdb"    # covers .json AND .yaml IAM/RBAC files (content-sniffed)
     if top == "compliance":
         return "people_process"
     return None

@@ -1,0 +1,19 @@
+name,email,role,team,manager_email,slack_handle,office,start_date
+Sara Goldstein,sara.goldstein@helixrobotics.com,CEO,Executive,,@sara,Austin,2019-03-01
+Tom Brandt,tom.brandt@helixrobotics.com,CTO,Executive,sara.goldstein@helixrobotics.com,@tom,Austin,2019-06-15
+Jordan Lee,jordan.lee@helixrobotics.com,VP Engineering,Engineering,tom.brandt@helixrobotics.com,@jordan,Austin,2021-02-01
+Priya Shah,priya.shah@helixrobotics.com,Director of Engineering Platform,Engineering,jordan.lee@helixrobotics.com,@priya,Austin,2022-05-10
+Marcus Chen,marcus.chen@helixrobotics.com,Staff Engineer Identity,Identity,priya.shah@helixrobotics.com,@marcus,Seattle,2021-08-01
+Sam Liu,sam.liu@helixrobotics.com,Staff Engineer Payments,Payments,priya.shah@helixrobotics.com,@samliu,Austin,2022-01-15
+Lukas Bauer,lukas.bauer@helixrobotics.com,Staff Engineer Frontend,Frontend,jordan.lee@helixrobotics.com,@lukas,Lisbon,2022-07-01
+Yui Tanaka,yui.tanaka@helixrobotics.com,Senior Engineer Platform,Platform,priya.shah@helixrobotics.com,@yui,Seattle,2023-03-20
+Alice Tanaka,alice.tanaka@helixrobotics.com,SRE Lead,SRE,priya.shah@helixrobotics.com,@alice,Austin,2022-09-01
+Carlos Reyes,carlos.reyes@helixrobotics.com,Senior SRE,SRE,alice.tanaka@helixrobotics.com,@carlos,Austin,2023-06-01
+Diana Okoro,diana.okoro@helixrobotics.com,Security Engineer Detection and Response,Security,tom.brandt@helixrobotics.com,@diana,Austin,2023-01-09
+Mei Watanabe,mei.watanabe@helixrobotics.com,Senior Security Engineer,Security,tom.brandt@helixrobotics.com,@mei,Austin,2026-04-28
+Raj Patel,raj.patel@helixrobotics.com,FinOps Lead,Finance,jordan.lee@helixrobotics.com,@raj,Austin,2023-09-01
+Fatima Al-Amin,fatima.al-amin@helixrobotics.com,Data Engineering Lead,Data,priya.shah@helixrobotics.com,@fatima,Lisbon,2023-04-01
+Ben Cho,ben.cho@helixrobotics.com,Senior Engineer Payments,Payments,sam.liu@helixrobotics.com,@bencho,Austin,2024-01-10
+Sophia Petrov,sophia.petrov@helixrobotics.com,Engineer Identity,Identity,marcus.chen@helixrobotics.com,@sophia,Seattle,2024-06-01
+Kwame Asante,kwame.asante@helixrobotics.com,Engineer Platform,Platform,yui.tanaka@helixrobotics.com,@kwame,Austin,2024-09-15
+Lena Fischer,lena.fischer@helixrobotics.com,Engineer Frontend,Frontend,lukas.bauer@helixrobotics.com,@lena,Lisbon,2025-02-01

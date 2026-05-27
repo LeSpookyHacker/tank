@@ -1,0 +1,37 @@
+title: Helix Robotics — Vault Token Login from Unexpected IP
+status: experimental
+description: >
+  Detects HashiCorp Vault authentication events (token login or AppRole login)
+  from an IP address outside Helix's known CIDR ranges. Vault is not internet-
+  exposed, but a compromised VPN or bastion could allow an attacker to authenticate
+  with a stolen Vault token from an unusual IP within the tunnel.
+
+  This is particularly sensitive for pii-vault's AppRole credentials, where
+  a stolen role_id + secret_id pair would give access to customer billing addresses.
+logsource:
+  product: vault
+  category: authentication
+detection:
+  selection:
+    event.type|startswith: "auth/"
+    event.status: success
+  filter_known_cidrs:
+    remote_address|cidr:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+      - "52.34.0.0/16"
+  condition: selection and not filter_known_cidrs
+falsepositives:
+  - Vault admin connecting via a new VPN endpoint (verify in #security-ops)
+  - Developer using split-tunnel VPN with unexpected egress IP
+  - Automated rotation job running from a new Lambda/ECS task with different IP
+level: medium
+tags:
+  - attack.credential_access
+  - attack.t1552.001
+  - helix.vault
+  - helix.pii-vault
+references:
+  - https://developer.hashicorp.com/vault/docs/audit
+  - https://attack.mitre.org/techniques/T1552/001/
