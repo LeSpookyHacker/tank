@@ -26,6 +26,8 @@ from app.storage import (
 
 log = logging.getLogger("tank.ingest")
 
+_MAX_INGEST_BYTES = 50 * 1024 * 1024  # 50 MB hard cap; protects all parsers
+
 
 # ---------------- helpers ----------------
 
@@ -65,6 +67,12 @@ def ingest(path: str | Path, *, category: str,
            kind_override: str | None = None) -> str:
     """Ingest one file. Returns the document_id (existing or new)."""
     path = Path(path).resolve()
+    file_size = path.stat().st_size
+    if file_size > _MAX_INGEST_BYTES:
+        raise ValueError(
+            f"file too large to ingest ({file_size:,} bytes; "
+            f"maximum is {_MAX_INGEST_BYTES:,} bytes)"
+        )
     sha, size = _sha256_file(path)
     existing = documents_store.find_by_sha256(sha)
     if existing:

@@ -1,7 +1,7 @@
 """Decisions log endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -38,12 +38,14 @@ async def list_filtered(kind: str | None = None,
 
 
 @api.get("/expiring")
-async def expiring(within_days: int = 7) -> dict:
+async def expiring(
+    within_days: int = Query(default=7, ge=1, le=365),
+) -> dict:
     return {"decisions": decisions_store.expiring_soon(within_days=within_days)}
 
 
 @api.get("/recent")
-async def recent(days: int = 30) -> dict:
+async def recent(days: int = Query(default=30, ge=1, le=730)) -> dict:
     return {"decisions": decisions_store.recent(days=days)}
 
 

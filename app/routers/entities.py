@@ -1,7 +1,7 @@
 """Entity browser + graph API."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -48,7 +48,10 @@ async def entity_detail(request: Request, entity_id: str):
 # ---------------- API ----------------
 
 @router.get("/api/entities")
-async def list_entities(type: str | None = None, limit: int = 100) -> dict:
+async def list_entities(
+    type: str | None = None,
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> dict:
     return {
         "counts": entities_store.count_by_type(),
         "entities": kb_entities.list_by_type(type, limit=limit) if type else [],
@@ -64,10 +67,16 @@ async def get_entity(entity_id: str) -> dict:
 
 
 @router.get("/api/entities/{entity_id}/graph")
-async def entity_graph(entity_id: str, hops: int = 1) -> dict:
+async def entity_graph(
+    entity_id: str,
+    hops: int = Query(default=1, ge=1, le=5),
+) -> dict:
     return kb_relationships.traverse(entity_id, hops=hops)
 
 
 @router.get("/api/entities-graph")
-async def graph_overview(type: str = "Service", depth: int = 2) -> dict:
+async def graph_overview(
+    type: str = "Service",
+    depth: int = Query(default=2, ge=1, le=5),
+) -> dict:
     return kb_relationships.graph_for_type(type, depth=depth)

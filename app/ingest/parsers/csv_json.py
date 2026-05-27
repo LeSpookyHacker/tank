@@ -26,13 +26,20 @@ class CSVJSONParser(Parser):
             return self._parse_json(path)
         raise ValueError(f"CSVJSONParser cannot handle {ext}")
 
+    _MAX_CSV_ROWS = 50_000
+
     def _parse_csv(self, path: Path) -> ParsedDocument:
         sections: list[ParsedSection] = []
         meta: dict = {"size_bytes": path.stat().st_size}
         with path.open("r", encoding="utf-8", errors="replace", newline="") as f:
             reader = csv.DictReader(f)
             meta["columns"] = reader.fieldnames or []
-            rows = list(reader)
+            rows = []
+            for row in reader:
+                if len(rows) >= self._MAX_CSV_ROWS:
+                    meta["rows_truncated"] = True
+                    break
+                rows.append(row)
         meta["row_count"] = len(rows)
 
         # Header section so the chunker can give the LLM column context.

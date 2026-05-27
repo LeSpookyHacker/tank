@@ -10,14 +10,26 @@ from pathlib import Path
 
 from app.ingest.parsers._base import ParsedDocument, ParsedSection, Parser
 
+_MAX_PAGES = 2000
+
 
 class PDFParser(Parser):
     def parse(self, path: Path) -> ParsedDocument:
         from pypdf import PdfReader
-        reader = PdfReader(str(path))
+        try:
+            reader = PdfReader(str(path))
+        except Exception as exc:
+            return ParsedDocument(
+                kind="pdf", title=path.stem, sections=[],
+                meta={"size_bytes": path.stat().st_size,
+                      "parse_error": str(exc)},
+            )
         sections: list[ParsedSection] = []
         skipped_pages: list[int] = []
         for i, page in enumerate(reader.pages):
+            if i >= _MAX_PAGES:
+                skipped_pages.append(f"{i + 1}+")
+                break
             try:
                 text = page.extract_text() or ""
             except Exception:

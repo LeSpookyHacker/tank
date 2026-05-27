@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.claude import tabletop as tabletop_helper
 from app.config import TEMPLATES_DIR
@@ -17,8 +17,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 class GenerateRequest(BaseModel):
     service_id: str | None = None
-    threat_kind: str | None = None
-    scenario_hook: str | None = None
+    threat_kind: str | None = Field(default=None, max_length=200)
+    scenario_hook: str | None = Field(default=None, max_length=1000)
 
 
 class LessonsCapture(BaseModel):

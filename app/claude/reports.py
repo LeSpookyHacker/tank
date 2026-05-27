@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from app.claude.event_bus import publish
 from app.config import MODEL, get_client, load_prompt
 from app.kb.entities import get_card, list_by_type
-from app.redact.engine import rehydrate
+from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
 from app.role import get_state
 from app.schemas import (ControlMatrix, ControlMatrixRow,
@@ -44,8 +44,10 @@ def _build_scope_block(service_id: str | None = None,
     if service_id:
         card = get_card(service_id)
         if card:
-            parts.append(f"### Primary service: {card['name']}")
-            parts.append(f"description: {card.get('description') or '—'}")
+            svc_name = apply_redactions(card['name']).redacted_text
+            svc_desc = apply_redactions(card.get('description') or '').redacted_text
+            parts.append(f"### Primary service: {svc_name}")
+            parts.append(f"description: {svc_desc or '—'}")
             parts.append(f"attrs: {card.get('attrs')}")
             for ch in card.get("linked_chunks", []):
                 parts.append(
@@ -63,9 +65,11 @@ def _build_scope_block(service_id: str | None = None,
             continue
         parts.append(f"### {t} ({len(rows)})")
         for r in rows:
-            line = f"- [{r['id'][:8]}] {r['name']!r}"
+            ent_name = apply_redactions(r['name']).redacted_text
+            line = f"- [{r['id'][:8]}] {ent_name!r}"
             if r.get("description"):
-                line += f" — {(r['description'] or '')[:140]}"
+                ent_desc = apply_redactions(r['description'] or '').redacted_text
+                line += f" — {ent_desc[:140]}"
             parts.append(line)
         parts.append("")
 
@@ -314,18 +318,19 @@ def stakeholder_map() -> str:
 
 
 def questions_for(team_or_person: str) -> str:
+    redacted_who = apply_redactions(team_or_person).redacted_text
     parsed, usage = _run(
         "report_questions_for_team", QuestionList,
         user_task=f"Produce a ranked question list for "
-                  f"interacting with: {team_or_person}",
+                  f"interacting with: {redacted_who}",
     )
     if parsed is None:
         raise RuntimeError("questions_for generation returned no output")
     md = _render_questions(parsed)
     return _finalize(kind="questions_for_team",
-                     title=f"Questions for {team_or_person}",
+                     title=f"Questions for {redacted_who}",
                      content_md_redacted=md, usage=usage,
-                     scope={"team_or_person": team_or_person})
+                     scope={"team_or_person": redacted_who})
 
 
 def control_matrix() -> str:
@@ -466,9 +471,10 @@ def risk_register() -> str:
         if r.get("owner_entity_id"):
             ent = entities_store.get_entity(r["owner_entity_id"])
             if ent:
-                owner_name = ent["name"]
+                owner_name = apply_redactions(ent["name"]).redacted_text
+        redacted_title = apply_redactions(r["title"]).redacted_text
         context_lines.append(
-            f"- [{r['category']}] {r['title']} | inherent={r['inherent_score']} "
+            f"- [{r['category']}] {redacted_title} | inherent={r['inherent_score']} "
             f"residual={r['residual_score']} treatment={r['treatment']} owner={owner_name}"
         )
 
