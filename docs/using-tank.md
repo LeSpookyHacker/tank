@@ -270,6 +270,97 @@ On the tabletop page → "Capture lessons" → bullet list + tags
 
 Each bullet becomes a lesson; tags make them retrievable.
 
+After running a tabletop, a collapsible "Generate IR runbook from
+this scenario" section lets you produce a full 5-phase incident-response
+runbook pre-populated with the tabletop's service and threat kind —
+no re-typing required.
+
+---
+
+## Tracking a risk (formal risk register)
+
+When you identify a risk that needs ongoing tracking (not just a one-off
+decision), add it to the risk register:
+
+```
+/risks → "Add risk"
+```
+
+Fill in title, category (data_breach / availability / supply_chain / …),
+inherent likelihood (1-5) and impact (1-5). Tank immediately queues a
+background KB assessment — Sonnet pulls the service card, threat model,
+and existing decisions and computes:
+
+- **Residual likelihood + impact** (after existing controls)
+- **Recommended treatment** (mitigate / accept / transfer / avoid)
+- **Control gaps** — controls Sonnet expected but didn't find in the KB
+- **Suggested next steps**
+
+Heat colors on the list page: **Critical** (score ≥ 20), **High** (≥ 12),
+**Medium** (≥ 6), **Low** (< 6).
+
+Assessments set a 90-day review deadline; the `risk_review_due` nudge
+appears on the Today dashboard when a deadline passes. Click "Re-assess
+with KB" on the detail page to refresh after ingesting new controls docs.
+
+In chat, ask: *"What are our top residual risks?"* or *"Which access_control
+risks are we accepting?"* — Tank uses the `get_risk_register` tool.
+
+---
+
+## Viewing the security program dashboard
+
+```
+/security-program
+```
+
+Six metric domains render instantly (no Claude call):
+
+| Domain | What you see |
+| --- | --- |
+| Threat models | Total / drifted / updated in 30 days |
+| Vulnerabilities | Open by severity + average age |
+| Risk register | Open risks / overdue reviews |
+| Compliance | Controls with evidence vs. without |
+| Incidents | Postmortems (90d) / open followups |
+| Design reviews | Open / approved (90d) |
+
+**12-week trend**: the Sunday 09:30 scheduler job saves a snapshot; the
+trend table below the cards shows your posture over the past 3 months.
+
+**Executive brief**: click "Generate executive brief" for a Sonnet-written
+1-page summary (green / yellow / red health indicator, key achievements,
+top risks, recommended priorities) suitable for a board or exec-team update.
+Copy the rendered Markdown directly into a slide or doc.
+
+---
+
+## Generating an IR runbook
+
+After a tabletop, postmortem, or whenever you want a written playbook:
+
+```
+/ir-runbooks → fill in service + threat scenario + severity
+```
+
+Tank queries your KB for the service architecture, latest threat model,
+recent postmortems, and relevant detections, then Sonnet generates a
+5-phase playbook:
+
+🔍 **Detect** — signals, alert queries, correlation steps  
+🛑 **Contain** — immediate steps with time-box and decision points  
+🧹 **Eradicate** — root-cause removal + success criteria  
+♻️ **Recover** — restoration, validation, rollback decision points  
+📢 **Comms** — stakeholder notification template + escalation path  
+
+Generation takes 20-60 seconds. After reviewing, click **Confirm** to
+mark it validated — unconfirmed runbooks show a warning badge. Use
+**Print / Save as PDF** for an offline-ready incident binder.
+
+Nudge surfacing: when a postmortem is published, Tank checks whether
+each affected service already has a runbook. Missing ones appear as a
+`missing_ir_runbook` nudge on Today so nothing falls through the cracks.
+
 ---
 
 ## Working with projects
@@ -321,7 +412,7 @@ Tank's chat is available two ways:
 - **Full-screen** (`/chat`) — dedicated chat page; the side panel is
   suppressed here.
 
-Tank has 13 tools:
+Tank has 15 tools:
 
 - `search_kb(query)` — hybrid retrieval over your KB
 - `get_entity(type, name)` / `list_entities(type)` — graph access
@@ -335,6 +426,8 @@ Tank has 13 tools:
 - `find_evidence_for_control(control_id)` — compliance lookup
 - `search_lessons(query, tag?)` — past learnings
 - `get_document(doc_id)` — fetch a specific doc
+- `get_risk_register(category?, treatment?)` — open risks by residual score
+- `find_ir_runbooks(service_name?, service_id?)` — IR runbooks for a service
 
 You don't pick the tool — Sonnet does. Sample questions Tank handles
 well:

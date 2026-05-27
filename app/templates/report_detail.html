@@ -38,13 +38,14 @@
   (function () {
     var raw = {{ report.content_md | tojson }};
     var el = document.getElementById("report-md-output");
-    if (window.marked && el) {
-      el.innerHTML = marked.parse(raw);
+    function render() {
+      if (!window.marked || !window.DOMPurify || !el) return;
+      el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+    }
+    if (window.marked && window.DOMPurify && el) {
+      render();
     } else {
-      // marked not yet loaded (defer) — render after load
-      window.addEventListener("load", function () {
-        if (window.marked && el) el.innerHTML = marked.parse(raw);
-      });
+      window.addEventListener("load", render);
     }
   })();
 </script>

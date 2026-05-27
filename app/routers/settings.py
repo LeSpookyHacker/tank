@@ -107,13 +107,16 @@ async def set_cadence(body: CadencePut) -> dict:
 # ---------------- nuke ----------------
 
 @router.post("/api/wipe")
-async def wipe_all(confirm_phrase: str = Form(...)):
+async def wipe_all(request: Request, confirm_phrase: str = Form(...)):
     """Delete the SQLite DB. The next request reinitializes.
 
-    Requires the literal string `WIPE_PHRASE` ("delete tank") in the
-    `confirm_phrase` form field. Without it, the request 400s — this
-    way a stale tab or an autocomplete misfire can't nuke the KB.
+    Requires:
+    1. The literal string `WIPE_PHRASE` ("delete tank") in `confirm_phrase`.
+    2. The custom header `X-Confirm: delete-tank` — browsers cannot set custom
+       headers in plain form submissions, so this blocks CSRF attacks.
     """
+    if request.headers.get("X-Confirm") != "delete-tank":
+        raise HTTPException(403, "missing or invalid X-Confirm header")
     if confirm_phrase != WIPE_PHRASE:
         raise HTTPException(
             400,

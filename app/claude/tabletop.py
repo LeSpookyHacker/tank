@@ -13,7 +13,7 @@ import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import get_card
-from app.redact.engine import rehydrate
+from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
 from app.schemas import TabletopScenario
 from app.storage import tabletops_store
@@ -55,13 +55,15 @@ def _generate(service_id: str | None, threat_kind: str | None,
         card = get_card(service_id)
         if card:
             parts.append(f"## Service in scope\n"
-                         f"Name: {card['name']}\n"
-                         f"Description: {card.get('description') or '—'}\n"
+                         f"Name: {apply_redactions(card['name']).redacted_text}\n"
+                         f"Description: {apply_redactions(card.get('description') or '').redacted_text or '—'}\n"
                          f"Attrs: {card.get('attrs')}")
     if threat_kind:
-        parts.append(f"## Threat / tactic\n{threat_kind}")
+        parts.append("## Threat / tactic\n"
+                     + apply_redactions(threat_kind).redacted_text)
     if scenario_hook:
-        parts.append(f"## Hook (optional)\n{scenario_hook}")
+        parts.append("## Hook (optional)\n"
+                     + apply_redactions(scenario_hook).redacted_text)
 
     user_text = "\n\n".join(parts) if parts else "Pick any plausible scenario."
 

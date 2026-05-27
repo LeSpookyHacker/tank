@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -14,12 +16,35 @@ from app.ingest.watchers import dispatch
 
 router = APIRouter(prefix="/api/integrations")
 
+_ALLOWED_WATCHER_KINDS = {"folder", "ics_url", "cve_feed", "github_repo"}
+
 
 class CreateWatcher(BaseModel):
     kind: str        # folder|ics_url|cve_feed|github_repo
     target: str
     category: str | None = None
     config: dict | None = None
+
+
+def _validate_watcher_target(kind: str, target: str) -> None:
+    """Reject obviously dangerous targets at creation time."""
+    if kind == "folder":
+        try:
+            resolved = Path(target).resolve()
+        except Exception:
+            raise HTTPException(400, "invalid folder path")
+        blocked_prefixes = (
+            "/etc", "/proc", "/sys", "/dev", "/root",
+            os.path.expanduser("~/.ssh"),
+            os.path.expanduser("~/.gnupg"),
+        )
+        for prefix in blocked_prefixes:
+            try:
+                if resolved.is_relative_to(Path(prefix)):
+                    raise HTTPException(400, f"folder target not allowed: {prefix}")
+            except AttributeError:
+                if str(resolved).startswith(str(Path(prefix))):
+                    raise HTTPException(400, f"folder target not allowed: {prefix}")
 
 
 @router.get("/watchers")
@@ -32,8 +57,9 @@ async def list_watchers() -> dict:
 
 @router.post("/watchers")
 async def create_watcher(body: CreateWatcher) -> dict:
-    if dispatch(body.kind) is None:
-        raise HTTPException(400, f"unknown watcher kind: {body.kind}")
+    if body.kind not in _ALLOWED_WATCHER_KINDS or dispatch(body.kind) is None:
+        raise HTTPException(400, f"unknown watcher kind: {body.kind!r}")
+    _validate_watcher_target(body.kind, body.target)
     wid = uuid.uuid4().hex
     conn = get_conn()
     with LOCK:

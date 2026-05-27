@@ -173,6 +173,11 @@
 
 {% block extra_scripts %}
 <script>
+function escHtml(s) {
+  var d = document.createElement("div");
+  d.textContent = String(s);
+  return d.innerHTML;
+}
 // ── Timestamp rendering ──
 (function () {
   var now = Date.now() / 1000;
@@ -213,8 +218,8 @@
       var a = document.createElement("a");
       a.className = "shortcut-item";
       a.href = "/teams/" + (p.team_id || "default") + "/projects/" + p.id;
-      a.innerHTML = '<span class="shortcut-icon">' + (p.icon || p.emoji || "📦") + '</span>'
-        + '<span class="shortcut-name">' + p.name + '</span>';
+      a.innerHTML = '<span class="shortcut-icon">' + escHtml(p.icon || p.emoji || "📦") + '</span>'
+        + '<span class="shortcut-name">' + escHtml(p.name) + '</span>';
       container.appendChild(a);
     });
   }

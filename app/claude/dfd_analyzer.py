@@ -9,9 +9,11 @@ from __future__ import annotations
 import base64
 import hashlib
 import logging
+import os
 from io import BytesIO
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
+from app.redact.engine import apply_redactions
 from app.schemas import DFDAnalysis, DFDImprovement, DFDMermaidGeneration
 from app.storage import dfd_store
 
@@ -27,7 +29,8 @@ def _hash(content: str | bytes) -> str:
 def _project_context_prefix(project_notes: str) -> str:
     if not project_notes or not project_notes.strip():
         return ""
-    return f"Project context:\n{project_notes.strip()}\n\nUse this context to make threat analysis more specific to this system.\n\n"
+    redacted = apply_redactions(project_notes.strip()).redacted_text
+    return f"Project context:\n{redacted}\n\nUse this context to make threat analysis more specific to this system.\n\n"
 
 
 def analyze_mermaid(
@@ -51,6 +54,7 @@ def analyze_mermaid(
     prompt = load_prompt("dfd_stride")
     client = get_client()
     prefix = _project_context_prefix(project_notes)
+    redacted_src = apply_redactions(mermaid_src).redacted_text
     try:
         resp = client.messages.parse(
             model=MODEL,
@@ -65,7 +69,7 @@ def analyze_mermaid(
                 "content": [
                     {"type": "text",
                      "text": prefix + "Analyze this Mermaid DFD with STRIDE:\n\n```mermaid\n"
-                             + mermaid_src + "\n```"},
+                             + redacted_src + "\n```"},
                 ],
             }],
             output_format=DFDAnalysis,
@@ -162,6 +166,7 @@ def generate_from_description(
     prompt = load_prompt("dfd_generate_desc")
     client = get_client()
     prefix = _project_context_prefix(project_notes)
+    redacted_text = apply_redactions(text).redacted_text
     try:
         resp = client.messages.parse(
             model=MODEL,
@@ -173,7 +178,7 @@ def generate_from_description(
             }],
             messages=[{
                 "role": "user",
-                "content": [{"type": "text", "text": prefix + text}],
+                "content": [{"type": "text", "text": prefix + redacted_text}],
             }],
             output_format=DFDMermaidGeneration,
         )
@@ -206,6 +211,8 @@ def generate_from_document(
     doc_excerpt = text[:8000]
     if len(text) > 8000:
         doc_excerpt += "\n\n[Document truncated for length]"
+    redacted_excerpt = apply_redactions(doc_excerpt).redacted_text
+    safe_filename = os.path.basename(filename)[:200]
 
     try:
         resp = client.messages.parse(
@@ -219,7 +226,7 @@ def generate_from_document(
             messages=[{
                 "role": "user",
                 "content": [{"type": "text",
-                             "text": prefix + "## Document: " + filename + "\n\n" + doc_excerpt}],
+                             "text": prefix + "## Document: " + safe_filename + "\n\n" + redacted_excerpt}],
             }],
             output_format=DFDMermaidGeneration,
         )

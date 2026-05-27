@@ -14,7 +14,14 @@ from app.ingest.parsers._base import ParsedDocument, ParsedSection, Parser
 class DocxParser(Parser):
     def parse(self, path: Path) -> ParsedDocument:
         import docx
-        d = docx.Document(str(path))
+        try:
+            d = docx.Document(str(path))
+        except Exception as exc:
+            return ParsedDocument(
+                kind="docx", title=path.stem, sections=[],
+                meta={"size_bytes": path.stat().st_size,
+                      "parse_error": str(exc)},
+            )
 
         breadcrumb: list[str] = []
         current_path = "preamble"

@@ -8,6 +8,7 @@ GET  /api/documents/{id}       detail
 """
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -38,6 +39,11 @@ def _do_ingest_file(path: Path, category: str, project_id: str | None = None) ->
         ingest(path, category=category, project_id=project_id)
     except Exception:
         pass  # status='error' already recorded in documents
+    finally:
+        # Clean up temp upload dirs created by ingest_file().
+        # Regular path/repo ingests use the user's own filesystem — don't touch.
+        if "tank-upload-" in str(path.parent):
+            shutil.rmtree(path.parent, ignore_errors=True)
     if project_id:
         from app.storage.projects_store import touch_activity
         touch_activity(project_id)
@@ -53,6 +59,9 @@ def _do_ingest_repo(path: Path, category: str, project_id: str | None = None) ->
         touch_activity(project_id)
 
 
+_MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
+
 @router.post("/ingest/file")
 async def ingest_file(background_tasks: BackgroundTasks,
                       file: UploadFile = File(...),
@@ -61,21 +70,31 @@ async def ingest_file(background_tasks: BackgroundTasks,
     if category not in {"architecture", "code", "cmdb", "people_process"}:
         raise HTTPException(400, f"invalid category {category}")
 
+    content = await file.read(_MAX_UPLOAD_BYTES + 1)
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "file too large (max 100 MB)")
+
+    safe_name = os.path.basename(file.filename or "upload").lstrip(".")[:200]
     tmpdir = tempfile.mkdtemp(prefix="tank-upload-")
-    target = Path(tmpdir) / (file.filename or "upload")
-    target.parent.mkdir(parents=True, exist_ok=True)
+    target = Path(tmpdir) / (safe_name or "upload")
     with target.open("wb") as fh:
-        shutil.copyfileobj(file.file, fh)
+        fh.write(content)
 
     pid = project_id.strip() or None
     background_tasks.add_task(_do_ingest_file, target, category, pid)
     return {"status": "queued", "path": str(target)}
 
 
+_ALLOWED_INGEST_ROOTS: list[Path] = [Path.home()]
+
+
 @router.post("/ingest/path")
 async def ingest_path(req: IngestPathRequest,
                       background_tasks: BackgroundTasks) -> dict:
-    p = Path(req.path).expanduser()
+    p = Path(req.path).expanduser().resolve()
+    if not any(p == r or str(p).startswith(str(r) + os.sep)
+               for r in _ALLOWED_INGEST_ROOTS):
+        raise HTTPException(403, "path outside allowed ingest directories")
     if not p.exists():
         raise HTTPException(404, f"no such path: {req.path}")
 
@@ -102,7 +121,10 @@ async def ingest_path(req: IngestPathRequest,
 @router.post("/ingest/repo")
 async def ingest_repo_endpoint(req: IngestRepoRequest,
                                background_tasks: BackgroundTasks) -> dict:
-    p = Path(req.path).expanduser()
+    p = Path(req.path).expanduser().resolve()
+    if not any(p == r or str(p).startswith(str(r) + os.sep)
+               for r in _ALLOWED_INGEST_ROOTS):
+        raise HTTPException(403, "path outside allowed ingest directories")
     if not p.is_dir():
         raise HTTPException(404, f"no such directory: {req.path}")
     background_tasks.add_task(_do_ingest_repo, p, req.category)

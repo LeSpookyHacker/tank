@@ -12,7 +12,7 @@
     </p>
   </header>
 
-  <article class="markdown-body">{{ review.body_md | safe }}</article>
+  <article class="markdown-body" id="dr-body-md"></article>
 
   <section class="checklist">
     <h2>Review checklist</h2>
@@ -71,6 +71,17 @@
 </section>
 
 <script>
+(function () {
+  var raw = {{ review.body_md | tojson }};
+  var el = document.getElementById("dr-body-md");
+  function render() {
+    if (!window.marked || !window.DOMPurify || !el) return;
+    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+  }
+  if (window.marked && window.DOMPurify) { render(); }
+  else { window.addEventListener("load", render); }
+})();
+
 async function saveChecklist(e) {
   e.preventDefault();
   const rows = document.querySelectorAll(".check-row");

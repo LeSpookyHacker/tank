@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 import logging
+import os
+import secrets as _secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.claude import scheduler
 from app.config import STATIC_DIR
 from app.db import get_conn
 from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
-    dfd, entities, followups, glossary, iam, ingest, integrations, journal,
-    lessons, me, meeting_prep, notes, nudges, onboarding, pages, philosophy,
-    postmortems, projects, reports, settings, subscriptions, tabletops, teams,
-    threat_models, dashboard,
+    dfd, entities, followups, glossary, iam, ingest, integrations, ir_runbooks,
+    journal, lessons, me, meeting_prep, notes, nudges, onboarding, pages,
+    philosophy, postmortems, projects, reports, risks, security_program,
+    settings, subscriptions, tabletops, teams, threat_models, dashboard,
 )
 
 log = logging.getLogger("tank.main")
@@ -39,6 +43,56 @@ app = FastAPI(title="Tank", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains"
+        )
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+        )
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; "
+            "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "
+            "font-src fonts.gstatic.com; "
+            "img-src 'self' data:;"
+        )
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
+
+
+# ── Optional API-key gate (VULN-001) ──────────────────────────────────────────
+# Set TANK_API_KEY in .env to require the key on every request.
+# Exempted: /healthz, /static/* (no sensitive data served there).
+# The browser UI sends the key via the X-Tank-Key header (set in base.html).
+_TANK_API_KEY = os.environ.get("TANK_API_KEY", "").strip()
+
+_AUTH_EXEMPT_PREFIXES = ("/healthz", "/static/")
+
+
+class _APIKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if not _TANK_API_KEY:
+            return await call_next(request)
+        path = request.url.path
+        if any(path == p or path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES):
+            return await call_next(request)
+        provided = request.headers.get("X-Tank-Key", "")
+        if not _secrets.compare_digest(provided, _TANK_API_KEY):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        return await call_next(request)
+
+
+app.add_middleware(_APIKeyMiddleware)
+
+
 @app.get("/healthz")
 def healthz() -> dict:
     """Liveness + readiness probe for systemd / external supervisors.
@@ -56,16 +110,10 @@ def healthz() -> dict:
     except Exception as exc:
         db_status = f"error: {exc.__class__.__name__}"
     sched_status = "running" if scheduler.is_running() else "stopped"
-    try:
-        from app.role import tenure_day
-        tday = tenure_day()
-    except Exception:
-        tday = 0
     return {
         "ok": db_status == "ok",
         "scheduler": sched_status,
         "db": db_status,
-        "tenure_day": tday,
     }
 
 # Navigation hub (replaces pages.router for /, /dashboard, /teams/*, /search)
@@ -125,3 +173,10 @@ app.include_router(teams.router)
 
 # DFD threat modeling
 app.include_router(dfd.router)
+
+# Security program health + risk register
+app.include_router(risks.router)
+app.include_router(security_program.router)
+
+# Gap 5: IR runbooks
+app.include_router(ir_runbooks.router)

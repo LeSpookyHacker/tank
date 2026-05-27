@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ risk.title }}{% endblock %}
+
+{% block content %}
+<section class="risk-detail-page">
+  <header class="page-head">
+    <div class="back-link"><a href="/risks">← Risk register</a></div>
+    <h1>{{ risk.title }}</h1>
+    <div class="meta-row">
+      <span class="badge">{{ risk.category }}</span>
+      <span class="badge">{{ risk.status }}</span>
+      <span class="badge">{{ risk.treatment }}</span>
+      {% if owner_name %}<span class="dim">owner: {{ owner_name }}</span>{% endif %}
+    </div>
+  </header>
+
+  <div class="risk-grid">
+    <div class="risk-card">
+      <h2>Description</h2>
+      <p>{{ risk.description or '—' }}</p>
+
+      {% if risk.treatment_rationale %}
+      <h3>Treatment rationale</h3>
+      <p>{{ risk.treatment_rationale }}</p>
+      {% endif %}
+
+      {% if scope_entities %}
+      <h3>In-scope services</h3>
+      <ul>
+        {% for e in scope_entities %}
+        <li><a href="/entities/{{ e.id }}">{{ e.name }}</a></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      {% if risk.controls %}
+      <h3>Controls in place</h3>
+      <ul>
+        {% for c in risk.controls %}
+        <li>{{ c }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+
+    <div class="risk-scores">
+      <div class="score-block inherent">
+        <div class="score-label">Inherent risk</div>
+        <div class="score-matrix">
+          <div class="score-row">
+            <span class="score-dim">L {{ risk.inherent_likelihood }}</span>
+            <span class="score-x">×</span>
+            <span class="score-dim">I {{ risk.inherent_impact }}</span>
+            <span class="score-eq">=</span>
+            <span class="score-val">{{ risk.inherent_score }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="score-arrow">↓ after controls</div>
+      <div class="score-block residual {% if risk.residual_score >= 20 %}heat-critical{% elif risk.residual_score >= 12 %}heat-high{% elif risk.residual_score >= 6 %}heat-medium{% else %}heat-low{% endif %}">
+        <div class="score-label">Residual risk</div>
+        <div class="score-matrix">
+          <div class="score-row">
+            <span class="score-dim">L {{ risk.residual_likelihood }}</span>
+            <span class="score-x">×</span>
+            <span class="score-dim">I {{ risk.residual_impact }}</span>
+            <span class="score-eq">=</span>
+            <span class="score-val">{{ risk.residual_score }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-block">
+        <div class="score-label">Review date</div>
+        {% if risk.review_at %}
+          <div id="review-date">computing…</div>
+        {% else %}
+          <div class="dim">not set</div>
+        {% endif %}
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="triggerAssess()">
+          Re-assess with KB
+        </button>
+        <button class="btn-secondary" onclick="closeRisk()">
+          Close risk
+        </button>
+      </div>
+      <div id="assess-status" class="dim small" hidden></div>
+    </div>
+  </div>
+</section>
+
+<style>
+.risk-detail-page { max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem; }
+.back-link { margin-bottom: .5rem; }
+.back-link a { color: var(--text-muted); font-size: .875rem; text-decoration: none; }
+.meta-row { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; }
+.risk-grid { display: grid; grid-template-columns: 1fr 280px; gap: 2rem; margin-top: 1.5rem; }
+.risk-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.5rem; }
+.risk-card h2 { margin: 0 0 .75rem; font-size: 1rem; }
+.risk-card h3 { margin: 1rem 0 .4rem; font-size: .875rem; color: var(--text-muted); }
+.risk-scores { display: flex; flex-direction: column; gap: 1rem; }
+.score-block { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.25rem; }
+.score-label { font-size: .75rem; text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: .5rem; }
+.score-row { display: flex; align-items: center; gap: .5rem; font-size: 1rem; }
+.score-val { font-size: 1.6rem; font-weight: 700; margin-left: auto; }
+.score-dim { color: var(--text-muted); }
+.score-arrow { text-align: center; color: var(--text-muted); font-size: .875rem; }
+.review-block { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1rem 1.25rem; }
+.heat-critical .score-val { color: var(--sev-critical, #DC2626); }
+.heat-high .score-val { color: var(--sev-high, #EA580C); }
+.heat-medium .score-val { color: var(--sev-medium, #D97706); }
+.heat-low .score-val { color: var(--sev-low, #4F46E5); }
+.actions { display: flex; flex-direction: column; gap: .5rem; }
+</style>
+
+<script>
+(function() {
+  var ra = {{ risk.review_at or 'null' }};
+  if (!ra) return;
+  var el = document.getElementById("review-date");
+  if (!el) return;
+  var d = new Date(ra * 1000);
+  var now = Date.now();
+  var diff = Math.round((ra * 1000 - now) / 86400000);
+  var label = d.toLocaleDateString();
+  if (diff < 0) label += " (overdue " + (-diff) + "d)";
+  else label += " (in " + diff + "d)";
+  el.textContent = label;
+})();
+
+async function triggerAssess() {
+  var btn = event.target;
+  var status = document.getElementById("assess-status");
+  btn.disabled = true;
+  btn.textContent = "assessing…";
+  status.textContent = "Running KB assessment in background…";
+  status.hidden = false;
+  try {
+    await fetch("/api/risks/{{ risk.id }}/assess", { method: "POST" });
+    status.textContent = "Assessment queued. Reload in a few seconds to see updated scores.";
+    btn.textContent = "Re-assess with KB";
+    btn.disabled = false;
+  } catch (e) {
+    status.textContent = "Error: " + e.message;
+    btn.disabled = false;
+    btn.textContent = "Re-assess with KB";
+  }
+}
+
+async function closeRisk() {
+  if (!confirm("Close this risk? It will be removed from the open register.")) return;
+  await fetch("/api/risks/{{ risk.id }}/status", {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({status: "closed"}),
+  });
+  window.location.href = "/risks";
+}
+</script>
+{% endblock %}

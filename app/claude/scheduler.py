@@ -127,6 +127,11 @@ async def _tick() -> None:
                 "attack_surface_snapshot", week_label):
         await _fire_attack_surface_snapshot(week_label)
 
+    if weekday_short == "sun" and hhmm >= "09:30" \
+            and not scheduler_state_store.has_fired(
+                "security_program_snapshot", week_label):
+        await _fire_security_program_snapshot(week_label)
+
     if weekday_short == "sun" and hhmm >= "03:00" \
             and not scheduler_state_store.has_fired(
                 "weekly_backup", week_label):
@@ -226,6 +231,18 @@ async def _fire_attack_surface_snapshot(week_label: str) -> None:
                 {"week": week_label})
     except Exception as exc:
         log.warning("attack-surface snapshot failed: %s", exc)
+
+
+async def _fire_security_program_snapshot(week_label: str) -> None:
+    scheduler_state_store.mark_fired("security_program_snapshot", week_label)
+    loop = asyncio.get_event_loop()
+    try:
+        from app.routers.security_program import take_snapshot
+        sid = await loop.run_in_executor(None, take_snapshot)
+        publish("scheduler.global", "security_program_snapshot",
+                {"week": week_label, "snapshot_id": sid})
+    except Exception as exc:
+        log.warning("security-program snapshot failed: %s", exc)
 
 
 async def _fire_weekly_backup(week_label: str) -> None:

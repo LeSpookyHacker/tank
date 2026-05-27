@@ -1,7 +1,7 @@
 """Lessons-learned DB endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -24,18 +24,22 @@ class CreateLesson(BaseModel):
 
 
 @api.get("")
-async def list_recent(days: int = 365, limit: int = 100) -> dict:
+async def list_recent(
+    days: int = Query(default=365, ge=1, le=1825),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
     return {"lessons": lessons_store.list_recent(days=days, limit=limit)}
 
 
 @api.get("/search")
 async def search(q: str, tag: str | None = None,
-                 limit: int = 25) -> dict:
+                 limit: int = Query(default=25, ge=1, le=200)) -> dict:
     return {"lessons": lessons_store.search(q, tag=tag, limit=limit)}
 
 
 @api.get("/tag/{tag}")
-async def by_tag(tag: str, limit: int = 50) -> dict:
+async def by_tag(tag: str,
+                 limit: int = Query(default=50, ge=1, le=200)) -> dict:
     return {"lessons": lessons_store.list_by_tag(tag, limit=limit)}
 
 

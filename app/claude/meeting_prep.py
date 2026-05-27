@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from app.claude.reports import _build_scope_block
 from app.config import HAIKU_MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name, get_card
-from app.redact.engine import rehydrate
+from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
 from app.schemas import MeetingPrepBrief
 
@@ -26,15 +26,16 @@ def prepare(*, who: str, when: str | None = None,
     person = find_by_name("Person", who)
     person_id = person["id"] if person else None
 
-    user_task_parts = [f"I'm meeting with {who}."]
+    redacted_who = apply_redactions(who).redacted_text
+    user_task_parts = [f"I'm meeting with {redacted_who}."]
     if when:
-        user_task_parts.append(f"Time: {when}.")
+        user_task_parts.append(f"Time: {apply_redactions(when).redacted_text}.")
     if extras:
-        user_task_parts.append(f"Context: {extras}")
+        user_task_parts.append(f"Context: {apply_redactions(extras).redacted_text}")
     if person_id:
         card = get_card(person_id)
         user_task_parts.append(
-            f"Entity card for {who}: {card!r}"
+            f"Entity card for {redacted_who}: {card!r}"
         )
     user_task = "\n".join(user_task_parts)
 

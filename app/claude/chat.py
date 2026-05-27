@@ -43,11 +43,34 @@ log = logging.getLogger("tank.chat")
 
 # ---------------- helpers ----------------
 
-_PLACEHOLDER_RE = re.compile(
-    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|AWS_ACCT|"
-    r"AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|"
-    r"CUSTOM[A-Z_]*)_\d+\]"
-)
+
+def _build_placeholder_re() -> re.Pattern:
+    """Build the placeholder regex from all registered redaction rules so
+    new categories are automatically recognized without manual updates here."""
+    try:
+        from app.redact.rules import ALL_RULES
+        from app.redact.secrets import ALL_RULES as SECRET_RULES
+        all_rules = list(ALL_RULES) + [r for r in SECRET_RULES if r not in ALL_RULES]
+    except Exception:
+        all_rules = []
+    prefixes: list[str] = []
+    for rule in all_rules:
+        fmt = getattr(rule, "placeholder_fmt", "")
+        # fmt looks like "[PREFIX_{n:03d}]" — extract PREFIX
+        m = re.match(r"\[([A-Z0-9_]+)_\{", fmt)
+        if m:
+            prefixes.append(re.escape(m.group(1)))
+    if not prefixes:
+        # Fallback to hardcoded list if import fails
+        prefixes = [
+            "EMAIL", "INTERNAL_HOST", "HOST", "PRIVATE_IP", "PUBLIC_IP",
+            "AWS_ACCT", "AWS_ARN", "GCP_PROJECT", "AZURE_SUB", "SECRET", "PERSON",
+        ]
+    alt = "|".join(prefixes)
+    return re.compile(r"\[(?:" + alt + r"|CUSTOM[A-Z_]*)_\d+\]")
+
+
+_PLACEHOLDER_RE = _build_placeholder_re()
 
 
 def _used_placeholders(*texts: str) -> set[str]:
@@ -165,7 +188,8 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
             from app.storage.projects_store import get_project as _get_project
             proj = _get_project(proj_id)
             if proj:
-                project_notes = proj.get("notes") or ""
+                raw_notes = proj.get("notes") or ""
+                project_notes = apply_redactions(raw_notes).redacted_text if raw_notes else ""
         except Exception:
             pass
 
@@ -213,6 +237,10 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
         iteration += 1
         if iteration > 8:
             log.warning("chat loop hit iteration cap (8)")
+            publish(topic, "warning", {
+                "message": "Tool-use loop capped at 8 iterations. "
+                           "The response may be incomplete.",
+            })
             break
 
         stream_cm = await loop.run_in_executor(None, _run_stream)
@@ -285,8 +313,8 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
                 result_text = json.dumps(raw, default=str)
                 redacted_result = apply_redactions(result_text).redacted_text
             except Exception as exc:
-                log.exception("tool %s failed", call["name"])
-                redacted_result = json.dumps({"error": str(exc)})
+                log.exception("tool %s failed: %s", call["name"], exc)
+                redacted_result = json.dumps({"error": "Tool execution failed."})
             publish(topic, "tool_result",
                     {"name": call["name"], "size": len(redacted_result)})
             tool_results_blocks.append({
@@ -303,7 +331,11 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
     # 5. Finalize.
     redacted_text = "\n\n".join(final_text_parts).strip() or \
                     "(no response)"
-    used = _used_placeholders(redacted_text)
+    # Only rehydrate placeholders that were actually present in the prompt
+    # history Claude saw — prevents prompt-injection from forcing the
+    # rehydration of arbitrary redaction_map entries.
+    sent_placeholders = _used_placeholders(json.dumps(history, default=str))
+    used = _used_placeholders(redacted_text) & sent_placeholders
     mapping = load_rehydration_map(used)
     display_text = rehydrate(redacted_text, mapping)
 

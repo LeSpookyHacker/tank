@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.claude import tabletop as tabletop_helper
 from app.config import TEMPLATES_DIR
@@ -17,8 +17,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 class GenerateRequest(BaseModel):
     service_id: str | None = None
-    threat_kind: str | None = None
-    scenario_hook: str | None = None
+    threat_kind: str | None = Field(default=None, max_length=200)
+    scenario_hook: str | None = Field(default=None, max_length=1000)
 
 
 class LessonsCapture(BaseModel):
@@ -57,6 +57,22 @@ async def capture(tt_id: str, body: LessonsCapture) -> dict:
         tt_id, lessons_md=body.lessons_md, tags=body.tags,
     )
     return {"lesson_ids": lesson_ids}
+
+
+@api.post("/{tt_id}/generate-runbook")
+async def generate_runbook(tt_id: str) -> dict:
+    """Generate an IR runbook from this tabletop scenario."""
+    tt = tabletops_store.get(tt_id)
+    if not tt:
+        raise HTTPException(404, "not found")
+    from app.claude.ir_runbook import generate as _gen
+    rid = _gen(
+        service_entity_id=tt.get("scope_service_id"),
+        threat_scenario=tt.get("threat_kind") or "General security incident",
+        severity="any",
+        tabletop_id=tt_id,
+    )
+    return {"runbook_id": rid}
 
 
 @router.get("/tabletops", response_class=HTMLResponse)

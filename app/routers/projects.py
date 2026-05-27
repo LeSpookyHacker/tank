@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.storage import projects_store
 
@@ -29,7 +29,7 @@ class UpdateProject(BaseModel):
     description: Optional[str] = None
     emoji: Optional[str] = None
     color: Optional[str] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=10_000)
     status: Optional[str] = None
     tags: Optional[str] = None
     risk_level: Optional[str] = None

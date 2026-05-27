@@ -10,7 +10,8 @@ security engineers. You point it at your new employer's docs, code, CMDB, and
 people info. It builds a typed knowledge graph, redacts sensitive identifiers
 locally, and uses Claude to help you map the threat landscape, surface gaps,
 prepare for meetings, author postmortems and design reviews, run tabletops,
-track decisions, capture lessons, and stay sharp across your tenure.
+track decisions, maintain a risk register, generate incident-response runbooks,
+capture lessons, and stay sharp across your tenure.
 
 > 📖 **Full documentation lives in [docs/](docs/)** — installation
 > walkthroughs, architecture deep-dives, per-feature references, FAQ,
@@ -40,6 +41,15 @@ detection rules, IAM policies, control frameworks) and it produces:
 - An **ATT&CK coverage map** + **compliance evidence collection** +
   **IAM policy translator** + **attack-surface ledger** over your ingested
   data.
+- A **risk register** (`/risks`) — formal inherent/residual scoring (1-5 L×I),
+  treatment strategies (mitigate / accept / transfer / avoid), Sonnet KB-grounded
+  assessment, 90-day review scheduling, and `risk_review_due` nudge.
+- A **security program dashboard** (`/security-program`) — instant-load page
+  aggregating all of Tank's data into 6 KPI domains; on-demand executive brief
+  (green / yellow / red health indicator); weekly 12-week trend snapshots.
+- **IR runbooks** (`/ir-runbooks`) — per-service, per-scenario 5-phase
+  incident-response playbooks (Detect / Contain / Eradicate / Recover / Comms)
+  grounded in your KB; integrated with tabletops and postmortems.
 - A **personal ownership dashboard** with per-entity risk scoring.
 - A curated **security philosophy doc** Tank evolves with you.
 
@@ -70,9 +80,9 @@ them even if asked.
   your current view, collapsible to a pill, resizable by dragging the left
   edge, conversation preserved across navigation. Full-screen chat available
   at `/chat` for focused sessions.
-- SSE-streamed chat with 13 tools (search KB, get entity, list relationships,
+- SSE-streamed chat with 15 tools (search KB, get entity, list relationships,
   find control gaps, get threat model, find decisions, find detections,
-  find IAM risks, search lessons, …).
+  find IAM risks, search lessons, get risk register, find IR runbooks, …).
 - Citations on every reply; click to source chunks.
 - **Tenure-aware lens** — Map / Prioritize / Execute / Maintain — shifts
   framing automatically over time.
@@ -80,13 +90,13 @@ them even if asked.
   include that project's notes in the system prompt. The global side panel never
   injects project notes.
 
-### Reports (10 kinds)
+### Reports (11 kinds)
 
 `threat_landscape`, `cross_service_gaps`, `plan_30_60_90`, `stakeholder_map`,
 `questions_for_team`, `control_matrix`, `oncall_handoff`,
-`weekly_security_digest`, `attack_mapping`, `iam_audit`. Subscribe any of
-them on a daily/weekly/monthly cadence; diffs against the prior run land in
-your morning digest.
+`weekly_security_digest`, `attack_mapping`, `iam_audit`, `risk_register`.
+Subscribe any of them on a daily/weekly/monthly cadence; diffs against the
+prior run land in your morning digest.
 
 ### Workstream artifacts (Phase 13)
 
@@ -180,13 +190,14 @@ CVSS estimate, description, mitigation, OWASP/CWE references.
 - **Sunday weekly backup** at 03:00 — `sqlite3.Connection.backup()`,
   rotation keeps last 8.
 - **Sunday attack-surface snapshot** at 09:00.
+- **Sunday security program snapshot** at 09:30 — persists metrics for the 12-week trend on the program dashboard.
 
 ---
 
 ## Quickstart (laptop)
 
 ```bash
-git clone <repo-url> tank
+git clone https://github.com/LeSpookyHacker/tank.git tank
 cd tank
 cp .env.example .env                # paste your ANTHROPIC_API_KEY
 ./scripts/start.sh                  # creates .venv, installs deps, inits DB, runs uvicorn
@@ -209,7 +220,7 @@ designed around.
 
 ```bash
 # On the VM, one-time:
-git clone <repo-url> ~/projects/tank
+git clone https://github.com/LeSpookyHacker/tank.git ~/projects/tank
 cd ~/projects/tank
 cp .env.example .env                       # paste ANTHROPIC_API_KEY
 echo 'TANK_ENV=prod' >> .env               # never run --reload under a supervisor
@@ -242,7 +253,7 @@ Then `ssh tank-vm` and open `http://localhost:8000`.
 
 ```bash
 curl http://127.0.0.1:8000/healthz
-# {"ok": true, "scheduler": "running", "db": "ok", "tenure_day": 42}
+# {"ok": true, "scheduler": "running", "db": "ok"}
 ```
 
 Full ops reference: [docs/operations.md](docs/operations.md).
@@ -286,8 +297,12 @@ Full ops reference: [docs/operations.md](docs/operations.md).
 - Private IPv4 ranges (RFC1918, loopback, link-local, CGNAT) and IPv6 ULA
 - AWS account IDs (12-digit near AWS context) and ARNs (account+resource portion)
 - GCP project IDs, Azure subscription/tenant UUIDs
-- Secret tokens via `detect-secrets` plugins + Shannon-entropy fallback
-  (always on, **non-disableable**, one-way SHA-256 hashed)
+- Secret tokens via `detect-secrets` plugins + Shannon-entropy fallback +
+  supplemental regex patterns (always on, **non-disableable**, one-way
+  SHA-256 hashed). Covered formats include: AWS IAM/STS keys, AWS ARNs,
+  GitHub classic PATs (`ghp_...`), GitHub fine-grained PATs (`github_pat_...`),
+  GCP API keys (`AIza...`), Azure connection strings, and entropy-detected
+  high-entropy strings of any format.
 
 ### Off by default (toggle in Settings)
 
@@ -362,6 +377,7 @@ to the system font stack — UI still works, looks plainer.
 | `TANK_INTERNAL_TLD` | no | none | Marks hostnames in this TLD as internal |
 | `TANK_BIND_HOST` | no | `127.0.0.1` | Server bind host |
 | `TANK_BIND_PORT` | no | `8000` | Server bind port |
+| `TANK_API_KEY` | no | unset | Optional static API key. When set, every request must include `X-Tank-Key: <value>`. Strongly recommended if `TANK_BIND_HOST` ≠ `127.0.0.1`. Generate: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `TANK_DIGEST_TIME` | no | `08:00` | Local time for daily nudge run |
 | `TANK_ENABLE_PERSON_REDACTION` | no | unset | Set `1` to enable NER-based person redaction |
 | `TANK_ENV` | no | `dev` | Set `prod` to disable uvicorn `--reload` (use on any VM) |
@@ -369,6 +385,7 @@ to the system font stack — UI still works, looks plainer.
 | `TANK_API_MAX_RETRIES` | no | `4` | Anthropic SDK retry budget |
 | `TANK_API_TIMEOUT_SECONDS` | no | `600` | Per-request ceiling |
 | `TANK_DEBUG_TOKENS` | no | off | Set `1` to log per-call token counts (in/out/cache_read/cache_create) to the console |
+| `TANK_NYX_API_KEY` | no | unset | Must be set to enable `/api/risks/vuln-intake`; endpoint returns 503 if unset, 401 on wrong key |
 
 ---
 
@@ -470,6 +487,10 @@ checklist.
 | 3.2 | ✅ | DFD threat modeling — 4-mode input, SSE progress, split-panel workspace, interactive threat cards, 4 export formats |
 | 3.3 | ✅ | Projects dashboard — color/notes fields, card grid UI, detail page, project-scoped chat |
 | 3.4 | ✅ | Sample data expansion — 16 new files (arch docs, detections, IAM, compliance, runbook, postmortem), 4 DFD Mermaid sources, `seed_db.py` idempotent DB seed for all living-artifact features |
+| Gap 3 | ✅ | Risk register — formal inherent/residual risk tracking, Sonnet KB-grounded assessment, 90-day review scheduling, `get_risk_register` chat tool, `risk_register` report |
+| Gap 4 | ✅ | Security program dashboard — 6-domain KPI aggregation, on-demand executive brief (green/yellow/red), 12-week trend snapshots, Nyx vulnerability intake endpoint |
+| Gap 5 | ✅ | IR runbooks — per-service 5-phase incident-response playbooks grounded in KB; tabletop integration; postmortem nudge; `find_ir_runbooks` chat tool; Runbook entity registration |
+| Security audit | ✅ | Adversarial audit (3 passes, 34 findings) — API-key middleware, CSRF, ReDoS, SSRF/DNS-rebinding, prompt-injection labeling, XSS, privacy contract (10 redaction bypass fixes), parser bombs, FTS5 injection, symlink traversal, secret pattern expansion, input bounds |
 
 Build history with tradeoffs and known gaps: [HISTORY.md](HISTORY.md).
 
@@ -505,14 +526,19 @@ the outside. Same energy.
 
 The full docs live in [docs/](docs/):
 
+- [docs/quickstart.md](docs/quickstart.md) — zero to running in 10 minutes
 - [docs/installation.md](docs/installation.md) — local + VM install + systemd
-- [docs/first-run.md](docs/first-run.md) — onboarding walkthrough
+- [docs/configuration.md](docs/configuration.md) — all environment variables, annotated `.env` example
+- [docs/concepts.md](docs/concepts.md) — core mental model: entities, chunks, lens, projects
+- [docs/first-run.md](docs/first-run.md) — onboarding wizard walkthrough
 - [docs/using-tank.md](docs/using-tank.md) — day-to-day workflows
 - [docs/architecture.md](docs/architecture.md) — internals deep-dive
-- [docs/features/](docs/features/) — per-phase feature reference (includes [projects](docs/features/projects.md), [DFD analysis](docs/features/dfd-analysis.md), [threat models](docs/features/threat-models-decisions.md), and more)
+- [docs/features/](docs/features/) — per-phase feature reference (includes [projects](docs/features/projects.md), [DFD analysis](docs/features/dfd-analysis.md), [threat models](docs/features/threat-models-decisions.md), [security program + risk register + IR runbooks](docs/features/security-program.md), and more)
 - [docs/operations.md](docs/operations.md) — running on a VM, backups, healthz, scheduler
 - [docs/faq.md](docs/faq.md) — common questions
 - [docs/troubleshooting.md](docs/troubleshooting.md) — known issues and fixes
+- [docs/contributing.md](docs/contributing.md) — dev setup, tests, PR process
+- [CHANGELOG.md](CHANGELOG.md) — version history
 
 Future-Claude / future-you: [CLAUDE.md](CLAUDE.md) has architecture guidance
 for when you're working on the codebase.

@@ -17,6 +17,7 @@ import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name
+from app.redact.engine import apply_redactions
 from app.schemas import DecisionExtraction
 from app.storage import decisions_store
 from app.storage.chunks_store import list_chunks_for_doc
@@ -59,7 +60,7 @@ def extract_from_doc(doc_id: str) -> DecisionExtraction | None:
             messages=[{"role": "user",
                        "content": [
                            {"type": "text",
-                            "text": f"## Document: {doc.get('title') or doc['source_path']}"},
+                            "text": f"## Document: {apply_redactions(doc.get('title') or doc['source_path']).redacted_text}"},
                            {"type": "text", "text": body},
                            {"type": "text",
                             "text": "Extract any deliberate decisions, "

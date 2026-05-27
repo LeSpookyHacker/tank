@@ -244,6 +244,43 @@ TOOL_SCHEMAS: list[dict] = [
             "required": ["query"],
         },
     },
+    {
+        "name": "find_ir_runbooks",
+        "description": (
+            "Return IR runbooks, optionally filtered by service. "
+            "Use when the user asks 'what's the runbook for X' or "
+            "'what do we do if Y happens'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "service_name": {"type": "string"},
+                "service_id": {"type": "string"},
+                "limit": {"type": "integer", "default": 10,
+                          "minimum": 1, "maximum": 50},
+            },
+        },
+    },
+    {
+        "name": "get_risk_register",
+        "description": (
+            "Return entries from the risk register, optionally filtered "
+            "by category (data_breach|availability|supply_chain|"
+            "access_control|regulatory|ai_model_abuse|insider_threat|"
+            "third_party|infrastructure|application|other) or treatment "
+            "(mitigate|accept|transfer|avoid). Use when the user asks "
+            "'what are our top risks' or 'show me the risk register'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string"},
+                "treatment": {"type": "string"},
+                "limit": {"type": "integer", "default": 25,
+                          "minimum": 1, "maximum": 100},
+            },
+        },
+    },
 ]
 
 
@@ -253,8 +290,8 @@ def execute_tool(name: str, args: dict[str, Any]) -> dict | list:
     """Execute a tool call locally. Returns JSON-serializable output."""
     if name == "search_kb":
         hits = hybrid_search(
-            args["query"],
-            k=int(args.get("top_k", 10)),
+            str(args.get("query", ""))[:500],
+            k=max(1, min(25, int(args.get("top_k", 10)))),
             type_filter=args.get("type_filter"),
         )
         return {
@@ -385,6 +422,55 @@ def execute_tool(name: str, args: dict[str, Any]) -> dict | list:
         return {"lessons": lessons_store.search(
             args["query"], tag=args.get("tag"), limit=20,
         )}
+
+    if name == "find_ir_runbooks":
+        from app.storage import ir_runbooks_store
+        sid = args.get("service_id")
+        if not sid and args.get("service_name"):
+            card = kb_entities.find_by_name("Service", args["service_name"])
+            if card:
+                sid = card["id"]
+        rows = ir_runbooks_store.list_all(
+            service_entity_id=sid,
+            limit=int(args.get("limit", 10)),
+        )
+        return {"runbooks": [
+            {"id": r["id"],
+             "threat_scenario": r["threat_scenario"],
+             "severity_trigger": r["severity_trigger"],
+             "confirmed": bool(r.get("confirmed_by_user")),
+             "generated_at": r["generated_at"]}
+            for r in rows
+        ]}
+
+    if name == "get_risk_register":
+        from app.storage import risks_store
+        from app.storage import entities_store as _es
+        rows = risks_store.list_all(
+            status="open",
+            category=args.get("category"),
+            limit=int(args.get("limit", 25)),
+        )
+        treatment_filter = args.get("treatment")
+        if treatment_filter:
+            rows = [r for r in rows if r.get("treatment") == treatment_filter]
+        out = []
+        for r in rows:
+            owner_name = None
+            if r.get("owner_entity_id"):
+                ent = _es.get_entity(r["owner_entity_id"])
+                if ent:
+                    owner_name = ent["name"]
+            out.append({
+                "id": r["id"], "title": r["title"],
+                "category": r["category"],
+                "inherent_score": r["inherent_score"],
+                "residual_score": r["residual_score"],
+                "treatment": r["treatment"],
+                "status": r["status"],
+                "owner": owner_name,
+            })
+        return {"risks": out, "count": len(out)}
 
     return {"error": f"unknown tool: {name}"}
 

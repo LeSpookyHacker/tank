@@ -13,7 +13,7 @@ log = logging.getLogger("tank.watchers.folder")
 
 class FolderWatcher:
     def scan(self, watcher: dict) -> dict:
-        target = Path(watcher["target"]).expanduser()
+        target = Path(watcher["target"]).expanduser().resolve()
         if not target.is_dir():
             return {"error": f"no such directory: {target}"}
         category = watcher.get("category") or "architecture"
@@ -21,7 +21,13 @@ class FolderWatcher:
         new_count = 0
         ingested: list[str] = []
         for p in sorted(target.rglob("*")):
-            if not p.is_file():
+            # Skip symlinks — they can point outside the watched tree.
+            if p.is_symlink() or not p.is_file():
+                continue
+            # Extra guard: ensure resolved path stays under target root.
+            try:
+                p.resolve().relative_to(target)
+            except ValueError:
                 continue
             # Skip hidden + binary-ish files.
             if any(part.startswith(".") for part in p.relative_to(target).parts):

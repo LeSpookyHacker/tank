@@ -67,3 +67,31 @@ no per-feature doc.
   project hierarchy, pre-cached DFD analyses (18 STRIDE threats across 2 services),
   4 decisions, 10 glossary terms, 5 lessons, 1 tabletop, 3 journal entries, and
   3 follow-ups. Exercises every living-artifact feature with no API cost.
+
+## Security program gaps (first security hire)
+
+- [security-program.md](security-program.md) — three operational features
+  that close the gap for a first security engineer:
+
+  - **Risk register** (`/risks`) — formal inherent/residual risk tracking with
+    1-5 likelihood × impact scoring, treatment strategies (mitigate / accept /
+    transfer / avoid), Sonnet KB-grounded assessment, 90-day review scheduling,
+    `risk_review_due` nudge, `get_risk_register` chat tool, and `risk_register`
+    report kind.
+
+  - **Security program dashboard** (`/security-program`) — instant-load page
+    aggregating all of Tank's data into 6 metric domains (threat models, vulns,
+    risk register, compliance, incidents, design reviews). On-demand Sonnet
+    executive brief with green/yellow/red health indicator. Weekly Sunday 09:30
+    snapshots for 12-week trend history.
+
+  - **IR runbooks** (`/ir-runbooks`) — per-service, per-scenario 5-phase
+    incident-response playbooks (Detect / Contain / Eradicate / Recover /
+    Comms) grounded in the KB. Integrated with tabletops (one-click "Generate
+    runbook from this scenario"), postmortems (nudge on publish when no runbook
+    exists for an affected service), `find_ir_runbooks` chat tool, and KB
+    entity registration as `Runbook` entities.
+
+  Also includes a minimal **Nyx integration hook** (`POST /api/vulnerabilities/intake`)
+  so [Nyx](https://github.com/LeSpookyHacker/nyx) can push validated disclosure
+  findings into Tank's `vulnerabilities` table.

@@ -11,6 +11,7 @@ import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.detections import find_for_technique
+from app.redact.engine import apply_redactions
 from app.schemas import AttackMappingReport, AttackMappingRow
 from app.storage import entities_store, threat_models_store
 
@@ -41,8 +42,9 @@ def generate() -> AttackMappingReport:
 
         # Compact threats text for Sonnet
         threats_text = "\n".join(
-            f"- [{i}] {t.get('stride_category')}: {t.get('title')} — "
-            f"{t.get('description', '')[:200]}"
+            f"- [{i}] {t.get('stride_category')}: "
+            f"{apply_redactions(t.get('title') or '').redacted_text} — "
+            f"{apply_redactions(t.get('description') or '').redacted_text[:200]}"
             for i, t in enumerate(threats)
         )
 
@@ -54,7 +56,7 @@ def generate() -> AttackMappingReport:
                          "cache_control": {"type": "ephemeral"}}],
                 messages=[{"role": "user", "content": [
                     {"type": "text",
-                     "text": f"## Service: {svc['name']}\n\n"
+                     "text": f"## Service: {apply_redactions(svc['name']).redacted_text}\n\n"
                              f"## Threats\n{threats_text}\n\n"
                              "Map each threat to MITRE ATT&CK."},
                 ]}],

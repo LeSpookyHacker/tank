@@ -47,7 +47,7 @@ which to call.
 >
 > ![Chat with tool use](../images/feature-chat-tools.png)
 
-### The 13 chat tools
+### The 15 chat tools
 
 Defined in [app/kb/tools.py](../../app/kb/tools.py).
 
@@ -66,6 +66,8 @@ Defined in [app/kb/tools.py](../../app/kb/tools.py).
 | `find_iam_risks` | limit | Top-N IAMPolicy entities by risk score |
 | `find_evidence_for_control` | control_id | Compliance evidence map lookup |
 | `search_lessons` | query, tag? | Past lessons by free-text + tag |
+| `get_risk_register` | category?, treatment?, limit? | Open risks ordered by residual score |
+| `find_ir_runbooks` | service_name?, service_id?, limit? | IR runbooks for a service |
 
 ### Behavior knobs
 
@@ -87,7 +89,7 @@ Defined in [app/kb/tools.py](../../app/kb/tools.py).
 
 ---
 
-## The six original report kinds
+## Report kinds (11 total)
 
 All use Sonnet 4.6 with `thinking={"type": "adaptive"}` and share
 the cached scope block. Generated from `/reports` or via subscription.
@@ -141,6 +143,13 @@ threat_model_on_file. Add 1-2 custom controls per scope.
 > ⬜ **Screenshot placeholder**: control matrix rendered.
 >
 > ![Control matrix](../images/feature-control-matrix.png)
+
+### `risk_register`
+
+Generates a heat-map narrative from all open risks — inherent vs
+residual score distribution, top risks by residual score, control
+coverage by risk category. Uses the `risks` table; pairs with the
+security program dashboard for leadership reporting.
 
 ---
 

@@ -23,9 +23,21 @@ _MEDIA_BY_EXT = {
     ".gif": "image/gif",
 }
 
+_MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
+
 
 class ImageParser(Parser):
     def parse(self, path: Path) -> ParsedDocument:
+        size = path.stat().st_size
+        if size > _MAX_IMAGE_BYTES:
+            return ParsedDocument(
+                kind="image", title=path.stem,
+                sections=[ParsedSection(
+                    section_path="diagram",
+                    text="(image too large for vision analysis — max 20 MB)",
+                )],
+                meta={"size_bytes": size, "skipped": True},
+            )
         media_type = _MEDIA_BY_EXT.get(path.suffix.lower(), "image/png")
         b64 = base64.standard_b64encode(path.read_bytes()).decode("ascii")
 

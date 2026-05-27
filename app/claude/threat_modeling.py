@@ -22,7 +22,7 @@ from app.claude.event_bus import publish
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import get_card
 from app.kb.relationships import traverse
-from app.redact.engine import rehydrate
+from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
 from app.schemas import ThreatModelV2
 from app.storage import entities_store, threat_models_store
@@ -78,8 +78,8 @@ def _arch_snapshot_hash(chunks: list[dict]) -> str:
 def _scope_block(service_id: str, chunks: list[dict]) -> dict:
     card = get_card(service_id) or {}
     parts = [
-        f"## Service: {card.get('name', '(unknown)')}",
-        f"description: {card.get('description') or '—'}",
+        f"## Service: {apply_redactions(card.get('name', '(unknown)')).redacted_text}",
+        f"description: {apply_redactions(card.get('description') or '').redacted_text or '—'}",
         f"attrs: {card.get('attrs')}",
         "",
         "## Contributing chunks",

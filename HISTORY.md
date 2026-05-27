@@ -13,6 +13,125 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-27 — Adversarial security audit pass 2: 16 vulnerabilities fixed
+
+A full adversarial audit of the codebase (all files, all layers) was conducted
+following the project's security-review methodology. Sixteen vulnerabilities were
+found and fixed in a single session.
+
+### Summary of fixes by severity
+
+| ID | Severity | Fix |
+|----|----------|-----|
+| VULN-001 | Critical | `dfd_analyzer.py` — redact Mermaid source, description text, document content, and project notes before all Claude DFD calls |
+| VULN-002 | High | `ics.py` — SSRF: hostname validation now resolves DNS and checks every returned address for RFC-1918/loopback ranges |
+| VULN-003 | High | `ir_runbook_detail.html` — removed server-side `\| safe` render; client-side rendering requires both marked + DOMPurify |
+| VULN-004 | Medium | `main.py` — removed `fonts.googleapis.com` from `script-src` CSP (it serves fonts, not scripts) |
+| VULN-005 | Medium | `ingest.py` — repo ingest endpoint now calls `.resolve()` + allowlist check (matching the existing `/ingest/path` pattern) |
+| VULN-006 | Medium | `risks.py` — Nyx intake endpoint now returns 503 when `TANK_NYX_API_KEY` is unset instead of silently accepting all requests |
+| VULN-007 | Medium | `chat.py`, `security_program.py` — exception details no longer sent to SSE stream or HTTP response; generic messages used instead |
+| VULN-008 | Medium | `redact/config.py` — `add_custom_rule()` now rejects patterns with nested quantifiers or quantified alternation (ReDoS) |
+| VULN-009 | Low | `main.py` — `tenure_day` removed from `/healthz` response (internal operational state) |
+| VULN-010 | High | `dfd.py` — all three DFD upload endpoints now cap at 20 MB |
+| VULN-011 | Low | `image.py` — images > 20 MB skipped before vision API call |
+| VULN-012 | Medium | `design_review_detail.html`, `postmortem_editor.html`, `tabletop_detail.html`, `threat_model_detail.html` — all `\| safe` removed; client-side marked + DOMPurify |
+| VULN-013 | Medium | `philosophy.html` — same `\| safe` fix |
+| VULN-014 | Medium | `report_detail.html` — unsafe DOMPurify fallback removed; rendering requires both marked + DOMPurify |
+| VULN-015 | Low | `ics.py` — ICS response read capped at 10 MB |
+| VULN-016 | Low | `schemas.py` — `VulnerabilityIntake.cve_id` now validated against `CVE-YYYY-NNNN` format |
+
+### Files changed
+
+`app/claude/dfd_analyzer.py`, `app/ingest/watchers/ics.py`, `app/ingest/parsers/image.py`,
+`app/routers/chat.py`, `app/routers/ingest.py`, `app/routers/risks.py`,
+`app/routers/security_program.py`, `app/routers/dfd.py`, `app/redact/config.py`,
+`app/main.py`, `app/schemas.py`,
+`app/templates/ir_runbook_detail.html`, `app/templates/design_review_detail.html`,
+`app/templates/postmortem_editor.html`, `app/templates/tabletop_detail.html`,
+`app/templates/threat_model_detail.html`, `app/templates/philosophy.html`,
+`app/templates/report_detail.html`
+
+---
+
+## 2026-05-27 — Security program gaps: risk register, program dashboard, IR runbooks
+
+### Goal
+
+A newly-hired first security engineer evaluated Tank against the needs of a first-hire security role at a large tech company (application/cloud security, bug bounty, IR/DR, SOC 2/HIPAA/ISO 27001, SIEM). Tank covered onboarding, threat modeling, decisions, design reviews, postmortems, tabletops, and coverage tooling well — but lacked the **operational** layer: a formal risk register, a program-health dashboard to show leadership, and per-service incident-response runbooks for on-call engineers.
+
+Three gaps were closed in this session. A fourth (disclosure triage) is deferred to a separate tool called [Nyx](https://github.com/LeSpookyHacker/nyx), which will push validated findings into Tank via an intake endpoint.
+
+---
+
+### Gap 3 — Formal risk register (`/risks`)
+
+**What was missing:** The decisions log tracked deliberate choices (`accepted_risk`, `deferred_fix`, etc.) but had no concept of inherent exposure, residual risk after controls, or treatment strategy. A real risk register requires likelihood × impact scoring at two levels (before and after controls) plus treatment (mitigate / accept / transfer / avoid).
+
+**What was built:**
+
+- **`app/storage/risks_store.py`** — CRUD, `review_overdue()`, `update_assessment()`, `counts_by_status()`. `_hydrate()` computes `inherent_score = L × I` and `residual_score = L × I`.
+- **`app/claude/risk_register.py`** — `assess(risk_id)` pulls the service card, latest threat model, and existing decisions; calls Sonnet with `output_format=RiskAssessmentOutput`; persists residual scores + treatment; sets 90-day `review_at`.
+- **`prompts/risk_assessment.md`** — 1-5 scoring guide; control-evidence grounding; structured `RiskAssessmentOutput` schema.
+- **`prompts/report_risk_register.md`** — heat-map-style aggregate report for the `risk_register` report kind.
+- **`app/routers/risks.py`** — full REST API (`GET/POST /api/risks`, `POST /api/risks/{id}/assess`, `PUT /api/risks/{id}/status`) plus HTML pages (`/risks`, `/risks/{id}`).
+- **`app/templates/risks.html`** — filterable list with heat-color badges (≥20 critical, ≥12 high, ≥6 medium, else low), add-risk form, close action.
+- **`app/templates/risk_detail.html`** — inherent vs residual score cards, "Re-assess with KB" button, close action.
+- **`app/db.py`** — `risks` table via `_migrate_risk_register()`.
+- **`app/schemas.py`** — `RiskAssessmentOutput`, `RiskRegisterReport`.
+- **`app/claude/nudges.py`** — `_risk_review_due()` gate: risks past their `review_at` with no update.
+- **`app/kb/tools.py`** — `get_risk_register(category?, treatment?, limit?)` chat tool.
+- **`app/claude/reports.py`** — `risk_register` added to `REPORT_REGISTRY`.
+
+**Nyx integration hook:** `POST /api/vulnerabilities/intake` (defined in `app/routers/risks.py`) accepts `{title, description, cvss_score, severity, source, affected_service_names, external_ref}` from Nyx and creates a row in the `vulnerabilities` table (status=open, service names resolved to entity IDs). This endpoint is the only surface Nyx touches; Tank handles redaction.
+
+---
+
+### Gap 4 — Security program health dashboard (`/security-program`)
+
+**What was missing:** No single page aggregated Tank's data into leadership-visible KPIs. Showing program progress required manual quarterly reporting.
+
+**What was built:**
+
+- **`app/routers/security_program.py`** — `_collect_metrics()` does pure DB aggregation across 6 domains with no Claude call (instant page load). Domains: threat models (total / drifted / updated 30d), vulns (open by severity, avg age), risk register (open / review overdue), compliance (controls with evidence vs. without), incidents (postmortems published 90d, followups open/done), design reviews (open / approved 90d). `take_snapshot()` persists to `security_program_snapshots`. `POST /api/security-program/executive-brief` calls Sonnet with `output_format=ExecutiveBriefOutput` to generate a 1-page board-level brief with green/yellow/red health indicator.
+- **`app/templates/security_program.html`** — 6 metric cards, executive-brief generation with `marked.js` rendering, 12-week trend table.
+- **`app/db.py`** — `security_program_snapshots` table (snapshot_at + metrics_json).
+- **`app/schemas.py`** — `SecurityProgramMetrics`, `ExecutiveBriefOutput`.
+- **`prompts/executive_security_brief.md`** — board/exec-level brief prompt: green/yellow/red health, achievements, risks, priorities.
+- **`app/claude/scheduler.py`** — `_fire_security_program_snapshot` fires Sunday 09:30 (after the attack-surface snapshot at 09:00), persisting weekly metrics for the 12-week trend.
+
+---
+
+### Gap 5 — IR runbooks (`/ir-runbooks`)
+
+**What was missing:** Tabletops existed for drills; postmortems existed for after-the-fact. But there was no per-service, per-scenario *runbook* — the artifact a 3am on-call engineer reads to know exactly what to do.
+
+**What was built:**
+
+- **`app/storage/ir_runbooks_store.py`** — `create()`, `get()`, `list_all(service_entity_id?)`, `services_with_runbook()` (set of service_entity_ids with at least one runbook), `confirm()`, `delete()`.
+- **`app/claude/ir_runbook.py`** — `generate(service_entity_id, threat_scenario, severity, tabletop_id, project_id)` builds context from service card + linked chunks, latest threat-model threats, recent postmortem body, and hybrid KB search on the scenario; calls `client.messages.parse(..., output_format=IRRunbookOutput)` with adaptive thinking; calls `_render()` to produce 5-phase Markdown (🔍 Detect / 🛑 Contain / 🧹 Eradicate / ♻️ Recover / 📢 Comms) with time boxes, decision points, and success criteria; stores via `ir_runbooks_store.create()`; calls `_register_as_entity()` to create a Runbook entity with a `has_control` edge to the service so the KB graph reflects it.
+- **`prompts/ir_runbook.md`** — 5-phase prompt: concrete steps, decision points, time-box, success criteria, escalation path, comms template. "A 3am on-call engineer should be able to follow this without asking anyone."
+- **`app/routers/ir_runbooks.py`** — `POST /api/ir-runbooks/generate-sync` (blocking, returns runbook_id for redirect), `POST /api/ir-runbooks/generate` (background), CRUD, confirm/delete. HTML pages: `/ir-runbooks` (list + generate form), `/ir-runbooks/{id}` (rendered runbook + print CSS).
+- **`app/templates/ir_runbooks.html`** + **`app/templates/ir_runbook_detail.html`** — list table with generate form; detail page with marked.js rendering, confirm/delete, `@media print` export.
+- **`app/db.py`** — `ir_runbooks` table via `_migrate_ir_runbooks()`.
+- **`app/schemas.py`** — `IRRunbookPhase`, `IRRunbookOutput`.
+- **`app/claude/nudges.py`** — `_missing_ir_runbook()` gate: services with high/high TM threats but no runbook.
+- **`app/kb/tools.py`** — `find_ir_runbooks(service_name?, service_id?, limit?)` chat tool.
+- **`app/routers/tabletops.py`** — `POST /api/tabletops/{id}/generate-runbook` endpoint pre-fills service + threat from the tabletop.
+- **`app/templates/tabletop_detail.html`** — collapsible "Generate IR runbook from this scenario" section.
+- **`app/claude/postmortem_authoring.py`** — `publish()` now checks `ir_runbooks_store.services_with_runbook()` and inserts a `missing_ir_runbook` nudge for any affected service that lacks a runbook.
+- **`app/main.py`** — `ir_runbooks` router wired.
+
+---
+
+### Tradeoffs / known gaps
+
+- Vulnerability management (full tracker + SLA enforcement) is deferred — the `vulnerabilities` table schema exists for the Nyx hook but there is no Tank-native vuln lifecycle UI. When Nyx pushes a finding, it lands but there's no triage workflow yet.
+- Disclosure triage (HackerOne / Bugcrowd workflow) is wholly deferred to Nyx.
+- IR runbook generation is a blocking call in the list-page form (20-60s). A background-task + SSE-progress pattern (like DFD) would be nicer but wasn't needed for MVP.
+- Risk assessments auto-trigger immediately on create (background task). If the KB has no data for the service, the assessment is still created with default low scores and a note to re-assess after ingest.
+
+---
+
 ## 2026-05-26 — Comprehensive sample data expansion (3.4)
 
 ### Goal
@@ -1254,4 +1373,115 @@ python -m pytest -q             # → 28/28
 # /threat-models to see drift detection ready for v2.
 ```
 
+---
 
+## Security hardening pass (2026-05-27)
+
+### Goal
+
+An adversarial audit of the codebase found 20 numbered vulnerabilities.
+14 were fixed in this pass (VULN-002 through VULN-020). Six were
+deferred as architectural decisions or new-dependency questions (see
+below).
+
+### What was fixed
+
+**P0 — Privacy contract (prevent unredacted text reaching Claude)**
+
+Project notes injected into the chat system prompt are now passed
+through `apply_redactions()` before the prompt is assembled
+(`app/claude/chat.py`). The same fix was applied to `threat_kind` and
+`scenario_hook` in `tabletop.py`, and to `title` fields in
+`design_review.py` and `postmortem_authoring.py`. Previously only the
+main freewrite body was guaranteed to be redacted; secondary fields
+were sent in cleartext.
+
+**P1 — High-impact exploitable**
+
+- **SSRF (VULN-004):** the ICS calendar watcher now validates URLs
+  before fetching — blocks RFC1918 / loopback / link-local private IPs,
+  hardcoded cloud-metadata endpoints (`169.254.169.254`,
+  `metadata.google.internal`), and non-http/https schemes.
+- **Rehydration scope leak (VULN-009):** chat rehydration is now
+  restricted to placeholders that appeared in the outgoing prompt.
+  A prompt-injection attack can no longer force Tank to rehydrate
+  arbitrary `redaction_map` entries that were never in scope.
+- **XSS (VULN-011):** all `marked.parse()` calls are now wrapped with
+  `DOMPurify.sanitize()` across four templates (`ir_runbook_detail`,
+  `security_program`, `report_detail`, `project_workspace`).
+  DOMPurify loaded via CDN in `base.html`.
+- **Vuln intake auth (VULN-010):** `/api/vulnerabilities/intake` now
+  requires an `X-Nyx-Key` header matching `TANK_NYX_API_KEY` when that
+  env var is set; `cvss_score` validated in [0.0, 10.0]; `severity` and
+  `source` now use `Literal` types.
+- **Path ingest scope (VULN-005):** `/api/ingest/path` is restricted to
+  the user's home directory subtree.
+
+**P2 — Defense in depth**
+
+- `SecurityHeadersMiddleware` added to `app/main.py` — sets
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, and a
+  `Content-Security-Policy` on all responses.
+- `search_kb` tool `top_k` clamped to [1, 25]; `query` truncated to 500
+  chars (VULN-016).
+- `UpdateProject.notes` limited to 10,000 chars (VULN-018).
+- Upload hardening: 100 MB size limit; filename sanitized with
+  `os.path.basename()` + `.lstrip(".")[:200]`; `target.parent.mkdir`
+  that could create arbitrary directories removed (VULN-006, VULN-014).
+
+**P3 — Hardening**
+
+- Tool execution errors now return a generic `"Tool execution failed."`
+  string to Claude instead of the raw Python exception message
+  (VULN-019).
+- `_PLACEHOLDER_RE` in `chat.py` is now built dynamically from all
+  registered redaction rules, so new categories are automatically
+  recognized (VULN-020).
+
+### New env var
+
+`TANK_NYX_API_KEY` — if set, `/api/vulnerabilities/intake` requires
+`X-Nyx-Key: <value>`. If unset, the endpoint remains open (backwards
+compatible).
+
+### Known gaps deferred
+
+- **VULN-001** — no authentication layer. All users who can reach the
+  port can access Tank. Deferred: requires design choice on session
+  model.
+- **VULN-007** — `/api/wipe` is unauthenticated (the phrase challenge
+  provides friction but not security). Deferred with VULN-001.
+- **VULN-012** — no CSRF tokens on state-changing forms. Deferred:
+  requires middleware + template work.
+- **VULN-015** — f-string SQL construction in one query path. Deferred:
+  requires audit + parameterization pass.
+- **VULN-017** — no rate limiting. Deferred: requires a new dependency
+  (e.g. `slowapi`) and architectural decision on where to enforce.
+
+### Files changed
+
+```
+app/claude/chat.py
+app/claude/design_review.py
+app/claude/postmortem_authoring.py
+app/claude/tabletop.py
+app/ingest/watchers/ics.py
+app/kb/tools.py
+app/main.py
+app/routers/ingest.py
+app/routers/projects.py
+app/routers/risks.py
+app/schemas.py
+app/templates/base.html
+app/templates/ir_runbook_detail.html
+app/templates/project_workspace.html
+app/templates/report_detail.html
+app/templates/security_program.html
+```
+
+### How to verify
+
+```bash
+python -m pytest -q   # 28/28 still pass
+```

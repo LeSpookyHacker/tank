@@ -19,8 +19,7 @@ Returns:
 {
     "ok": true,
     "scheduler": "running",
-    "db": "ok",
-    "tenure_day": 42
+    "db": "ok"
 }
 ```
 
@@ -276,6 +275,49 @@ If chat / report generation is failing:
 
 If you've configured optional connectors (CVE feed, GitHub poller),
 the corresponding URLs must also be reachable.
+
+---
+
+## Security-relevant configuration
+
+### Vulnerability intake (Nyx integration)
+
+`POST /api/risks/vuln-intake` is protected by a server-side API key
+check. The key must be set before the endpoint is usable:
+
+```bash
+echo 'TANK_NYX_API_KEY=<random-secret>' >> ~/projects/tank/.env
+systemctl --user restart tank
+```
+
+If `TANK_NYX_API_KEY` is not set, the endpoint returns HTTP 503
+(`"vulnerability intake not configured"`). If the key is set but the
+caller sends the wrong value in the `X-Nyx-Api-Key` header, the
+endpoint returns HTTP 401.
+
+### ICS calendar URL validation
+
+When you configure a calendar watcher via Settings → Integrations, Tank
+validates the URL before making any outbound request:
+
+- Only `http://` and `https://` schemes are accepted.
+- The hostname is resolved via DNS; all returned IP addresses are
+  checked. URLs that resolve to private, loopback, or link-local
+  addresses (RFC 1918, `::1`, `169.254.0.0/16`, etc.) are rejected
+  to prevent SSRF.
+- Known cloud-metadata endpoints (`169.254.169.254`,
+  `fd00:ec2::254`, etc.) are on a blocklist.
+- The response body is capped at 10 MB; anything larger is truncated.
+
+If a URL fails validation, the watcher record is rejected with an error
+message — no outbound request is made.
+
+### DFD file upload limits
+
+DFD diagram uploads (document-to-DFD and image analysis endpoints) are
+capped at **20 MB** per file. Requests exceeding this return HTTP 413.
+Images ingested via the document-ingest pipeline are also capped at
+20 MB; larger images are skipped and a placeholder section is stored.
 
 ---
 

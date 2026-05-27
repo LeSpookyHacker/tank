@@ -19,7 +19,7 @@ always-on dev VM with systemd (for real use). Pick one.
 ## Local laptop install
 
 ```bash
-git clone <repo-url> tank
+git clone https://github.com/LeSpookyHacker/tank.git tank
 cd tank
 cp .env.example .env             # paste your ANTHROPIC_API_KEY
 ./scripts/start.sh
@@ -55,6 +55,7 @@ TANK_ENV=prod                            # disables uvicorn --reload — use thi
 TANK_TIMEZONE=America/Los_Angeles        # critical on a UTC VM
 TANK_API_MAX_RETRIES=4                   # SDK retry budget
 TANK_API_TIMEOUT_SECONDS=600             # per-request ceiling
+TANK_NYX_API_KEY=                        # if set, /api/vulnerabilities/intake requires X-Nyx-Key header
 ```
 
 ---
@@ -90,7 +91,7 @@ ssh you@your-dev-vm
 # Ubuntu/Debian:
 sudo apt update && sudo apt install -y python3.12 python3.12-venv git
 
-git clone <repo-url> ~/projects/tank
+git clone https://github.com/LeSpookyHacker/tank.git ~/projects/tank
 cd ~/projects/tank
 cp .env.example .env
 ```
@@ -143,7 +144,7 @@ Verify:
 systemctl --user status tank
 journalctl --user -u tank -f
 curl http://127.0.0.1:8000/healthz
-# {"ok": true, "scheduler": "running", "db": "ok", "tenure_day": 0}
+# {"ok": true, "scheduler": "running", "db": "ok"}
 ```
 
 > ⬜ **Screenshot placeholder**: `systemctl --user status tank`
@@ -192,8 +193,7 @@ curl -s http://127.0.0.1:8000/healthz | python -m json.tool
 # {
 #     "ok": true,
 #     "scheduler": "running",
-#     "db": "ok",
-#     "tenure_day": 0
+#     "db": "ok"
 # }
 ```
 
