@@ -52,6 +52,25 @@ _DS_PLUGINS = [
     {"name": "SquareOAuthDetector"},
 ]
 
+# Patterns for common secret formats not covered by detect-secrets plugins.
+# AWSKeyDetector covers long-term keys (AKIA); session/assumed-role keys
+# start with ASIA and are not matched by that plugin.
+_EXTRA_SECRET_RES: list[re.Pattern] = [
+    re.compile(r"\bASIA[A-Z0-9]{16}\b"),                    # AWS STS session key
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{82}\b"),         # GitHub fine-grained PAT
+    re.compile(r"DefaultEndpointsProtocol=https?;[^\s\"']{20,}"),  # Azure conn string
+    re.compile(r"\bAIza[A-Za-z0-9\-_]{35}\b"),              # GCP API key
+    re.compile(r"\bghp_[A-Za-z0-9]{36}\b"),                 # GitHub classic PAT (belt+suspenders)
+]
+
+
+def _find_extra_secrets(text: str) -> list[Match]:
+    out: list[Match] = []
+    for pat in _EXTRA_SECRET_RES:
+        for m in pat.finditer(text):
+            out.append(Match(m.start(), m.end(), m.group(0), "secret_token"))
+    return out
+
 
 def _get_secrets_collection():
     global _SECRETS_COLLECTION
@@ -145,8 +164,8 @@ def _looks_like_natural_text(s: str) -> bool:
 # ---------------- combined finder ----------------
 
 def find_secrets(text: str) -> list[Match]:
-    """Detect-secrets plugins + entropy fallback, deduplicated by span."""
-    primary = _find_via_detect_secrets(text)
+    """Detect-secrets plugins + extra patterns + entropy fallback, deduplicated by span."""
+    primary = _find_via_detect_secrets(text) + _find_extra_secrets(text)
     primary_spans = {(m.start, m.end) for m in primary}
     secondary = _find_high_entropy(text, already_redacted=primary_spans)
     return primary + secondary

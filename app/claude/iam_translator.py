@@ -13,6 +13,7 @@ import json
 import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
+from app.redact.engine import apply_redactions
 from app.kb.iam import find_risks
 from app.schemas import IAMAuditReport, IAMPolicyRisk
 from app.storage import entities_store
@@ -37,10 +38,10 @@ def explain(policy_id: str) -> dict:
         return {"error": "iam_translator prompt missing"}
 
     body_text = (
-        f"# Policy: {ent['name']}\n\n"
+        f"# Policy: {apply_redactions(ent['name']).redacted_text}\n\n"
         f"Risk score (parsed): {attrs.get('risk_score')}\n\n"
         f"Callouts (parsed): {attrs.get('risk_callouts')}\n\n"
-        f"Description: {ent.get('description') or '—'}"
+        f"Description: {apply_redactions(ent.get('description') or '').redacted_text or '—'}"
     )
 
     try:

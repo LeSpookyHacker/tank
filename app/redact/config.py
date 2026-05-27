@@ -109,7 +109,6 @@ def _reject_redos(pattern: str) -> None:
     on the event-loop (main) thread.  Tests run on the main pytest thread.
     """
     compiled = re.compile(pattern)
-    adversarial = "a" * 40 + "!"
 
     def _alarm(signum, frame):
         raise re.error(
@@ -117,13 +116,15 @@ def _reject_redos(pattern: str) -> None:
             "likely susceptible to catastrophic backtracking (ReDoS)"
         )
 
-    old_handler = signal.signal(signal.SIGALRM, _alarm)
-    signal.alarm(1)
-    try:
-        compiled.search(adversarial)
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+    for size in (40, 100, 200):
+        adversarial = "a" * size + "!"
+        old_handler = signal.signal(signal.SIGALRM, _alarm)
+        signal.alarm(1)
+        try:
+            compiled.search(adversarial)
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
 
 
 # Only allow placeholder formats of the form [PREFIX_{n}] or [PREFIX_{n:03d}].

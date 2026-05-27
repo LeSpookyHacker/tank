@@ -55,8 +55,8 @@ def _generate(service_id: str | None, threat_kind: str | None,
         card = get_card(service_id)
         if card:
             parts.append(f"## Service in scope\n"
-                         f"Name: {card['name']}\n"
-                         f"Description: {card.get('description') or '—'}\n"
+                         f"Name: {apply_redactions(card['name']).redacted_text}\n"
+                         f"Description: {apply_redactions(card.get('description') or '').redacted_text or '—'}\n"
                          f"Attrs: {card.get('attrs')}")
     if threat_kind:
         parts.append("## Threat / tactic\n"

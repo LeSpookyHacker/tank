@@ -1,7 +1,7 @@
 """Attack-surface ledger endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -20,7 +20,7 @@ async def latest() -> dict:
 
 
 @api.get("/history")
-async def history(limit: int = 12) -> dict:
+async def history(limit: int = Query(default=12, ge=1, le=100)) -> dict:
     return {"history": as_helper.history(limit=limit)}
 
 

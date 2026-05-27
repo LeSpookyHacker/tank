@@ -19,7 +19,8 @@ import time
 
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Literal
 
 from app.role import RoleMode, UserScope, get_state, update_state
 
@@ -40,8 +41,8 @@ class SetScope(BaseModel):
 
 
 class SetCadence(BaseModel):
-    digest_time: str = "08:00"
-    reflection_day: str = "fri"
+    digest_time: str = Field(default="08:00", pattern=r"^\d{2}:\d{2}$")
+    reflection_day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"] = "fri"
 
 
 class SetInternalTLD(BaseModel):

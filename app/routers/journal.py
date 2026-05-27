@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from app.claude.journal_extractor import submit
@@ -30,7 +30,7 @@ async def get_today() -> dict:
 
 
 @router.get("/recent")
-async def get_recent(days: int = 14) -> dict:
+async def get_recent(days: int = Query(default=14, ge=1, le=365)) -> dict:
     return {"entries": journal_store.list_recent(days)}
 
 

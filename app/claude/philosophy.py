@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
+from app.redact.engine import apply_redactions
 from app.role import get_state, tenure_day
 from app.schemas import PhilosophyDoc
 from app.storage import decisions_store, reports_store, tabletops_store
@@ -35,7 +36,7 @@ def _generate(*, label: str, prompt_name: str) -> str | None:
     tabletops = tabletops_store.list_all(limit=10)
 
     decisions_text = "\n".join(
-        f"- {d['title']} [{d['kind']}/{d['status']}]: "
+        f"- {apply_redactions(d['title']).redacted_text} [{d['kind']}/{d['status']}]: "
         f"{d.get('body_md_redacted') or ''}"
         for d in decisions
     )

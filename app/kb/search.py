@@ -57,9 +57,9 @@ def _vec_search(query_vec: list[float], k: int) -> list[Hit]:
 
 def _fts_search(query_text: str, k: int) -> list[Hit]:
     conn = get_conn()
-    # FTS5's MATCH wants a sanitized query — escape double quotes, drop
-    # special tokens. For now: simple text MATCH.
-    safe = query_text.replace('"', '""')
+    # Wrap in phrase quotes so FTS5 treats the whole string as a literal
+    # phrase, preventing AND/OR/NOT/* operator injection.
+    safe = '"' + query_text.replace('"', '""') + '"'
     rows = conn.execute(
         "SELECT f.chunk_id, f.section_path, c.document_id, c.text_redacted, "
         "       bm25(chunks_fts) AS score "
