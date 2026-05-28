@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Tank — Compliance Framework Wizard{% endblock %}
+
+{% block content %}
+<div class="intake-shell">
+  <header class="intake-welcome" id="wizard-welcome">
+    <h1>Compliance Framework Wizard</h1>
+    <p class="intake-lede">8 questions to recommend the right compliance framework for your company. Takes about 5 minutes.</p>
+    <div class="intake-welcome-actions">
+      <button class="btn-primary" onclick="startWizard()">Start →</button>
+      <a href="/compliance" class="btn-secondary">Back to compliance</a>
+    </div>
+  </header>
+
+  <div class="intake-flow" id="wizard-flow" hidden>
+    <div class="intake-progress-bar">
+      <div class="intake-progress-fill" id="wizard-progress-fill"></div>
+    </div>
+    <div class="intake-progress-label" id="wizard-progress-label">Question 1 of {{ questions|length }}</div>
+    <div class="intake-question-card" id="wizard-question-card"></div>
+    <div class="intake-nav">
+      <button class="btn-secondary" id="wizard-back-btn" onclick="prevQ()" hidden>← Back</button>
+      <button class="btn-primary" id="wizard-next-btn" onclick="nextQ()">Next →</button>
+    </div>
+  </div>
+
+  <div class="intake-complete" id="wizard-complete" hidden>
+    <div class="intake-complete-icon">✓</div>
+    <h2>Recommendation generating.</h2>
+    <p>Tank is analysing your answers and generating a compliance framework recommendation. This takes about 30 seconds.</p>
+    <p class="dim">The recommendation will appear in <a href="/reports">Reports</a> and create a decision log entry.</p>
+    <a href="/compliance" class="btn-primary" style="margin-top:2rem">Back to compliance →</a>
+  </div>
+</div>
+
+<script>
+const QUESTIONS = {{ questions | tojson }};
+let currentQ = 0;
+const answers = {};
+
+function startWizard() {
+  document.getElementById("wizard-welcome").hidden = true;
+  document.getElementById("wizard-flow").hidden = false;
+  renderQ(0);
+}
+
+function renderQ(idx) {
+  currentQ = idx;
+  const q = QUESTIONS[idx];
+  const total = QUESTIONS.length;
+  document.getElementById("wizard-progress-fill").style.width = (idx / total * 100) + "%";
+  document.getElementById("wizard-progress-label").textContent = `Question ${idx+1} of ${total}`;
+  document.getElementById("wizard-back-btn").hidden = idx === 0;
+  document.getElementById("wizard-next-btn").textContent = idx === total - 1 ? "Get recommendation →" : "Next →";
+  const saved = Array.isArray(answers[q.id]) ? answers[q.id] : [];
+  const card = document.getElementById("wizard-question-card");
+  card.innerHTML = `
+    <div class="intake-q-number">Q${idx+1}</div>
+    <h2 class="intake-q-text">${q.text}</h2>
+    <div class="intake-q-input">
+      <div class="intake-chips">
+        ${q.options.map(opt =>
+          `<button type="button" class="intake-chip ${saved.includes(opt) ? 'selected' : ''}"
+            onclick="toggleChip(this,'${opt.replace(/'/g,"\\'")}')">
+            ${opt}
+          </button>`
+        ).join("")}
+      </div>
+    </div>`;
+}
+
+function toggleChip(btn, val) {
+  btn.classList.toggle("selected");
+  const q = QUESTIONS[currentQ];
+  let saved = Array.isArray(answers[q.id]) ? answers[q.id] : [];
+  if (btn.classList.contains("selected")) { if (!saved.includes(val)) saved.push(val); }
+  else saved = saved.filter(v => v !== val);
+  answers[q.id] = saved;
+}
+
+function nextQ() {
+  if (currentQ < QUESTIONS.length - 1) renderQ(currentQ + 1);
+  else submitWizard();
+}
+function prevQ() { if (currentQ > 0) renderQ(currentQ - 1); }
+
+async function submitWizard() {
+  const btn = document.getElementById("wizard-next-btn");
+  btn.disabled = true; btn.textContent = "Submitting…";
+  await fetch("/api/compliance/wizard/complete", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({answers}),
+  });
+  document.getElementById("wizard-flow").hidden = true;
+  document.getElementById("wizard-complete").hidden = false;
+}
+</script>
+{% endblock %}

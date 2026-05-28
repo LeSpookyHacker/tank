@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ display_name }}{% endblock %}
+
+{% block content %}
+<div class="policy-detail-shell">
+  <header class="policy-detail-header">
+    <a href="/policies" class="dim" style="font-size:0.85rem">← All policies</a>
+    <h1>{{ display_name }}</h1>
+    {% if policy %}
+    <div class="policy-meta">
+      <span class="policy-status policy-status-{{ policy.status }}">{{ policy.status }}</span>
+      <span class="dim" style="font-size:0.82rem">v{{ policy.version }}</span>
+      <div class="policy-status-actions">
+        {% if policy.status == 'draft' %}
+        <button class="btn-sm btn-secondary" onclick="setStatus('reviewed')">Mark reviewed</button>
+        {% elif policy.status == 'reviewed' %}
+        <button class="btn-sm btn-secondary" onclick="setStatus('approved')">Mark approved</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </header>
+
+  {% if not policy %}
+  <div class="empty-state">
+    <p>This policy hasn't been generated yet.</p>
+    <button class="btn-primary" onclick="generatePolicy()">Generate first draft →</button>
+  </div>
+  {% else %}
+  <div class="policy-editor-layout">
+    <div class="policy-editor-toolbar">
+      <button class="policy-view-btn active" id="btn-rendered" onclick="showRendered()">Rendered</button>
+      <button class="policy-view-btn" id="btn-raw" onclick="showRaw()">Edit Markdown</button>
+      <button class="btn-primary btn-sm" id="save-btn" onclick="savePolicy()" hidden>Save changes</button>
+    </div>
+
+    <div id="rendered-view" class="policy-rendered markdown-body">
+      <!-- Populated by JS -->
+    </div>
+
+    <div id="raw-view" hidden>
+      <textarea id="policy-textarea" class="policy-textarea" rows="40">{{ policy.content_md }}</textarea>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+{% if policy %}
+const policyId = "{{ policy.id }}";
+const initialMd = {{ policy.content_md | tojson }};
+
+document.addEventListener("DOMContentLoaded", function() {
+  renderMarkdown(initialMd);
+});
+
+function renderMarkdown(md) {
+  const el = document.getElementById("rendered-view");
+  if (window.marked && window.DOMPurify) {
+    el.innerHTML = DOMPurify.sanitize(marked.parse(md));
+  } else {
+    // Fallback: wait for scripts to load
+    setTimeout(() => renderMarkdown(md), 200);
+  }
+}
+
+function showRendered() {
+  document.getElementById("rendered-view").hidden = false;
+  document.getElementById("raw-view").hidden = true;
+  document.getElementById("btn-rendered").classList.add("active");
+  document.getElementById("btn-raw").classList.remove("active");
+  document.getElementById("save-btn").hidden = true;
+}
+
+function showRaw() {
+  document.getElementById("rendered-view").hidden = true;
+  document.getElementById("raw-view").hidden = false;
+  document.getElementById("btn-rendered").classList.remove("active");
+  document.getElementById("btn-raw").classList.add("active");
+  document.getElementById("save-btn").hidden = false;
+}
+
+async function savePolicy() {
+  const content = document.getElementById("policy-textarea").value;
+  const btn = document.getElementById("save-btn");
+  btn.disabled = true; btn.textContent = "Saving…";
+  const res = await fetch("/api/policies/" + policyId, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({content_md: content}),
+  });
+  if (res.ok) {
+    renderMarkdown(content);
+    showRendered();
+  }
+  btn.disabled = false; btn.textContent = "Save changes";
+}
+
+async function setStatus(status) {
+  const res = await fetch("/api/policies/" + policyId, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      content_md: document.getElementById("policy-textarea").value || initialMd,
+      status,
+    }),
+  });
+  if (res.ok) window.location.reload();
+}
+{% endif %}
+
+async function generatePolicy() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = "Generating…";
+  const res = await fetch("/api/policies/generate", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({kind: "{{ kind }}"}),
+  });
+  if (res.ok) {
+    setTimeout(() => window.location.reload(), 4000);
+  }
+}
+</script>
+{% endblock %}

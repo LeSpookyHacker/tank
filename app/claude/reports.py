@@ -25,7 +25,8 @@ from app.redact.store import load_rehydration_map
 from app.role import get_state
 from app.schemas import (ControlMatrix, ControlMatrixRow,
                          CrossServiceGapsReport, OnCallHandoff,
-                         PlanReport, QuestionList, RiskRegisterReport,
+                         InitialAssessmentReport, PlanReport, ProgramRoadmapReport,
+                         QuestionList, RiskRegisterReport, StateOfSecurityReport,
                          StakeholderMap, ThreatLandscapeReport,
                          WeeklySecurityDigest)
 from app.storage import reports_store
@@ -511,6 +512,122 @@ def risk_register() -> str:
                      content_md_redacted=md, usage=usage)
 
 
+def _render_state_of_security(r: StateOfSecurityReport) -> str:
+    lines = ["# State of Security — Monthly Brief", "", r.program_health_summary, ""]
+    if r.top_risks:
+        lines.append("## Active risks")
+        for risk in r.top_risks[:3]:
+            lines.append(f"### {risk.get('title', '?')}")
+            lines.append(f"**Business impact:** {risk.get('business_impact', '—')}")
+            lines.append(f"**Status:** {risk.get('status', '—')}")
+            lines.append("")
+    if r.actions_taken:
+        lines.append("## Actions taken this month")
+        for a in r.actions_taken:
+            lines.append(f"- {a}")
+        lines.append("")
+    if r.actions_planned:
+        lines.append("## Actions planned next month")
+        for a in r.actions_planned:
+            lines.append(f"- {a}")
+        lines.append("")
+    lines += ["## Bottom line", "", f"_{r.bottom_line}_"]
+    return "\n".join(lines)
+
+
+def _render_initial_assessment(r: InitialAssessmentReport) -> str:
+    lines = ["# Initial Security Assessment — 30-Day Findings", "",
+             r.executive_summary, ""]
+    if r.findings:
+        lines.append("## Top findings")
+        for i, f in enumerate(r.findings[:10], 1):
+            lines.append(f"### {i}. {f.get('title', '?')} _{f.get('severity', '?')}_")
+            lines.append(f"**Business impact:** {f.get('business_impact', '—')}")
+            lines.append(f"**Remediation effort:** {f.get('effort', '—')}")
+            lines.append("")
+    if r.compliance_gap_summary:
+        lines += ["## Compliance posture", "", r.compliance_gap_summary, ""]
+    if r.immediate_actions:
+        lines.append("## Immediate actions (next 30 days)")
+        for a in r.immediate_actions:
+            lines.append(f"### {a.get('action', '?')}")
+            lines.append(f"- Effort: {a.get('effort_estimate', '—')}")
+            lines.append(f"- Why now: {a.get('why_now', '—')}")
+            lines.append("")
+    if r.unknown_areas:
+        lines.append("## Still to investigate")
+        for u in r.unknown_areas:
+            lines.append(f"- {u}")
+    return "\n".join(lines)
+
+
+def _render_program_roadmap(r: ProgramRoadmapReport) -> str:
+    lines = ["# Security Program Roadmap — 12 Months", ""]
+    lines += ["## Where we started (Day 1)", "", r.where_we_started, ""]
+    lines += ["## Where we are now", "", r.where_we_are_now, ""]
+    if r.quarterly_milestones:
+        lines.append("## Quarterly milestones")
+        for q in r.quarterly_milestones:
+            lines.append(f"### {q.get('quarter', '?')}: {q.get('milestone', '?')}")
+            lines.append(f"- Risk reduction: {q.get('risk_reduction', '—')}")
+            lines.append(f"- Investment: {q.get('investment', '—')}")
+            lines.append("")
+    if r.success_metrics:
+        lines.append("## Success metrics")
+        for m in r.success_metrics:
+            lines.append(f"- {m}")
+        lines.append("")
+    lines += ["## Why this is worth it", "", r.investment_narrative]
+    return "\n".join(lines)
+
+
+def state_of_security() -> str:
+    state = get_state()
+    user_task = (
+        "Generate a monthly State of Security brief for the executive audience. "
+        "Use what you know about the org's risk register, decisions, and program health."
+    )
+    parsed, usage = _run("report_state_of_security", StateOfSecurityReport,
+                         user_task=user_task)
+    if parsed is None:
+        raise RuntimeError("state_of_security generation returned no output")
+    md = _render_state_of_security(parsed)
+    return _finalize(kind="state_of_security", title="State of Security",
+                     content_md_redacted=md, usage=usage)
+
+
+def initial_assessment() -> str:
+    from app.role import tenure_day
+    tday = tenure_day()
+    user_task = (
+        f"Generate a 30-day Initial Assessment (current tenure day: {tday}). "
+        "Frame every finding in business terms. Be honest about unknowns."
+    )
+    parsed, usage = _run("report_initial_assessment", InitialAssessmentReport,
+                         user_task=user_task)
+    if parsed is None:
+        raise RuntimeError("initial_assessment generation returned no output")
+    md = _render_initial_assessment(parsed)
+    return _finalize(kind="initial_assessment", title="Initial Assessment",
+                     content_md_redacted=md, usage=usage)
+
+
+def program_roadmap() -> str:
+    from app.role import tenure_day
+    tday = tenure_day()
+    user_task = (
+        f"Generate a 12-month Security Program Roadmap (current tenure day: {tday}). "
+        "Show trajectory from Day 1 to now to 12 months out."
+    )
+    parsed, usage = _run("report_program_roadmap", ProgramRoadmapReport,
+                         user_task=user_task)
+    if parsed is None:
+        raise RuntimeError("program_roadmap generation returned no output")
+    md = _render_program_roadmap(parsed)
+    return _finalize(kind="program_roadmap", title="Security Program Roadmap",
+                     content_md_redacted=md, usage=usage)
+
+
 REPORT_REGISTRY = {
     "threat_landscape": threat_landscape,
     "cross_service_gaps": cross_service_gaps,
@@ -523,4 +640,8 @@ REPORT_REGISTRY = {
     "attack_mapping": attack_mapping,
     "iam_audit": iam_audit,
     "risk_register": risk_register,
+    # Leadership communication reports (Phase 7)
+    "state_of_security": state_of_security,
+    "initial_assessment": initial_assessment,
+    "program_roadmap": program_roadmap,
 }

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Tank — Security Policies{% endblock %}
+
+{% block content %}
+<div class="policies-shell">
+  <header>
+    <h1>Security Policies</h1>
+    <p class="lede dim">Five foundational policies generated from your KB context. These are first drafts — own them, edit them, make them yours.</p>
+  </header>
+
+  <div class="policies-grid">
+    {% for p in policies %}
+    {% set kind = p.kind %}
+    {% set display = policy_display_names.get(kind, kind) %}
+    {% set status = p.status %}
+    <div class="policy-card">
+      <div class="policy-card-header">
+        <span class="policy-kind-icon">📄</span>
+        <div class="policy-card-info">
+          <h3>{{ display }}</h3>
+          {% if status %}
+          <span class="policy-status policy-status-{{ status }}">{{ status }}</span>
+          {% else %}
+          <span class="policy-status policy-status-none">Not started</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="policy-card-actions">
+        {% if p.id %}
+        <a href="/policies/{{ kind }}" class="btn-primary btn-sm">Edit →</a>
+        <button class="btn-secondary btn-sm" onclick="regenerate('{{ kind }}')">Regenerate</button>
+        {% else %}
+        <button class="btn-primary" onclick="generate('{{ kind }}', this)">Generate →</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="toast" id="gen-toast" hidden></div>
+
+<script>
+async function generate(kind, btn) {
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+  const res = await fetch("/api/policies/generate", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({kind}),
+  });
+  const data = await res.json();
+  showToast(data.message || (res.ok ? "Generation started" : "Error"));
+  if (res.ok) setTimeout(() => window.location.reload(), 3000);
+  btn.disabled = false; btn.textContent = "Generate →";
+}
+async function regenerate(kind) {
+  const res = await fetch("/api/policies/generate", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({kind}),
+  });
+  const data = await res.json();
+  showToast(data.message || (res.ok ? "Regeneration started" : "Error"));
+}
+function showToast(msg) {
+  const el = document.getElementById("gen-toast");
+  el.textContent = msg;
+  el.hidden = false;
+  setTimeout(() => { el.hidden = true; }, 4000);
+}
+</script>
+{% endblock %}

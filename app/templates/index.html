@@ -2,6 +2,20 @@
 {% block title %}Tank — Today{% endblock %}
 
 {% block content %}
+
+{# ── Setup banners (non-blocking) ── #}
+{% if setup_banners %}
+<div class="setup-banners">
+  {% for banner in setup_banners %}
+  <div class="setup-banner" id="banner-{{ banner.id }}">
+    <span>{{ banner.text }}</span>
+    <a href="{{ banner.link }}" class="setup-banner-link">{{ banner.link_label }}</a>
+    <button class="setup-banner-dismiss" onclick="dismissBanner('{{ banner.id }}')" title="Dismiss">✕</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="hero-row">
 <section class="hero">
   <h1>
@@ -38,12 +52,21 @@
   </article>
 </div>
 
-{% if counts.documents == 0 %}
+{% if counts.documents == 0 and state.intake_completed %}
 <div class="empty-state">
   <div class="empty-state-icon">▰</div>
-  <h2>No documents ingested yet</h2>
-  <p>Drop a file into Tank to get started. Security posture analysis, threat modeling, and reports all flow from your ingested documents.</p>
+  <h2>Knowledge base is empty</h2>
+  <p>Your entity graph has been seeded from your intake answers. Next step: ingest documents to enrich it.</p>
   <a class="btn-primary" href="/ingest">Ingest a document →</a>
+  <a class="btn-secondary" href="/discovery" style="margin-left:0.75rem">Org discovery wizard →</a>
+</div>
+{% elif counts.documents == 0 %}
+<div class="empty-state">
+  <div class="empty-state-icon">▰</div>
+  <h2>Nothing to show yet</h2>
+  <p>Nothing to upload yet? Start the intake interview to build your starting point from a 15-minute conversation — no documents required.</p>
+  <a class="btn-primary" href="/intake">Start intake interview →</a>
+  <a class="btn-secondary" href="/ingest" style="margin-left:0.75rem">Or ingest a document →</a>
 </div>
 {% endif %}
 
@@ -69,6 +92,21 @@
     <div class="card-action"><a href="/chat">Open chat →</a></div>
   </div>
 </section>
+
+{# ── Recent decisions strip (shown during Discovery/Assessment phases) ── #}
+{% if recent_decisions and (lens == "map" or lens == "prioritize") %}
+<section class="recent-decisions-strip">
+  <h3>Recent decisions <a class="dim" href="/decisions" style="font-size:0.8rem; font-weight:400;">View all →</a></h3>
+  <div class="recent-decisions-row">
+    {% for d in recent_decisions %}
+    <a href="/decisions" class="recent-decision-card">
+      <span class="decision-kind-badge {{ d.kind }}">{{ d.kind.replace('_', ' ') }}</span>
+      <span class="decision-title">{{ d.title }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 
 <section class="today-grid">
   <article class="today-pane">
@@ -150,6 +188,18 @@ async function followupDone(id) {
   await fetch(`/api/followups/${id}/done`, {method: "POST"});
   window.location.reload();
 }
+function dismissBanner(id) {
+  const el = document.getElementById("banner-" + id);
+  if (el) el.hidden = true;
+  try { localStorage.setItem("tank-banner-dismissed-" + id, "1"); } catch(e) {}
+}
+(function() {
+  // Auto-hide previously dismissed banners
+  document.querySelectorAll(".setup-banner[id]").forEach(function(el) {
+    const key = "tank-banner-dismissed-" + el.id.replace("banner-", "");
+    if (localStorage.getItem(key)) el.hidden = true;
+  });
+})();
 </script>
 
 {# ---- contextual hints popup ---- #}

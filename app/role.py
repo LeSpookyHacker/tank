@@ -28,6 +28,13 @@ def _row_to_state(row) -> AppState:
     except Exception:
         scope = UserScope()
     keys = set(row.keys())
+
+    targets_raw = row["compliance_targets"] if "compliance_targets" in keys else "[]"
+    try:
+        compliance_targets = json.loads(targets_raw or "[]")
+    except Exception:
+        compliance_targets = []
+
     return AppState(
         role_mode=RoleMode(row["role_mode"]),
         internal_tld=row["internal_tld"],
@@ -38,6 +45,12 @@ def _row_to_state(row) -> AppState:
         tenure_started_at=row["tenure_started_at"] if "tenure_started_at" in keys else None,
         last_journal_at=row["last_journal_at"] if "last_journal_at" in keys else None,
         philosophy_doc_id=row["philosophy_doc_id"] if "philosophy_doc_id" in keys else None,
+        intake_completed=bool(row["intake_completed"]) if "intake_completed" in keys else False,
+        kb_bootstrap_stage=row["kb_bootstrap_stage"] if "kb_bootstrap_stage" in keys else "none",
+        industry=row["industry"] if "industry" in keys else None,
+        customer_type=row["customer_type"] if "customer_type" in keys else None,
+        approx_team_size=row["approx_team_size"] if "approx_team_size" in keys else None,
+        compliance_targets=compliance_targets,
     )
 
 
@@ -72,6 +85,12 @@ def update_state(
     onboarded: bool | None = None,
     tenure_started_at: float | None = None,
     last_journal_at: float | None = None,
+    intake_completed: bool | None = None,
+    kb_bootstrap_stage: str | None = None,
+    industry: str | None = None,
+    customer_type: str | None = None,
+    approx_team_size: str | None = None,
+    compliance_targets: list[str] | None = None,
 ) -> AppState:
     current = get_state()
 
@@ -101,6 +120,24 @@ def update_state(
     if last_journal_at is not None:
         fields.append("last_journal_at = ?")
         values.append(last_journal_at)
+    if intake_completed is not None:
+        fields.append("intake_completed = ?")
+        values.append(1 if intake_completed else 0)
+    if kb_bootstrap_stage is not None:
+        fields.append("kb_bootstrap_stage = ?")
+        values.append(kb_bootstrap_stage)
+    if industry is not None:
+        fields.append("industry = ?")
+        values.append(industry)
+    if customer_type is not None:
+        fields.append("customer_type = ?")
+        values.append(customer_type)
+    if approx_team_size is not None:
+        fields.append("approx_team_size = ?")
+        values.append(approx_team_size)
+    if compliance_targets is not None:
+        fields.append("compliance_targets = ?")
+        values.append(json.dumps(compliance_targets))
 
     if not fields:
         return current

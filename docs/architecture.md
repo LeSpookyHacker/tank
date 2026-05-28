@@ -366,8 +366,7 @@ code should hold to them.
 
 ## Reference patterns
 
-Tank mirrors patterns from `/Users/manuel.del.rio/projects/job-fit/`
-(the dev's earlier project):
+Key idioms used consistently across the codebase:
 
 - `app/config.py`: env via `python-dotenv`, `@lru_cache get_client()`,
   `MODEL` constant, `load_prompt(name)`.
@@ -376,4 +375,6 @@ Tank mirrors patterns from `/Users/manuel.del.rio/projects/job-fit/`
 - Prompts as `.md` files in `prompts/`, loaded by name; never
   inlined in Python.
 
-When in doubt about an idiom, that project is the reference.
+When adding a new feature, follow the existing module structure:
+store → router → template → prompt. See [CLAUDE.md](../CLAUDE.md)
+for the "where things live by purpose" table.

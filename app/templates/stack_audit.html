@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Tank — Security Stack Audit{% endblock %}
+
+{% block content %}
+<div class="stack-audit-shell">
+  <header class="stack-audit-header">
+    <h1>Security Stack Audit</h1>
+    <p class="lede dim">A structured inventory of your security tooling across 15 capability categories. Used by the prioritization engine to identify coverage gaps.</p>
+    <div class="stack-audit-progress">
+      <div class="stack-audit-pct" id="completion-pct">{{ completion_pct }}%</div>
+      <div class="stack-audit-progress-bar">
+        <div class="stack-audit-progress-fill" id="progress-fill" style="width: {{ completion_pct }}%"></div>
+      </div>
+      <span class="dim" style="font-size:0.82rem">{{ completion_pct }}% of categories assessed</span>
+    </div>
+  </header>
+
+  <table class="stack-audit-table">
+    <thead>
+      <tr>
+        <th>Capability</th>
+        <th>Current Tool</th>
+        <th>Deployment Status</th>
+        <th>Coverage Notes</th>
+        <th>Known Gaps</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="audit-tbody">
+      {% for cat in categories %}
+      <tr class="audit-row" id="row-{{ loop.index0 }}" data-category="{{ cat.capability_category }}">
+        <td class="audit-category">{{ cat.capability_category }}</td>
+        <td>
+          <input type="text" class="audit-input" placeholder="Tool name or 'None'"
+                 value="{{ cat.tool_name or '' }}" data-field="tool_name">
+        </td>
+        <td>
+          <select class="audit-select" data-field="deployment_status">
+            <option value="none" {% if (cat.deployment_status or 'none') == 'none' %}selected{% endif %}>None</option>
+            <option value="partial" {% if cat.deployment_status == 'partial' %}selected{% endif %}>Partial</option>
+            <option value="full" {% if cat.deployment_status == 'full' %}selected{% endif %}>Full</option>
+          </select>
+        </td>
+        <td>
+          <input type="text" class="audit-input" placeholder="What's in scope?"
+                 value="{{ cat.coverage_notes or '' }}" data-field="coverage_notes">
+        </td>
+        <td>
+          <input type="text" class="audit-input" placeholder="What's missing?"
+                 value="{{ cat.known_gaps or '' }}" data-field="known_gaps">
+        </td>
+        <td>
+          <button class="btn-sm audit-save-btn" onclick="saveRow('{{ cat.capability_category }}', {{ loop.index0 }})">Save</button>
+          <span class="audit-saved-badge" id="saved-{{ loop.index0 }}" hidden>✓</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+async function saveRow(category, idx) {
+  const row = document.getElementById("row-" + idx);
+  const tool = row.querySelector("[data-field=tool_name]").value.trim() || null;
+  const status = row.querySelector("[data-field=deployment_status]").value;
+  const notes = row.querySelector("[data-field=coverage_notes]").value.trim() || null;
+  const gaps = row.querySelector("[data-field=known_gaps]").value.trim() || null;
+
+  const res = await fetch("/api/stack-audit/save", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      capability_category: category,
+      tool_name: tool,
+      deployment_status: status,
+      coverage_notes: notes,
+      known_gaps: gaps,
+    }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    const badge = document.getElementById("saved-" + idx);
+    badge.hidden = false;
+    setTimeout(() => { badge.hidden = true; }, 2000);
+    document.getElementById("completion-pct").textContent = data.completion_pct + "%";
+    document.getElementById("progress-fill").style.width = data.completion_pct + "%";
+  }
+}
+</script>
+{% endblock %}

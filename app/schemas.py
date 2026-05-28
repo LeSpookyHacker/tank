@@ -190,6 +190,42 @@ class AppState(BaseModel):
     tenure_started_at: float | None = None
     last_journal_at: float | None = None
     philosophy_doc_id: str | None = None
+    # First-hire redesign fields
+    intake_completed: bool = False
+    kb_bootstrap_stage: str = "none"   # none | intake_done | discovery_done
+    industry: str | None = None
+    customer_type: str | None = None
+    approx_team_size: str | None = None
+    compliance_targets: list[str] = Field(default_factory=list)
+
+
+# ---------- leadership reports ----------
+
+class StateOfSecurityReport(BaseModel):
+    """Monthly one-page State of Security brief for CTO/CFO/board readers."""
+    program_health_summary: str          # 2-3 sentence overall health
+    top_risks: list[dict]                # [{title, business_impact, status}] — max 3
+    actions_taken: list[str]             # What was done this month
+    actions_planned: list[str]           # What is planned next month
+    bottom_line: str                     # One sentence the exec will remember
+
+
+class InitialAssessmentReport(BaseModel):
+    """30-day findings brief with business-impact framing."""
+    executive_summary: str               # 2-3 sentences
+    findings: list[dict]                 # [{title, business_impact, severity, effort}] — top 10
+    compliance_gap_summary: str          # Plain-language compliance posture
+    immediate_actions: list[dict]        # [{action, effort_estimate, why_now}]
+    unknown_areas: list[str]             # What still needs investigation
+
+
+class ProgramRoadmapReport(BaseModel):
+    """12-month security program roadmap."""
+    where_we_started: str                # Day-1 baseline description
+    where_we_are_now: str                # Current state
+    quarterly_milestones: list[dict]     # [{quarter, milestone, risk_reduction, investment}]
+    success_metrics: list[str]           # How we'll measure progress
+    investment_narrative: str            # Why this is worth the cost
 
 
 # ---------- reports ----------
@@ -303,6 +339,7 @@ class Day1Brief(BaseModel):
     week1_questions: list[Day1BriefQuestion]
     week1_reading: list[Day1BriefRead]
     week1_meetings: list[Day1BriefMeeting]
+    gaps: list[str] = []                  # "What I don't know yet" — explicit gap list
 
 
 class AnniversaryRetro(BaseModel):

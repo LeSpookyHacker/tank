@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% block title %}Tank — Org Discovery Wizard{% endblock %}
+
+{% block content %}
+<div class="wizard-shell">
+  <header class="wizard-header">
+    <h1>Org Discovery Wizard</h1>
+    <p class="lede dim">Systematically discover and inventory what exists — before you have to manually find it all yourself.</p>
+  </header>
+
+  <div class="wizard-steps">
+    <button class="wizard-step-btn active" id="step-btn-1" onclick="gotoStep(1)">1 GitHub</button>
+    <span class="wizard-step-sep">→</span>
+    <button class="wizard-step-btn" id="step-btn-2" onclick="gotoStep(2)">2 Teams</button>
+    <span class="wizard-step-sep">→</span>
+    <button class="wizard-step-btn" id="step-btn-3" onclick="gotoStep(3)">3 Services</button>
+    <span class="wizard-step-sep">→</span>
+    <button class="wizard-step-btn" id="step-btn-4" onclick="gotoStep(4)">4 Summary</button>
+  </div>
+
+  {# ── Step 1: GitHub org scan ── #}
+  <div class="wizard-step-content" id="step-1">
+    <h2>Step 1 — GitHub Org Scan</h2>
+    <p class="dim">Connect a GitHub personal access token (read-only, <code>repo</code> scope) to scan your org's repositories.</p>
+    <div class="form-group">
+      <label>GitHub org name</label>
+      <input type="text" id="github-org" placeholder="e.g. acme-corp" class="intake-text-input" style="max-width:320px">
+    </div>
+    <div class="form-group">
+      <label>Personal access token (PAT)</label>
+      <input type="password" id="github-token" placeholder="ghp_…" class="intake-text-input">
+      <p class="dim" style="font-size:0.8rem; margin-top:0.25rem">Token stays on this machine — never sent to Anthropic.</p>
+    </div>
+    <button class="btn-primary" id="github-scan-btn" onclick="runGithubScan()">Scan org →</button>
+
+    <div id="github-results" hidden style="margin-top:1.5rem">
+      <div class="github-results-header">
+        <span id="github-results-count" class="dim"></span>
+        <div style="display:flex; gap:0.5rem; align-items:center">
+          <button class="btn-sm" onclick="checkAll()">Check all</button>
+          <button class="btn-sm" onclick="uncheckAll()">Uncheck all</button>
+        </div>
+      </div>
+      <div id="github-repo-list" class="repo-list"></div>
+      <button class="btn-primary" onclick="gotoStep(2)" style="margin-top:1rem">Next →</button>
+    </div>
+  </div>
+
+  {# ── Step 2: Team directory import ── #}
+  <div class="wizard-step-content" id="step-2" hidden>
+    <h2>Step 2 — Team Directory Import</h2>
+    <p class="dim">Upload a CSV with columns: <code>name</code>, <code>email</code>, <code>team</code>, <code>role</code>. Or skip this step.</p>
+    <input type="file" id="csv-file" accept=".csv" onchange="handleCsvUpload(this)">
+
+    <div id="csv-preview" hidden style="margin-top:1.5rem">
+      <p id="csv-preview-count" class="dim"></p>
+      <div class="csv-table-wrap">
+        <table class="csv-preview-table" id="csv-preview-table"></table>
+      </div>
+      <p class="dim" style="font-size:0.8rem; margin-top:0.5rem">Edit team names above before confirming. Rows with the same team will be grouped.</p>
+    </div>
+
+    <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
+      <button class="btn-primary" onclick="gotoStep(3)">Next →</button>
+      <button class="btn-secondary" onclick="gotoStep(1)">← Back</button>
+    </div>
+  </div>
+
+  {# ── Step 3: Manual service entry ── #}
+  <div class="wizard-step-content" id="step-3" hidden>
+    <h2>Step 3 — Manual Service Entry</h2>
+    <p class="dim">Enter services you've discovered in conversation or investigation that aren't in a repository.</p>
+
+    <div id="manual-services-list"></div>
+    <button class="btn-secondary" onclick="addServiceRow()" style="margin-top:0.5rem">+ Add another</button>
+
+    <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
+      <button class="btn-primary" onclick="gotoStep(4)">Next →</button>
+      <button class="btn-secondary" onclick="gotoStep(2)">← Back</button>
+    </div>
+  </div>
+
+  {# ── Step 4: Summary + confirm ── #}
+  <div class="wizard-step-content" id="step-4" hidden>
+    <h2>Step 4 — Review &amp; Confirm</h2>
+    <div id="summary-counts" style="margin-bottom:1.5rem"></div>
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap">
+      <button class="btn-primary" id="confirm-btn" onclick="confirmAll()">Create entity stubs →</button>
+      <button class="btn-secondary" onclick="gotoStep(3)">← Back</button>
+      <a href="/" class="btn-secondary">Skip for now</a>
+    </div>
+    <div id="confirm-result" hidden style="margin-top:1.5rem"></div>
+  </div>
+</div>
+
+<script>
+let currentStep = 1;
+let githubRepos = [];
+let csvRows = [];
+let manualServices = [];
+
+function gotoStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById("step-" + i).hidden = i !== n;
+    const btn = document.getElementById("step-btn-" + i);
+    if (btn) btn.classList.toggle("active", i === n);
+  }
+  currentStep = n;
+  if (n === 4) updateSummary();
+}
+
+// ── Step 1: GitHub scan ────────────────────────────────────────────────────
+
+async function runGithubScan() {
+  const org = document.getElementById("github-org").value.trim();
+  const token = document.getElementById("github-token").value.trim();
+  if (!org || !token) { alert("Enter org name and token"); return; }
+  const btn = document.getElementById("github-scan-btn");
+  btn.disabled = true; btn.textContent = "Scanning…";
+  try {
+    const res = await fetch("/api/discovery/github-scan", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({org, token}),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Scan failed"); return; }
+    githubRepos = data.repos;
+    renderRepoList(githubRepos);
+    document.getElementById("github-results").hidden = false;
+    document.getElementById("github-results-count").textContent =
+      `${data.total} repositories found`;
+  } catch(e) { alert("Request failed: " + e.message); }
+  finally { btn.disabled = false; btn.textContent = "Scan org →"; }
+}
+
+function renderRepoList(repos) {
+  const list = document.getElementById("github-repo-list");
+  list.innerHTML = repos.map((r, i) => `
+    <div class="repo-row">
+      <input type="checkbox" id="repo-cb-${i}" ${r.pre_checked ? "checked" : ""}
+             onchange="githubRepos[${i}].pre_checked = this.checked">
+      <div class="repo-info">
+        <strong>${r.name}</strong>
+        ${r.description ? `<span class="dim"> — ${r.description}</span>` : ""}
+        <span class="repo-meta">${r.language} · ${r.visibility}${r.archived ? " · archived" : ""}</span>
+      </div>
+      <select class="repo-action-select" id="repo-action-${i}">
+        <option value="ingest" ${r.suggested_action === "ingest" ? "selected" : ""}>Ingest</option>
+        <option value="stub" ${r.suggested_action === "stub" ? "selected" : ""}>Note only</option>
+        <option value="skip">Skip</option>
+      </select>
+    </div>
+  `).join("");
+}
+
+function checkAll() {
+  githubRepos.forEach((_, i) => {
+    document.getElementById("repo-cb-" + i).checked = true;
+    githubRepos[i].pre_checked = true;
+  });
+}
+function uncheckAll() {
+  githubRepos.forEach((_, i) => {
+    document.getElementById("repo-cb-" + i).checked = false;
+    githubRepos[i].pre_checked = false;
+  });
+}
+
+// ── Step 2: CSV import ─────────────────────────────────────────────────────
+
+async function handleCsvUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/discovery/team-import", {method: "POST", body: fd});
+  const data = await res.json();
+  csvRows = data.rows;
+  document.getElementById("csv-preview-count").textContent =
+    `${data.total} people from ${data.teams.length} teams`;
+  renderCsvPreview(csvRows);
+  document.getElementById("csv-preview").hidden = false;
+}
+
+function renderCsvPreview(rows) {
+  const table = document.getElementById("csv-preview-table");
+  const heads = ["Name", "Email", "Team", "Role"];
+  table.innerHTML = `<tr>${heads.map(h => `<th>${h}</th>`).join("")}</tr>` +
+    rows.slice(0, 20).map((r, i) =>
+      `<tr>
+        <td>${r.name}</td>
+        <td class="dim">${r.email}</td>
+        <td><input type="text" class="csv-team-input" value="${r.team}"
+             onchange="csvRows[${i}].team = this.value"></td>
+        <td class="dim">${r.role}</td>
+      </tr>`
+    ).join("") +
+    (rows.length > 20 ? `<tr><td colspan="4" class="dim">…and ${rows.length - 20} more</td></tr>` : "");
+}
+
+// ── Step 3: Manual services ────────────────────────────────────────────────
+
+addServiceRow();
+function addServiceRow() {
+  const i = manualServices.length;
+  manualServices.push({name:"", type:"web app", team:"", stack:"", notes:""});
+  const div = document.getElementById("manual-services-list");
+  div.innerHTML += `
+    <div class="service-row" id="svc-row-${i}">
+      <div class="service-row-fields">
+        <input type="text" placeholder="Service name *" class="intake-text-input"
+               onchange="manualServices[${i}].name = this.value">
+        <select class="service-type-sel" onchange="manualServices[${i}].type = this.value">
+          ${["web app","API","mobile","data store","infrastructure","internal tool","third-party"]
+            .map(t => `<option>${t}</option>`).join("")}
+        </select>
+        <input type="text" placeholder="Owning team" class="intake-text-input"
+               onchange="manualServices[${i}].team = this.value">
+        <input type="text" placeholder="Tech stack" class="intake-text-input"
+               onchange="manualServices[${i}].stack = this.value">
+        <input type="text" placeholder="Notes" class="intake-text-input"
+               onchange="manualServices[${i}].notes = this.value">
+      </div>
+      <button onclick="removeService(${i})" class="btn-sm btn-danger">✕</button>
+    </div>`;
+}
+
+function removeService(i) {
+  manualServices.splice(i, 1);
+  const div = document.getElementById("manual-services-list");
+  div.innerHTML = "";
+  const tmp = [...manualServices];
+  manualServices = [];
+  tmp.forEach(() => addServiceRow());
+  // repopulate values
+  tmp.forEach((s, j) => {
+    const row = div.querySelectorAll(".service-row")[j];
+    if (row) {
+      row.querySelectorAll("input")[0].value = s.name;
+      row.querySelectorAll("input")[1].value = s.team;
+      row.querySelectorAll("input")[2].value = s.stack;
+      row.querySelectorAll("input")[3].value = s.notes;
+      manualServices[j] = s;
+    }
+  });
+}
+
+// ── Step 4: Summary & confirm ──────────────────────────────────────────────
+
+function updateSummary() {
+  const reposChecked = githubRepos.filter((_, i) =>
+    document.getElementById("repo-cb-" + i)?.checked).length;
+  const people = csvRows.length;
+  const services = manualServices.filter(s => s.name.trim()).length;
+  document.getElementById("summary-counts").innerHTML = `
+    <ul class="summary-list">
+      <li><strong>${reposChecked}</strong> repositories selected from GitHub scan</li>
+      <li><strong>${people}</strong> people from directory import</li>
+      <li><strong>${services}</strong> services entered manually</li>
+    </ul>
+    <p class="dim">Tank will create entity stubs for each item. Stubs are marked as unconfirmed until you ingest documents that verify them.</p>`;
+}
+
+async function confirmAll() {
+  const repos = githubRepos
+    .filter((_, i) => document.getElementById("repo-cb-" + i)?.checked)
+    .map((r, i) => ({
+      name: r.name,
+      description: r.description,
+      language: r.language,
+      action: document.getElementById("repo-action-" + i)?.value || "stub",
+    }));
+  const teams = csvRows;
+  const services = manualServices.filter(s => s.name.trim());
+
+  const btn = document.getElementById("confirm-btn");
+  btn.disabled = true; btn.textContent = "Creating…";
+  const res = await fetch("/api/discovery/confirm", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({repos, teams, services}),
+  });
+  const data = await res.json();
+  const el = document.getElementById("confirm-result");
+  if (res.ok) {
+    const c = data.created;
+    el.innerHTML = `<div class="success-box">
+      <strong>Done!</strong> Created: ${c.repos} repo stubs, ${c.people} people, ${c.teams} teams, ${c.services} services.
+      <div style="margin-top:0.75rem; display:flex; gap:0.5rem">
+        <a href="/entities" class="btn-secondary">View entity graph →</a>
+        <a href="/ingest" class="btn-primary">Start ingesting →</a>
+      </div>
+    </div>`;
+  } else {
+    el.innerHTML = `<div class="error-box">Error: ${data.error || "Failed"}</div>`;
+  }
+  el.hidden = false;
+  btn.disabled = false; btn.textContent = "Create entity stubs →";
+}
+</script>
+{% endblock %}

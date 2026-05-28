@@ -14,6 +14,12 @@ import uuid
 from app.db import LOCK, get_conn
 
 
+def count_all() -> int:
+    """Total number of chunks in the KB (used for discovery mode threshold)."""
+    row = get_conn().execute("SELECT COUNT(*) AS n FROM chunks").fetchone()
+    return row["n"] if row else 0
+
+
 def _pack_embedding(vec: list[float]) -> bytes:
     """sqlite-vec accepts FLOAT32 packed as little-endian bytes."""
     return struct.pack(f"<{len(vec)}f", *vec)

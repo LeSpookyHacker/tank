@@ -15,10 +15,11 @@ from app.config import STATIC_DIR
 from app.db import get_conn
 from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
-    dfd, entities, followups, glossary, iam, ingest, integrations, ir_runbooks,
-    journal, lessons, me, meeting_prep, notes, nudges, onboarding, pages,
-    philosophy, postmortems, projects, reports, risks, security_program,
-    settings, subscriptions, tabletops, teams, threat_models, dashboard,
+    discovery, dfd, entities, followups, glossary, iam, ingest, integrations,
+    intake, ir_runbooks, journal, lessons, me, meeting_prep, notes, nudges,
+    onboarding, pages, philosophy, plan, policies, postmortems, projects,
+    reports, risks, security_program, settings, stack_audit, subscriptions,
+    tabletops, teams, threat_models, vulnerabilities, dashboard,
 )
 
 log = logging.getLogger("tank.main")
@@ -121,6 +122,18 @@ app.include_router(dashboard.router)
 # Legacy pages (onboarding, /api/usage/cost; /ingest now lives in project workspace)
 app.include_router(pages.router)
 app.include_router(onboarding.router)
+# First-hire intake interview
+app.include_router(intake.router)
+# Org discovery wizard
+app.include_router(discovery.router)
+# Security stack audit
+app.include_router(stack_audit.router)
+# Security policies
+app.include_router(policies.router)
+# Vulnerability triage workflow
+app.include_router(vulnerabilities.router)
+# 90-Day Plan
+app.include_router(plan.router)
 
 # Data layer
 app.include_router(ingest.router)

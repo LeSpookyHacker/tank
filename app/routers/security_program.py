@@ -11,7 +11,7 @@ import json
 import logging
 import time
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -254,6 +254,33 @@ async def page_security_program(request: Request) -> HTMLResponse:
             "followup_done_pct": followup_done_pct,
         },
     )
+
+
+@api.post("/priorities/generate")
+async def generate_priorities(background_tasks: BackgroundTasks) -> dict:
+    """Generate quarterly security prioritization via the Prioritization Engine."""
+    background_tasks.add_task(_generate_priorities_bg)
+    return {"ok": True, "message": "Prioritization generating. Check Reports in ~30s."}
+
+
+@api.get("/priorities")
+async def get_priorities() -> dict:
+    """Return the latest prioritization report if one exists."""
+    from app.storage import reports_store
+    rows = reports_store.list_by_kind("prioritization", limit=1)
+    if not rows:
+        return {"priorities": None}
+    return {"priorities": rows[0]}
+
+
+def _generate_priorities_bg() -> None:
+    import logging as _log
+    log = _log.getLogger("tank.security_program")
+    try:
+        from app.claude.prioritization import generate
+        generate()
+    except Exception:
+        log.exception("prioritization generation failed")
 
 
 router.include_router(api)

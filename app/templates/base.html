@@ -79,6 +79,97 @@
     <span id="cost-badge" class="cost-badge" title="Lifetime API cost">$<span id="cost-value">—</span></span>
   </header>
 
+  {# ── Left navigation ── #}
+  <nav class="left-nav" id="left-nav" aria-label="Main navigation">
+    <div class="left-nav-inner">
+
+      <a class="left-nav-home" href="/">
+        <span class="lnav-icon">⌂</span><span class="lnav-label">Home</span>
+      </a>
+
+      <div class="lnav-group">
+        <button class="lnav-group-header" onclick="lnavToggle('discover')">
+          <span class="lnav-group-label">Discover</span>
+          <span class="lnav-chevron" id="chevron-discover">›</span>
+        </button>
+        <ul class="lnav-items" id="group-discover">
+          <li><a href="/intake"><span class="lnav-icon">📋</span><span class="lnav-label">Intake Interview</span></a></li>
+          <li><a href="/discovery"><span class="lnav-icon">🔍</span><span class="lnav-label">Org Discovery</span></a></li>
+          <li><a href="/stack-audit"><span class="lnav-icon">🛡️</span><span class="lnav-label">Security Stack Audit</span></a></li>
+        </ul>
+      </div>
+
+      <div class="lnav-group">
+        <button class="lnav-group-header" onclick="lnavToggle('analyze')">
+          <span class="lnav-group-label">Analyze</span>
+          <span class="lnav-chevron" id="chevron-analyze">›</span>
+        </button>
+        <ul class="lnav-items" id="group-analyze">
+          <li><a href="/chat"><span class="lnav-icon">💬</span><span class="lnav-label">Chat</span></a></li>
+          <li><a href="/dfd"><span class="lnav-icon">🗺️</span><span class="lnav-label">Threat Models (DFD)</span></a></li>
+          <li><a href="/design-reviews"><span class="lnav-icon">📐</span><span class="lnav-label">Design Reviews</span></a></li>
+        </ul>
+      </div>
+
+      <div class="lnav-group">
+        <button class="lnav-group-header" onclick="lnavToggle('track')">
+          <span class="lnav-group-label">Track</span>
+          <span class="lnav-chevron" id="chevron-track">›</span>
+        </button>
+        <ul class="lnav-items" id="group-track">
+          <li><a href="/risks"><span class="lnav-icon">⚠️</span><span class="lnav-label">Risk Register</span></a></li>
+          <li><a href="/decisions"><span class="lnav-icon">📝</span><span class="lnav-label">Decisions Log</span></a></li>
+          <li><a href="/vulnerabilities"><span class="lnav-icon">🔒</span><span class="lnav-label">Vulnerabilities</span></a></li>
+          <li><a href="/attack-surface"><span class="lnav-icon">📡</span><span class="lnav-label">Findings</span></a></li>
+        </ul>
+      </div>
+
+      <div class="lnav-group">
+        <button class="lnav-group-header" onclick="lnavToggle('build')">
+          <span class="lnav-group-label">Build</span>
+          <span class="lnav-chevron" id="chevron-build">›</span>
+        </button>
+        <ul class="lnav-items" id="group-build">
+          <li><a href="/policies"><span class="lnav-icon">📄</span><span class="lnav-label">Policies</span></a></li>
+          <li><a href="/ir-runbooks"><span class="lnav-icon">🚨</span><span class="lnav-label">IR Runbooks</span></a></li>
+          <li><a href="/postmortems"><span class="lnav-icon">🔬</span><span class="lnav-label">Workstreams</span></a></li>
+          <li><a href="/plan"><span class="lnav-icon">📅</span><span class="lnav-label">90-Day Plan</span></a></li>
+        </ul>
+      </div>
+
+      <div class="lnav-group">
+        <button class="lnav-group-header" onclick="lnavToggle('report')">
+          <span class="lnav-group-label">Report</span>
+          <span class="lnav-chevron" id="chevron-report">›</span>
+        </button>
+        <ul class="lnav-items" id="group-report">
+          <li><a href="/reports"><span class="lnav-icon">📊</span><span class="lnav-label">Reports</span></a></li>
+          <li><a href="/security-program"><span class="lnav-icon">🏛️</span><span class="lnav-label">Program Dashboard</span></a></li>
+          <li><a href="/compliance"><span class="lnav-icon">✅</span><span class="lnav-label">Compliance</span></a></li>
+        </ul>
+      </div>
+
+      <div class="lnav-group">
+        <button class="lnav-group-header" onclick="lnavToggle('knowledge')">
+          <span class="lnav-group-label">Knowledge</span>
+          <span class="lnav-chevron" id="chevron-knowledge">›</span>
+        </button>
+        <ul class="lnav-items" id="group-knowledge">
+          <li><a href="/entities"><span class="lnav-icon">🗺️</span><span class="lnav-label">Entity Graph</span></a></li>
+          <li><a href="/lessons"><span class="lnav-icon">📚</span><span class="lnav-label">Lessons DB</span></a></li>
+          <li><a href="/glossary"><span class="lnav-icon">📖</span><span class="lnav-label">Glossary</span></a></li>
+        </ul>
+      </div>
+
+      <div class="lnav-divider"></div>
+      <a href="/me" class="lnav-link-standalone"><span class="lnav-icon">👤</span><span class="lnav-label">/me</span></a>
+      <a href="/settings" class="lnav-link-standalone"><span class="lnav-icon">⚙</span><span class="lnav-label">Settings</span></a>
+    </div>
+
+    <button class="left-nav-collapse-btn" id="lnav-collapse-btn"
+            onclick="lnavCollapse()" title="Collapse sidebar">‹</button>
+  </nav>
+
   {# ── Page content ── #}
   <main class="global-main" id="main-content">
     {% block content %}{% endblock %}
@@ -247,6 +338,64 @@
       });
     })();
   </script>
+  <script>
+    // ── Left navigation ──
+    (function () {
+      var COLLAPSED_KEY = "tank-sidenav-collapsed";
+      var GROUP_KEY = "tank-sidenav-groups";
+      var nav = document.getElementById("left-nav");
+      var btn = document.getElementById("lnav-collapse-btn");
+      if (!nav) return;
+
+      // Restore collapse state
+      var isCollapsed = localStorage.getItem(COLLAPSED_KEY) === "1";
+      if (isCollapsed) {
+        nav.classList.add("collapsed");
+        if (btn) btn.textContent = "›";
+      }
+
+      // Restore group open/closed state
+      var groupState = {};
+      try { groupState = JSON.parse(localStorage.getItem(GROUP_KEY) || "{}"); } catch(e) {}
+
+      var allGroups = ["discover", "analyze", "track", "build", "report", "knowledge"];
+      allGroups.forEach(function(g) {
+        var items = document.getElementById("group-" + g);
+        var chevron = document.getElementById("chevron-" + g);
+        // Default: groups open unless explicitly closed
+        var open = groupState[g] !== false;
+        if (items) items.classList.toggle("open", open);
+        if (chevron) chevron.textContent = open ? "⌄" : "›";
+      });
+
+      // Highlight active link
+      var path = location.pathname;
+      nav.querySelectorAll("a").forEach(function(a) {
+        var href = a.getAttribute("href");
+        if (href && (path === href || (href !== "/" && path.startsWith(href)))) {
+          a.classList.add("active");
+        }
+      });
+
+      window.lnavToggle = function(group) {
+        var items = document.getElementById("group-" + group);
+        var chevron = document.getElementById("chevron-" + group);
+        if (!items) return;
+        var open = items.classList.toggle("open");
+        if (chevron) chevron.textContent = open ? "⌄" : "›";
+        groupState[group] = open;
+        try { localStorage.setItem(GROUP_KEY, JSON.stringify(groupState)); } catch(e) {}
+      };
+
+      window.lnavCollapse = function() {
+        isCollapsed = !isCollapsed;
+        nav.classList.toggle("collapsed", isCollapsed);
+        if (btn) btn.textContent = isCollapsed ? "›" : "‹";
+        try { localStorage.setItem(COLLAPSED_KEY, isCollapsed ? "1" : "0"); } catch(e) {}
+      };
+    })();
+  </script>
+
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

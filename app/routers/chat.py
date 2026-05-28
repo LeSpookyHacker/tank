@@ -169,3 +169,23 @@ async def stream(conv_id: str):
             unsubscribe(topic, q)
 
     return EventSourceResponse(event_source())
+
+
+class ConfirmEntityBody(BaseModel):
+    name: str
+    type: str = "Service"
+
+
+@router.post("/api/conversations/{conv_id}/confirm-entity")
+async def confirm_entity(conv_id: str, body: ConfirmEntityBody) -> dict:
+    """Persist a provisional entity stub discovered in chat discovery mode."""
+    from app.storage import entities_store as _ent
+    eid = _ent.upsert_entity(
+        type_=body.type,
+        name=body.name,
+        description=f"Discovered in chat conversation {conv_id}.",
+        attrs={"stub_source": "chat_discovery", "stub_unconfirmed": False},
+        confidence=0.4,
+        provenance="user",
+    )
+    return {"ok": True, "entity_id": eid, "name": body.name}

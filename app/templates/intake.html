@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}Tank — Company Intake{% endblock %}
+
+{% block content %}
+<section class="intake-shell">
+  <div class="intake-welcome" id="intake-welcome">
+    <h1>Let's build your starting point.</h1>
+    <p class="intake-lede">
+      I'm going to ask you ~20 questions about your company. You don't need any
+      documents — just answer from memory. Estimates and guesses are fine; we'll
+      refine everything as we go. This takes about 15 minutes.
+    </p>
+    <p class="intake-lede dim">
+      At the end, you'll have a skeleton knowledge graph of your company's services
+      and risks, and a Day-1 brief you can share with your manager.
+    </p>
+    <div class="intake-welcome-actions">
+      <button class="btn-primary" onclick="startIntake()">Start →</button>
+      {% if existing and existing.completed_at %}
+      <a href="/" class="btn-secondary">Back to dashboard</a>
+      {% endif %}
+    </div>
+    {% if existing and existing.completed_at %}
+    <p class="dim" style="margin-top: 1rem; font-size: 0.85rem;">
+      You've already completed an intake interview.
+      Starting a new one will create a new record — your previous answers are preserved.
+    </p>
+    {% endif %}
+  </div>
+
+  {# Interview flow — hidden until startIntake() is called #}
+  <div class="intake-flow" id="intake-flow" hidden>
+    <div class="intake-progress-bar">
+      <div class="intake-progress-fill" id="intake-progress-fill"></div>
+    </div>
+    <div class="intake-progress-label" id="intake-progress-label">Question 1 of {{ questions|length }}</div>
+
+    <div class="intake-question-card" id="intake-question-card">
+      {# Dynamically populated by JS #}
+    </div>
+
+    <div class="intake-nav">
+      <button class="btn-secondary" id="intake-back-btn" onclick="prevQuestion()" hidden>← Back</button>
+      <button class="btn-primary" id="intake-next-btn" onclick="nextQuestion()">Next →</button>
+    </div>
+
+    <div class="intake-skip-note" id="intake-skip-note">
+      <span class="dim">Questions marked <span class="intake-required-mark">*</span> are required for the first 5. The rest can be left blank.</span>
+    </div>
+  </div>
+
+  {# Completion screen — hidden until all questions answered #}
+  <div class="intake-complete" id="intake-complete" hidden>
+    <div class="intake-complete-icon">✓</div>
+    <h2>You're set up.</h2>
+    <p>Tank is now generating your Day-1 brief and seeding your knowledge graph with the services, teams, and tools you mentioned.</p>
+    <p class="dim">This runs in the background — you'll see it under Reports once it's ready (usually under a minute).</p>
+    <div class="intake-complete-cards">
+      <a href="/reports" class="intake-complete-card">
+        <span class="intake-card-icon">📄</span>
+        <span class="intake-card-label">View Day-1 Brief</span>
+        <span class="intake-card-hint">Available in Reports once generated</span>
+      </a>
+      <a href="/entities" class="intake-complete-card">
+        <span class="intake-card-icon">🗺️</span>
+        <span class="intake-card-label">Explore Entity Graph</span>
+        <span class="intake-card-hint">Your skeleton knowledge graph is ready</span>
+      </a>
+      <a href="/discovery" class="intake-complete-card">
+        <span class="intake-card-icon">🔍</span>
+        <span class="intake-card-label">Org Discovery Wizard</span>
+        <span class="intake-card-hint">Scan GitHub, import team directory</span>
+      </a>
+    </div>
+    <a href="/" class="btn-primary" style="margin-top: 2rem;">Go to dashboard →</a>
+  </div>
+</section>
+
+<script>
+const QUESTIONS = {{ questions | tojson }};
+let interviewId = null;
+let currentIndex = 0;
+const answers = {};
+
+async function startIntake() {
+  const res = await fetch("/api/intake/start", {method: "POST"});
+  const data = await res.json();
+  interviewId = data.interview_id;
+
+  document.getElementById("intake-welcome").hidden = true;
+  document.getElementById("intake-flow").hidden = false;
+  renderQuestion(0);
+}
+
+function renderQuestion(index) {
+  currentIndex = index;
+  const q = QUESTIONS[index];
+  const total = QUESTIONS.length;
+
+  // Progress
+  const pct = ((index) / total) * 100;
+  document.getElementById("intake-progress-fill").style.width = pct + "%";
+  document.getElementById("intake-progress-label").textContent =
+    `Question ${index + 1} of ${total}`;
+
+  // Back button
+  const backBtn = document.getElementById("intake-back-btn");
+  backBtn.hidden = index === 0;
+
+  // Next button label
+  const nextBtn = document.getElementById("intake-next-btn");
+  nextBtn.textContent = index === total - 1 ? "Finish →" : "Next →";
+
+  // Render question card
+  const card = document.getElementById("intake-question-card");
+  const required = q.required ? '<span class="intake-required-mark"> *</span>' : '';
+
+  let inputHtml = "";
+  if (q.input_type === "freetext") {
+    const saved = answers[q.id] || "";
+    inputHtml = `<textarea class="intake-textarea" id="q-input" rows="3" placeholder="${q.hint || ''}">${saved}</textarea>`;
+  } else if (q.input_type === "chips") {
+    const saved = Array.isArray(answers[q.id]) ? answers[q.id] : [];
+    inputHtml = `<div class="intake-chips" id="q-input-chips">` +
+      q.options.map(opt =>
+        `<button type="button" class="intake-chip ${saved.includes(opt) ? 'selected' : ''}"
+          onclick="toggleChip(this, '${opt.replace(/'/g, "\\'")}')">${opt}</button>`
+      ).join("") +
+    `</div>`;
+  } else if (q.input_type === "yes_name") {
+    const saved = answers[q.id] || {};
+    const savedChoice = saved.choice || "";
+    const savedName = saved.name || "";
+    inputHtml = `<div class="intake-yes-name">
+      <div class="intake-chips" id="q-yes-chips">
+        ${q.options.map(opt =>
+          `<button type="button" class="intake-chip ${savedChoice === opt ? 'selected' : ''}"
+            onclick="pickYesNo('${opt}')">${opt}</button>`
+        ).join("")}
+      </div>
+      <input type="text" class="intake-text-input" id="q-yes-name-input"
+        placeholder="${q.hint || 'Name (if yes)'}"
+        value="${savedName}"
+        style="${savedChoice === 'Yes' ? '' : 'display:none'}">
+    </div>`;
+  } else if (q.input_type === "yes_detail") {
+    const saved = answers[q.id] || {};
+    const savedChoice = saved.choice || "";
+    const savedDetail = saved.detail || "";
+    inputHtml = `<div class="intake-yes-detail">
+      <div class="intake-chips" id="q-yes-chips">
+        ${q.options.map(opt =>
+          `<button type="button" class="intake-chip ${savedChoice === opt ? 'selected' : ''}"
+            onclick="pickYesDetail('${opt}')">${opt}</button>`
+        ).join("")}
+      </div>
+      <textarea class="intake-textarea" id="q-yes-detail-input" rows="2"
+        placeholder="Brief description (optional)"
+        style="${savedChoice === 'Yes' ? '' : 'display:none'}">${savedDetail}</textarea>
+    </div>`;
+  }
+
+  card.innerHTML = `
+    <div class="intake-q-number">Q${index + 1}</div>
+    <h2 class="intake-q-text">${q.text}${required}</h2>
+    ${q.hint && q.input_type === 'freetext' ? `<p class="intake-q-hint dim">${q.hint}</p>` : ''}
+    <div class="intake-q-input">${inputHtml}</div>
+  `;
+}
+
+function toggleChip(btn, value) {
+  const q = QUESTIONS[currentIndex];
+  btn.classList.toggle("selected");
+  let saved = Array.isArray(answers[q.id]) ? answers[q.id] : [];
+  if (btn.classList.contains("selected")) {
+    if (!saved.includes(value)) saved.push(value);
+  } else {
+    saved = saved.filter(v => v !== value);
+  }
+  answers[q.id] = saved;
+}
+
+function pickYesNo(choice) {
+  const q = QUESTIONS[currentIndex];
+  document.querySelectorAll("#q-yes-chips .intake-chip").forEach(b => b.classList.remove("selected"));
+  const btn = [...document.querySelectorAll("#q-yes-chips .intake-chip")].find(b => b.textContent === choice);
+  if (btn) btn.classList.add("selected");
+  const nameInput = document.getElementById("q-yes-name-input");
+  nameInput.style.display = choice === "Yes" ? "" : "none";
+  const saved = answers[q.id] || {};
+  saved.choice = choice;
+  if (choice !== "Yes") saved.name = "";
+  answers[q.id] = saved;
+}
+
+function pickYesDetail(choice) {
+  const q = QUESTIONS[currentIndex];
+  document.querySelectorAll("#q-yes-chips .intake-chip").forEach(b => b.classList.remove("selected"));
+  const btn = [...document.querySelectorAll("#q-yes-chips .intake-chip")].find(b => b.textContent === choice);
+  if (btn) btn.classList.add("selected");
+  const detailInput = document.getElementById("q-yes-detail-input");
+  detailInput.style.display = choice === "Yes" ? "" : "none";
+  const saved = answers[q.id] || {};
+  saved.choice = choice;
+  if (choice !== "Yes") saved.detail = "";
+  answers[q.id] = saved;
+}
+
+function captureCurrentAnswer() {
+  const q = QUESTIONS[currentIndex];
+  if (q.input_type === "freetext") {
+    const el = document.getElementById("q-input");
+    if (el) answers[q.id] = el.value.trim();
+  } else if (q.input_type === "yes_name") {
+    const nameEl = document.getElementById("q-yes-name-input");
+    if (nameEl) {
+      const saved = answers[q.id] || {};
+      saved.name = nameEl.value.trim();
+      answers[q.id] = saved;
+    }
+  } else if (q.input_type === "yes_detail") {
+    const detailEl = document.getElementById("q-yes-detail-input");
+    if (detailEl) {
+      const saved = answers[q.id] || {};
+      saved.detail = detailEl.value.trim();
+      answers[q.id] = saved;
+    }
+  }
+  // chips are captured inline via toggleChip / pickYesNo / pickYesDetail
+}
+
+function nextQuestion() {
+  captureCurrentAnswer();
+
+  const q = QUESTIONS[currentIndex];
+  if (q.required && !hasAnswer(q)) {
+    alert("Please answer this question before continuing.");
+    return;
+  }
+
+  if (currentIndex < QUESTIONS.length - 1) {
+    renderQuestion(currentIndex + 1);
+  } else {
+    submitIntake();
+  }
+}
+
+function prevQuestion() {
+  captureCurrentAnswer();
+  if (currentIndex > 0) renderQuestion(currentIndex - 1);
+}
+
+function hasAnswer(q) {
+  const ans = answers[q.id];
+  if (q.input_type === "freetext") return ans && ans.length > 0;
+  if (q.input_type === "chips") return Array.isArray(ans) && ans.length > 0;
+  if (q.input_type === "yes_name" || q.input_type === "yes_detail") {
+    return ans && ans.choice && ans.choice.length > 0;
+  }
+  return true;
+}
+
+async function submitIntake() {
+  const nextBtn = document.getElementById("intake-next-btn");
+  nextBtn.disabled = true;
+  nextBtn.textContent = "Submitting…";
+
+  const res = await fetch("/api/intake/complete", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({interview_id: interviewId, answers}),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    alert("Error: " + (err.error || "Submission failed"));
+    nextBtn.disabled = false;
+    nextBtn.textContent = "Finish →";
+    return;
+  }
+
+  // Show completion screen
+  document.getElementById("intake-flow").hidden = true;
+  document.getElementById("intake-complete").hidden = false;
+}
+</script>
+{% endblock %}

@@ -559,6 +559,52 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             created_at  REAL NOT NULL
         );
 
+        -- ----- Redesign: first-hire intake + security program building -----
+
+        CREATE TABLE IF NOT EXISTS intake_interview (
+            id           TEXT PRIMARY KEY,
+            created_at   REAL NOT NULL,
+            completed_at REAL,
+            answers      TEXT NOT NULL DEFAULT '{}',
+            kb_seeded    INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS asset_inventory (
+            id                  TEXT PRIMARY KEY,
+            created_at          REAL NOT NULL,
+            updated_at          REAL NOT NULL,
+            capability_category TEXT NOT NULL,
+            tool_name           TEXT,
+            deployment_status   TEXT NOT NULL DEFAULT 'none',
+            coverage_notes      TEXT,
+            known_gaps          TEXT,
+            project_id          TEXT REFERENCES projects(id)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_inv_category
+            ON asset_inventory(capability_category);
+
+        CREATE TABLE IF NOT EXISTS ninety_day_plan (
+            id           TEXT PRIMARY KEY,
+            created_at   REAL NOT NULL,
+            generated_at REAL NOT NULL,
+            items        TEXT NOT NULL DEFAULT '[]'
+        );
+
+        CREATE TABLE IF NOT EXISTS policy_artifact (
+            id                  TEXT PRIMARY KEY,
+            kind                TEXT NOT NULL,
+            created_at          REAL NOT NULL,
+            updated_at          REAL NOT NULL,
+            content_md          TEXT NOT NULL DEFAULT '',
+            content_md_redacted TEXT NOT NULL DEFAULT '',
+            status              TEXT NOT NULL DEFAULT 'draft',
+            linked_decision_ids TEXT NOT NULL DEFAULT '[]',
+            version             INTEGER NOT NULL DEFAULT 1,
+            project_id          TEXT REFERENCES projects(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_policy_artifact_kind
+            ON policy_artifact(kind, updated_at);
+
         -- ----- Ops: scheduler durability + backup ledger -----
 
         -- Last-fired markers for the cron-ish scheduler. Replaces the
@@ -594,6 +640,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_risk_register(conn)
     _migrate_ir_runbooks(conn)
     _init_vec_table(conn)
+    # Redesign migrations
+    _migrate_intake_fields(conn)
+    _migrate_conversation_mode(conn)
+    _migrate_project_starter_template(conn)
+    _migrate_vulnerability_triage(conn)
+    _migrate_decisions_founding(conn)
 
 
 def _add_col_safe(conn: sqlite3.Connection, table: str, col_def: str) -> None:
@@ -874,6 +926,38 @@ def _migrate_dfd_columns(conn: sqlite3.Connection) -> None:
     _add_col_safe(conn, "dfd_analyses", "input_format TEXT")
     _add_col_safe(conn, "dfd_analyses", "project_id TEXT")
     _add_col_safe(conn, "dfd_analyses", "cached INTEGER NOT NULL DEFAULT 0")
+
+
+def _migrate_intake_fields(conn: sqlite3.Connection) -> None:
+    """Add first-hire intake and org-profile fields to app_state."""
+    _add_col_safe(conn, "app_state", "intake_completed INTEGER NOT NULL DEFAULT 0")
+    _add_col_safe(conn, "app_state", "kb_bootstrap_stage TEXT NOT NULL DEFAULT 'none'")
+    _add_col_safe(conn, "app_state", "industry TEXT")
+    _add_col_safe(conn, "app_state", "customer_type TEXT")
+    _add_col_safe(conn, "app_state", "approx_team_size TEXT")
+    _add_col_safe(conn, "app_state", "compliance_targets TEXT NOT NULL DEFAULT '[]'")
+
+
+def _migrate_conversation_mode(conn: sqlite3.Connection) -> None:
+    """Add discovery mode flag to conversations."""
+    _add_col_safe(conn, "conversations", "mode TEXT NOT NULL DEFAULT 'normal'")
+
+
+def _migrate_project_starter_template(conn: sqlite3.Connection) -> None:
+    """Mark auto-created onboarding template projects."""
+    _add_col_safe(conn, "projects", "starter_template INTEGER NOT NULL DEFAULT 0")
+
+
+def _migrate_vulnerability_triage(conn: sqlite3.Connection) -> None:
+    """Add triage workflow fields to vulnerabilities table."""
+    _add_col_safe(conn, "vulnerabilities", "triage_status TEXT NOT NULL DEFAULT 'new'")
+    _add_col_safe(conn, "vulnerabilities", "assigned_to TEXT")
+    _add_col_safe(conn, "vulnerabilities", "promoted_to_risk_id TEXT REFERENCES risks(id)")
+
+
+def _migrate_decisions_founding(conn: sqlite3.Connection) -> None:
+    """Tag decisions made in the first 90 days as founding decisions."""
+    _add_col_safe(conn, "decisions", "founding_decision INTEGER NOT NULL DEFAULT 0")
 
 
 def _init_vec_table(conn: sqlite3.Connection) -> None:

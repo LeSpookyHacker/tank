@@ -114,10 +114,27 @@ def home(request: Request):
                 "SELECT COUNT(*) AS c FROM conversations"
             ).fetchone()["c"],
         }
+        # Recent decisions for the home dashboard strip (last 3)
+        recent_decisions = [
+            dict(r) for r in conn.execute(
+                "SELECT id, title, kind, created_at FROM decisions "
+                "ORDER BY created_at DESC LIMIT 3"
+            ).fetchall()
+        ]
 
     lens = current_lens() if state.tenure_started_at else None
     tday = tenure_day()
     hints = _build_hints(counts, lens, tday, conn)
+
+    # Setup banners for incomplete first-hire tasks
+    setup_banners = []
+    if not state.intake_completed:
+        setup_banners.append({
+            "id": "intake_incomplete",
+            "text": "Complete your intake interview to unlock your Day-1 Brief and seed your knowledge graph.",
+            "link": "/intake",
+            "link_label": "Start intake interview →",
+        })
 
     return templates.TemplateResponse(
         request=request,
@@ -132,6 +149,8 @@ def home(request: Request):
             "hot_entities": usage_store.hot_entities(days=7, k=5),
             "hints": hints,
             "active_project": active_project,
+            "recent_decisions": recent_decisions,
+            "setup_banners": setup_banners,
         },
     )
 

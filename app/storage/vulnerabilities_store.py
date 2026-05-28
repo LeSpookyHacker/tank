@@ -110,6 +110,96 @@ def average_age_days() -> float:
     return round(float(val), 1) if val else 0.0
 
 
+def triage(vuln_id: str, *, severity: str | None = None, notes: str | None = None) -> None:
+    """Move to triaged state with optional severity reassessment."""
+    conn = get_conn()
+    now = int(time.time())
+    with LOCK:
+        if severity and severity in ALLOWED_SEVERITY:
+            conn.execute(
+                "UPDATE vulnerabilities SET status='triaged', triage_status='triaged', "
+                "severity=?, updated_at=? WHERE id=?",
+                (severity, now, vuln_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE vulnerabilities SET status='triaged', triage_status='triaged', "
+                "updated_at=? WHERE id=?",
+                (now, vuln_id),
+            )
+
+
+def assign(vuln_id: str, *, assigned_to: str, due_at: int | None = None) -> None:
+    """Assign to an owner with an optional due date."""
+    conn = get_conn()
+    now = int(time.time())
+    with LOCK:
+        conn.execute(
+            "UPDATE vulnerabilities SET status='in_remediation', "
+            "triage_status='assigned', assigned_to=?, due_at=?, updated_at=? "
+            "WHERE id=?",
+            (assigned_to, due_at, now, vuln_id),
+        )
+
+
+def close(
+    vuln_id: str,
+    *,
+    reason: str = "patched",
+    accepted_rationale: str | None = None,
+) -> None:
+    """Close a vulnerability with a reason."""
+    if reason not in ALLOWED_STATUS:
+        reason = "patched"
+    conn = get_conn()
+    now = int(time.time())
+    with LOCK:
+        conn.execute(
+            "UPDATE vulnerabilities SET status=?, triage_status='closed', "
+            "accepted_rationale=?, updated_at=? WHERE id=?",
+            (reason, accepted_rationale, now, vuln_id),
+        )
+
+
+def promote_to_risk(vuln_id: str) -> str | None:
+    """Create a risk register entry from this vulnerability. Returns risk_id."""
+    from app.storage import risks_store
+    vuln = get(vuln_id)
+    if not vuln:
+        return None
+    risk_id = risks_store.create(
+        title=vuln.get("title") or "Untitled vulnerability",
+        description=vuln.get("description") or "",
+        category="vulnerability",
+        inherent_likelihood=3,
+        inherent_impact=_sev_to_impact(vuln.get("severity")),
+    )
+    conn = get_conn()
+    with LOCK:
+        conn.execute(
+            "UPDATE vulnerabilities SET promoted_to_risk_id=? WHERE id=?",
+            (risk_id, vuln_id),
+        )
+    return risk_id
+
+
+def list_triage_queue(limit: int = 100) -> list[dict]:
+    """Return vulnerabilities that need triage (status = open, triage_status = new)."""
+    sql = (
+        "SELECT * FROM vulnerabilities "
+        "WHERE triage_status = 'new' OR (triage_status IS NULL AND status = 'open') "
+        "ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 "
+        "WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END, "
+        "created_at DESC LIMIT ?"
+    )
+    rows = get_conn().execute(sql, (limit,)).fetchall()
+    return [_hydrate(r) for r in rows]
+
+
+def _sev_to_impact(severity: str | None) -> int:
+    return {"critical": 5, "high": 4, "medium": 3, "low": 2}.get(severity or "", 3)
+
+
 def set_status(vuln_id: str, status: str) -> None:
     if status not in ALLOWED_STATUS:
         raise ValueError(f"unknown status: {status}")

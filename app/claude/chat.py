@@ -29,16 +29,23 @@ from typing import Any
 
 from app.claude.caching import build_kb_block, build_system_block
 from app.claude.event_bus import publish
-from app.config import MODEL, get_client
+from app.config import MODEL, get_client, load_prompt
 from app.kb.entities import get_card
 from app.kb.search import hybrid_search
 from app.kb.tools import TOOL_SCHEMAS, execute_tool
 from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
-from app.storage import (conversations_store, entities_store,
+from app.storage import (chunks_store, conversations_store, entities_store,
                          messages_store)
 
 log = logging.getLogger("tank.chat")
+
+# KB chunk count below which the chat loop enters discovery mode.
+DISCOVERY_THRESHOLD = 10
+
+_ENTITY_SUGGEST_RE = re.compile(
+    r"TANK_ENTITY_SUGGEST:(\{[^\n]+\})", re.MULTILINE
+)
 
 
 # ---------------- helpers ----------------
@@ -156,20 +163,31 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
     redacted = apply_redactions(user_text)
     user_redacted = redacted.redacted_text
 
-    # 2. Retrieve.
-    hits = hybrid_search(user_redacted, k=12)
-    hit_dicts = [
-        {
-            "chunk_id": h.chunk_id,
-            "document_id": h.document_id,
-            "section_path": h.section_path,
-            "snippet": h.snippet,
-            "score": h.score,
-            "source": h.source,
-        }
-        for h in hits
-    ]
-    entity_cards = _entity_cards_for_hits(hits)
+    # Check KB chunk count for discovery mode.
+    kb_chunk_count = chunks_store.count_all()
+    is_discovery = kb_chunk_count < DISCOVERY_THRESHOLD
+
+    if is_discovery and conv.get("mode") != "discovery":
+        conversations_store.set_mode(conversation_id, "discovery")
+        publish(topic, "mode_change", {"mode": "discovery"})
+
+    # 2. Retrieve (skipped in discovery mode — nothing in KB to retrieve).
+    hit_dicts: list[dict] = []
+    entity_cards: list[dict] = []
+    if not is_discovery:
+        hits = hybrid_search(user_redacted, k=12)
+        hit_dicts = [
+            {
+                "chunk_id": h.chunk_id,
+                "document_id": h.document_id,
+                "section_path": h.section_path,
+                "snippet": h.snippet,
+                "score": h.score,
+                "source": h.source,
+            }
+            for h in hits
+        ]
+        entity_cards = _entity_cards_for_hits(hits)
 
     # 3. Build prompt.
     role_mode = conv["role_mode"]
@@ -193,8 +211,17 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
         except Exception:
             pass
 
-    system_blocks = [build_system_block(role_mode, lens, project_notes)]
-    kb_block = build_kb_block(hit_dicts, entity_cards)
+    if is_discovery:
+        # Discovery mode: replace system blocks with the sparse-KB prompt.
+        system_blocks = [{
+            "type": "text",
+            "text": load_prompt("chat_discovery_mode"),
+            "cache_control": {"type": "ephemeral"},
+        }]
+        kb_block = {"type": "text", "text": ""}  # no KB to inject
+    else:
+        system_blocks = [build_system_block(role_mode, lens, project_notes)]
+        kb_block = build_kb_block(hit_dicts, entity_cards)
 
     history = _history_for_claude(conversation_id)
     # Inject the KB block as the very first user message of *this* turn
@@ -329,8 +356,23 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
         # Loop.
 
     # 5. Finalize.
-    redacted_text = "\n\n".join(final_text_parts).strip() or \
-                    "(no response)"
+    raw_combined = "\n\n".join(final_text_parts).strip() or "(no response)"
+
+    # In discovery mode: extract entity suggestions from response annotations
+    # and strip them before displaying. Publish as separate events for the UI
+    # to render as confirmation chips.
+    entity_chips: list[dict] = []
+    if is_discovery:
+        for m in _ENTITY_SUGGEST_RE.finditer(raw_combined):
+            try:
+                chip = json.loads(m.group(1))
+                entity_chips.append(chip)
+            except Exception:
+                pass
+        # Strip TANK_ENTITY_SUGGEST lines from the display text.
+        raw_combined = _ENTITY_SUGGEST_RE.sub("", raw_combined).strip()
+
+    redacted_text = raw_combined
     # Only rehydrate placeholders that were actually present in the prompt
     # history Claude saw — prevents prompt-injection from forcing the
     # rehydration of arbitrary redaction_map entries.
@@ -367,12 +409,16 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
     else:
         conversations_store.touch(conversation_id)
 
-    publish(topic, "done", {
+    done_payload: dict = {
         "message_id": msg_id,
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
         "cache_read_in": cache_read_in,
         "cache_create_in": cache_create_in,
         "citations_count": len(citations),
-    })
+        "discovery_mode": is_discovery,
+    }
+    if entity_chips:
+        done_payload["entity_chips"] = entity_chips
+    publish(topic, "done", done_payload)
     return msg_id

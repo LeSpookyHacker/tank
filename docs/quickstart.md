@@ -110,7 +110,9 @@ Your key may be invalid or have no credits. Verify at [console.anthropic.com](ht
 | What | Where |
 |------|-------|
 | Full install options (VM, systemd, SSH tunnel) | [installation.md](installation.md) |
-| The onboarding wizard (role frame, scope, first docs) | [first-run.md](first-run.md) |
+| The intake interview (15-minute company setup, no docs needed) | [first-run.md](first-run.md) |
+| Feature reference by nav group | [features/README.md](features/README.md) |
 | All environment variable options | [configuration.md](configuration.md) |
 | Day-to-day workflows | [using-tank.md](using-tank.md) |
 | How Tank works internally | [architecture.md](architecture.md) |
+| Common questions | [faq.md](faq.md) |

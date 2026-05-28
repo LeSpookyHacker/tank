@@ -1,159 +1,143 @@
-# First run — the onboarding flow
+# First run — onboarding and the intake interview
 
-Tank's onboarding is **conversational, not a form**. It takes about
-7 minutes and produces a printable **Day-1 brief** at the end. You
-go through it once.
-
----
-
-## Before you start
-
-Have these handy:
-
-- Your offer letter or job description (or a freewrite of the role).
-- Your calendar for the first 2 weeks (any `.ics` export, or just
-  copy-paste).
-- A handful of docs your employer gave you (architecture overview,
-  onboarding wiki, anything). Tank ingests them in the background
-  while you finish the intake.
+Tank's first-run flow has two stages: a brief setup screen (role + cadence), then the
+**intake interview** — 20 questions about your company that take about 15 minutes and
+require no uploaded documents. By the end you have a skeleton knowledge graph and a
+Day-1 Brief.
 
 ---
 
-## The five steps
+## Stage 1 — Setup screen
 
-> ⬜ **Screenshot placeholder**: onboarding step-1 (role frame).
->
-> ![Onboarding role pick](images/onboarding-1-role.png)
+After the server first loads, Tank asks for two things:
 
-### Step 1 — Role frame
+- **Your role** — Staff IC, Manager, or Both. Sets the framing for chat replies and
+  reports. You can change this later in Settings.
+- **Daily digest time** — when the morning brief fires (default 08:00).
 
-Pick: **Staff IC**, **Manager**, or **Both**. This sets the lens
-for chat replies, reports, and the home dashboard:
-
-- **Staff IC**: technical depth, code-level reasoning, security-design
-  framing.
-- **Manager**: org context, stakeholder map, executive-summary framing.
-- **Both** (default): hybrid — useful for Staff/Manager hybrids and
-  anyone unsure.
-
-You can switch later in Settings. Switching mid-conversation **forks**
-the conversation rather than mutating; both versions stay in your
-list.
-
-### Step 2 — Scope sketch
-
-Paste your offer letter / JD / freewrite. Tank extracts:
-
-- **Domain** — what part of the business you're responsible for.
-- **Org** — your team, your manager.
-- **Manager** — name (becomes a Person entity).
-- **Priorities** — up to 5 chips you can edit before saving.
-
-You don't have to fix anything. Whatever's wrong, you can correct in
-Settings or just by chatting ("actually, my manager is Priya, not
-Tom").
-
-> ⬜ **Screenshot placeholder**: onboarding step-2 (scope chips).
->
-> ![Onboarding scope](images/onboarding-2-scope.png)
-
-### Step 3 — Calendar dump
-
-Paste a chunk of your calendar or upload an `.ics` file. Tank parses
-each event for:
-
-- **Who** (attendees) → seeds the Person graph.
-- **When** → drives the auto pre-meeting brief scheduler.
-- **Recurrence** → identifies your 1:1 cadence.
-
-If you'd rather skip this step, click "skip" — you can wire up the
-ICS watcher later in Settings → Integrations.
-
-### Step 4 — Drop initial docs
-
-A simple drop zone for your starter pack. Tank ingests in the
-background while you finish Step 5. No required schema:
-
-- Markdown, PDF, DOCX → architecture / process docs
-- PNG / JPG → diagrams (Sonnet vision extracts entities + edges)
-- CSV / JSON → CMDB rows
-- Git repos → pass a local path; Tank summarizes (manifests, CI,
-  Dockerfiles, auth grep hits, README) **without sending raw code**
-
-You'll see the ingest panel populate in real time.
-
-> ⬜ **Screenshot placeholder**: onboarding step-4 ingest progress.
->
-> ![Onboarding ingest](images/onboarding-4-ingest.png)
-
-### Step 5 — Cadence
-
-Set:
-
-- **Daily digest time** — when the morning digest fires (default 08:00).
-- **Reflection day** — when the Friday-afternoon weekly reflection
-  fires (default Friday 16:00).
-
-That's it. Tank stamps `app_state.tenure_started_at = now()` and
-takes you to your Day-1 brief.
+Hit **Finish setup** and Tank redirects you to the intake interview.
 
 ---
 
-## The Day-1 brief
+## Stage 2 — The intake interview (`/intake`)
 
-Generated at the end of onboarding by Sonnet 4.6 over the
-freshly-built KB. It contains:
+The interview is a one-question-at-a-time conversational flow. You don't need anything
+prepared — answer from memory; estimates and guesses are fine. Tank marks everything
+from this interview as low-confidence and refines it as you ingest documents later.
 
-1. **Scope echo** — Tank reads back what it understood your role to
-   be (2-3 sentences).
-2. **Top 5 entities** — the services/people/data stores most relevant
-   to your stated scope, one line each.
-3. **3 questions to ask in week 1** — concrete, with named people to
-   ask them of.
-4. **3 docs to read first** — ranked, citing chunks from what you
-   just ingested.
-5. **3 meetings to set up** — with whom and why.
+### The 20 questions
 
-Render as Markdown in the browser, downloadable as PDF (Markdown
-export always works; PDF needs `weasyprint` — install if you want
-it).
+| # | Question | What it seeds |
+|---|----------|---------------|
+| 1 | What does your company build? | Org profile description |
+| 2 | Who are your customers? | Customer type on org profile |
+| 3 | What sensitive data does the company handle? | `Asset` stubs (PII, payment data, health data…) |
+| 4 | What cloud providers does the company use? | `CloudAccount` stubs (AWS, GCP, Azure…) |
+| 5 | Names of your most important services or applications | `Service` entity stubs |
+| 6 | Who owns those services? | `Person` / team stubs |
+| 7 | How large is the engineering org? | Org profile team size |
+| 8 | Does the company have an identity provider (Okta, Google Workspace…)? | `Asset` stub (identity_provider) |
+| 9 | Is MFA enforced for internal systems? | Org profile (used in risk hypothesis) |
+| 10 | Does the company have a secrets manager (Vault, AWS Secrets Manager…)? | `Asset` stub if yes |
+| 11 | Are there any existing security tools in place? | `Asset` stubs (security_tool) |
+| 12 | Has the company ever had a security incident or breach? | Org profile (seeds risk hypothesis) |
+| 13 | Is there any existing compliance requirement? | `compliance_targets` on org profile |
+| 14 | Do enterprise customers require compliance evidence? | Org profile |
+| 15 | Primary programming language or stack? | Org profile |
+| 16 | Where does the company's code live? | Org profile |
+| 17 | Does the company have a staging/production separation? | Org profile |
+| 18 | Is there a disaster recovery / backup process? | Org profile |
+| 19 | What does leadership expect from you in the first 90 days? | Seeds 90-Day Plan priorities |
+| 20 | What are you most worried about security-wise right now? | Seeds initial risk hypothesis |
 
-> ⬜ **Screenshot placeholder**: Day-1 brief rendered.
->
-> ![Day-1 brief](images/onboarding-5-day1-brief.png)
+Questions 1–5 are required (Tank can't generate a useful Day-1 Brief without them).
+Questions 6–20 can be skipped and answered later.
 
-You also get pre-filled **follow-ups** — Tank offers to seed the
-"3 meetings to set up" as actionable items in your follow-ups inbox
-with one click.
+### Entity stubs
+
+Every named entity extracted from your answers (a service, a team, a tool, a cloud
+provider) becomes an **entity stub** — a graph node created with:
+
+- `confidence: 0.3` (low — self-reported, not yet verified by ingested documents)
+- `provenance: user`
+- `attrs.stub_source: intake_interview`
+
+Stubs appear with a dashed border in the entity browser to distinguish them from
+confirmed (ingested) entities. As you ingest documents that mention the same service or
+team, the confidence score rises and the stub becomes a full entity.
 
 ---
 
-## After onboarding
+## Stage 3 — What happens after you submit
 
-The home dashboard takes over. Three immediate things to do:
+Two things run in the background immediately:
 
-1. **Click into a Service entity** from `/entities` and click
-   "Generate threat model (v2)". This kicks off your first
-   versioned threat model.
-2. **Mark a few services as yours** via the "I own this" button.
-   Tank's `/me` ownership dashboard wakes up.
-3. **Open the chat** and ask: *"Who owns payments-api?"* — that's the
-   golden-path smoke test.
+**Entity seeding** — all named services, teams, tools, cloud providers, and data types
+from your answers are created as entity stubs in the knowledge graph. This takes a few
+seconds.
 
-The next morning, you'll see your first digest. After two weeks
-Tank's lens auto-shifts from "map" to "prioritize." At Day-30, the
-philosophy doc gets seeded.
+**Day-1 Brief generation** — Tank calls `claude-sonnet-4-6` with your intake answers
+and generates a four-section brief:
+
+1. **What I know** — a summary of your company from the interview answers.
+2. **Top probable risk areas** — 3 risks derived from your company profile (e.g.
+   payment data + no WAF → payment surface risk). Marked as preliminary.
+3. **Who to meet in week 1** — specific people and teams from your answers, with a
+   suggested question for each.
+4. **What I don't know yet** — an explicit list of 5–8 gaps Tank couldn't determine
+   from the interview alone. This is the most important section — it's your
+   investigation list for weeks 1–2.
+
+The brief appears in **Reports** (`/reports`) under `kind = day1_brief`. It also
+appears as a link on the post-interview completion screen.
 
 ---
 
-## Re-running onboarding
+## Stage 4 — The "You're set up" completion screen
 
-You can't accidentally re-run it: `app_state.onboarded = 1` is
-sticky. If you need to truly re-onboard:
+After submitting the interview, Tank shows:
 
-1. Settings → "Wipe everything" (you'll have to type `delete tank`).
-2. Or `rm ~/.tank/db.sqlite` and restart Tank.
+- A link to your Day-1 Brief (available in Reports once generation completes, usually
+  under a minute)
+- A link to the Entity Graph (`/entities`) — your skeleton knowledge graph is ready
+- A "What to do next" card pointing to the **Org Discovery Wizard** (`/discovery`)
 
-The wipe also clears your KB, decisions, threat models, lessons, and
-philosophy doc. Run a backup first (`~/.tank/backups/` has weekly
-snapshots if you've been on it a while).
+---
+
+## What to do next
+
+The intake interview gives you a starting point. Three things to do immediately after:
+
+1. **Open the Org Discovery Wizard** (`/discovery`) — connect your GitHub token to
+   enumerate repos, import your team directory from a CSV, and manually add services
+   you've discovered in conversations.
+
+2. **Complete the Security Stack Audit** (`/stack-audit`) — 15 capability categories
+   (identity provider, MFA, secrets manager, SIEM, WAF, EDR…). This feeds the
+   Prioritization Engine.
+
+3. **Start ingesting documents** (`/ingest`) — any architecture docs, Terraform
+   configs, runbooks, or org charts you can access. Each one enriches the entity graph
+   and makes chat, threat models, and reports more specific to your environment.
+
+See [discover.md](features/discover.md) for full coverage of all three Discover-group
+features.
+
+---
+
+## Returning users — re-running the intake interview
+
+The intake interview is accessible at any time from `/intake`. Re-running it creates a
+new interview record (previous answers are preserved) and re-seeds the entity graph
+with any new information you provide.
+
+You can also access it from: **Settings → Organization → Re-run intake interview**.
+
+To fully reset Tank (wipe all data and start over):
+
+1. Settings → "Wipe everything" (you must type `delete tank` to confirm).
+2. Or: `rm ~/.tank/db.sqlite` and restart Tank.
+
+The wipe clears your KB, decisions, threat models, lessons, and philosophy doc. Your
+`~/.tank/backups/` directory is **not** touched by the wipe — weekly SQLite snapshots
+are kept there for 8 weeks.

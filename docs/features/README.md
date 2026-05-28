@@ -1,97 +1,116 @@
-# Features
+# Feature reference
 
-Per-feature reference. Grouped by the phase that shipped them — this
-matches how `HISTORY.md` tells the story and how the code is laid out.
+Per-feature documentation, organized by the left nav group where each feature lives.
+For day-to-day workflow guidance (how to use these features together), see
+[using-tank.md](../using-tank.md).
 
-## Core (Phase 1-11)
+---
 
-Reference for these lives in [architecture.md](../architecture.md);
-no per-feature doc.
+## Discover
 
-- **Onboarding** — see [first-run.md](../first-run.md).
-- **Ingest pipeline** — see [architecture.md § subsystems](../architecture.md#1-ingest-pipeline-appingest).
-- **Knowledge graph** — entities + relationships + provenance badges.
-- **Chat + 6 original reports** — see [chat-and-reports.md](chat-and-reports.md).
-- **Partner mode** — digest, journal, follow-ups, anniversary,
-  meeting prep, notes-to-KB diff.
-- **Opt-in connectors** — folder watcher, ICS calendar, CVE feed,
-  GitHub poller (Phase 11). Configured in Settings → Integrations.
+Everything you use in the first two weeks to build your initial picture of the org —
+before you have documents.
 
-## Phase 12 — Threat models become living
+- [discover.md](discover.md) — **Intake Interview**, **Org Discovery Wizard**,
+  **Security Stack Audit**
 
-- [threat-models-decisions.md](threat-models-decisions.md) — versioned
-  threat models with drift detection + the decisions / accepted-risk log.
+---
 
-## Phase 13 — Security workstreams
+## Analyze
 
-- [workstreams.md](workstreams.md) — design reviews, postmortems,
-  tabletops, on-call handoff brief, weekly security digest.
+Tools for reasoning about what you've found.
 
-## Phase 14 — Coverage + visibility
+- [chat-and-reports.md](chat-and-reports.md) — **Chat** (streaming with 15 tools,
+  discovery mode, mode selector) + **14+ report kinds** (threat landscape, cross-service
+  gaps, state of security, initial assessment, program roadmap, and more)
+- [dfd-analysis.md](dfd-analysis.md) — **DFD Threat Modeling** (4-mode input, SSE
+  progress, split-panel workspace, STRIDE + CVSS, PDF export)
+- [threat-models-decisions.md](threat-models-decisions.md) — **Living Threat Models**
+  (versioned, drift-aware) + **Decisions Log** (design choices, accepted risks,
+  deferred fixes, security invariants)
+- [workstreams.md](workstreams.md) — **Design Reviews** (freewrite → checklist →
+  approval)
 
-- [coverage-visibility.md](coverage-visibility.md) — Sigma detection
-  rules, ATT&CK mapping, compliance evidence collection, IAM policy
-  translator + audit, attack-surface ledger.
+---
 
-## Phase 15 — Continuous learning + memory
+## Track
 
-- [second-brain.md](second-brain.md) — lessons-learned DB, glossary
-  builder, personal ownership dashboard, security philosophy doc,
-  security-focused anniversary retros.
+Operational tracking of findings, decisions, and incidents.
 
-## Update batch (2.1 / 2.2 / 2.3 / 3.1 / 3.2 / 3.3 / 3.4)
+- [security-program.md](security-program.md) — **Risk Register**, **Security Program
+  Dashboard** (6-domain KPIs, executive brief, 12-week trends), **IR Runbooks**
+- [build.md](build.md#vulnerability-triage-vulnerabilities) — **Vulnerability Triage**
+  (triage queue, assign, close, promote to risk register)
+- [threat-models-decisions.md](threat-models-decisions.md) — **Decisions Log**
+- [workstreams.md](workstreams.md) — **Postmortems**, **Tabletops**
 
-- **2.1** — Markdown rendering in all report detail pages (`marked.js`); PDF
-  export via `window.print()` with print stylesheet; Markdown file download.
-- **2.2** — Token cost counter fix: `cache_read_in` / `cache_create_in` columns
-  added to `reports` table; new `api_calls` table captures all previously
-  untracked Claude calls; `/api/usage/cost` now aggregates from three tables.
-  `TANK_DEBUG_TOKENS=1` logs per-call token counts to console.
-- **2.3** — Claude API optimization: entity extraction, meeting prep,
-  journal/lesson extraction, and nudge question-of-week switched to
-  `claude-haiku-4-5-20251001` (~10× cheaper for structured extraction).
-- **3.1** — App redesign: flat topbar nav replaced with a grouped left sidebar
-  (Workspace / Pipeline / Workstreams / System). Empty states added on first
-  load. Cost badge moved to sidebar footer.
-- **3.2** — [dfd-analysis.md](dfd-analysis.md) — STRIDE threat modeling for
-  Data Flow Diagrams: 4-mode input, 4-step SSE progress tracker, split-panel
-  interactive workspace, threat cards with CVSS + OWASP/CWE references, and
-  4 export formats (PDF, annotated `.mmd`, original `.mmd`, JSON).
-- **3.3** — [projects.md](projects.md) — project dashboard with color/notes
-  fields, detail page, last-opened memory, and project-scoped chat context.
-- **3.4** — Sample data expansion: 16 new fixture files covering service-level
-  architecture docs, 3 additional Sigma rules (T1552.005/T1530/T1552.001),
-  over-broad IAM policies with planted findings, NIST CSF 2.0 compliance
-  framework, a PII breach runbook, and a postmortem for webhook-router. Plus
-  `scripts/seed_db.py` — an idempotent DB seed script that populates org/team/
-  project hierarchy, pre-cached DFD analyses (18 STRIDE threats across 2 services),
-  4 decisions, 10 glossary terms, 5 lessons, 1 tabletop, 3 journal entries, and
-  3 follow-ups. Exercises every living-artifact feature with no API cost.
+---
 
-## Security program gaps (first security hire)
+## Build
 
-- [security-program.md](security-program.md) — three operational features
-  that close the gap for a first security engineer:
+Generating security artifacts and structured plans.
 
-  - **Risk register** (`/risks`) — formal inherent/residual risk tracking with
-    1-5 likelihood × impact scoring, treatment strategies (mitigate / accept /
-    transfer / avoid), Sonnet KB-grounded assessment, 90-day review scheduling,
-    `risk_review_due` nudge, `get_risk_register` chat tool, and `risk_register`
-    report kind.
+- [build.md](build.md) — **Security Policies** (5 first-draft policies from KB context),
+  **90-Day Plan** (week-by-week task list from intake answers), **Vulnerability Triage**,
+  **Prioritization Engine** (concrete top-5 quarterly action plan),
+  **Compliance Framework Wizard** (8-question → framework recommendation)
+- [security-program.md](security-program.md) — **IR Runbooks** (per-service, per-scenario
+  5-phase incident-response playbooks)
 
-  - **Security program dashboard** (`/security-program`) — instant-load page
-    aggregating all of Tank's data into 6 metric domains (threat models, vulns,
-    risk register, compliance, incidents, design reviews). On-demand Sonnet
-    executive brief with green/yellow/red health indicator. Weekly Sunday 09:30
-    snapshots for 12-week trend history.
+---
 
-  - **IR runbooks** (`/ir-runbooks`) — per-service, per-scenario 5-phase
-    incident-response playbooks (Detect / Contain / Eradicate / Recover /
-    Comms) grounded in the KB. Integrated with tabletops (one-click "Generate
-    runbook from this scenario"), postmortems (nudge on publish when no runbook
-    exists for an affected service), `find_ir_runbooks` chat tool, and KB
-    entity registration as `Runbook` entities.
+## Report
 
-  Also includes a minimal **Nyx integration hook** (`POST /api/vulnerabilities/intake`)
-  so [Nyx](https://github.com/LeSpookyHacker/nyx) can push validated disclosure
-  findings into Tank's `vulnerabilities` table.
+Reports and program-level visibility.
+
+- [chat-and-reports.md](chat-and-reports.md) — all report kinds including the three new
+  leadership reports (`state_of_security`, `initial_assessment`, `program_roadmap`)
+- [security-program.md](security-program.md) — **Security Program Dashboard**
+- [coverage-visibility.md](coverage-visibility.md) — **Detection coverage** (Sigma/ATT&CK),
+  **IAM policy translator**, **Compliance evidence**, **Attack-surface ledger**
+
+---
+
+## Knowledge
+
+The living knowledge base and memory layer.
+
+- [concepts.md](../concepts.md) — **Entity Graph** (14 entity types, 9 relationship
+  kinds, provenance badges, entity stubs)
+- [second-brain.md](second-brain.md) — **Lessons-learned DB**, **Glossary builder**,
+  **Personal ownership dashboard**, **Security philosophy doc**
+- [projects.md](projects.md) — **Projects** (scoped workspaces, starter templates,
+  project-scoped chat)
+
+---
+
+## Partner mode
+
+The daily companion: digest, nudges, journal, meeting prep, anniversaries.
+
+- [using-tank.md](../using-tank.md) — day-to-day workflows that tie all features together
+- [workstreams.md](workstreams.md) — pre-meeting briefs, weekly security digest,
+  on-call handoff brief
+
+---
+
+## Historical reference
+
+<details>
+<summary>Version batch notes (click to expand)</summary>
+
+- **2.1** — Markdown rendering + PDF export via print stylesheet in all report pages.
+- **2.2** — Token cost counter: `cache_read_in` / `cache_create_in` added to `reports`
+  table; `api_calls` table for untracked Claude calls; three-source cost aggregation.
+- **2.3** — Entity extraction, meeting prep, journal/lesson extraction, nudge
+  question-of-week switched to `claude-haiku-4-5-20251001` (~10× cheaper).
+- **3.1** — App redesign: flat topbar nav replaced with grouped left sidebar.
+- **3.2** — DFD threat modeling (4-mode input, SSE progress, split-panel workspace,
+  STRIDE + CVSS, 4 export formats).
+- **3.3** — Projects dashboard with color/notes fields, detail page, project-scoped chat.
+- **3.4** — Sample data expansion: 16 new fixture files, `scripts/seed_db.py`.
+- **Redesign** — First-hire pivot: intake interview, org discovery wizard, security
+  stack audit, chat discovery mode, vulnerability triage, policy scaffolding, 90-day
+  plan, prioritization engine, compliance wizard, persistent left nav.
+
+</details>

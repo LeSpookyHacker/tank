@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Tank — Vulnerability Triage Queue{% endblock %}
+
+{% block content %}
+<div class="vulns-shell">
+  <header>
+    <h1>Vulnerability Triage Queue</h1>
+    <div class="vulns-stats">
+      {% for sev in ["critical", "high", "medium", "low"] %}
+      {% if counts.get(sev) %}
+      <span class="sev-badge sev-{{ sev }}">{{ counts[sev] }} {{ sev }}</span>
+      {% endif %}
+      {% endfor %}
+      {% if avg_age > 0 %}
+      <span class="dim" style="font-size:0.82rem">avg age {{ avg_age }}d</span>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if not queue %}
+  <div class="empty-state">
+    <div class="empty-state-icon">✓</div>
+    <h2>Triage queue is clear</h2>
+    <p>No vulnerabilities waiting for triage. New CVEs from the watcher will appear here.</p>
+  </div>
+  {% else %}
+  <div class="vulns-list">
+    {% for v in queue %}
+    <div class="vuln-row" id="vuln-{{ v.id }}">
+      <div class="vuln-row-header">
+        <span class="sev-badge sev-{{ v.severity }}">{{ v.severity }}</span>
+        {% if v.cve_id %}<code class="vuln-cve-id">{{ v.cve_id }}</code>{% endif %}
+        <strong class="vuln-title">{{ v.title }}</strong>
+        <span class="dim vuln-source">{{ v.source }}</span>
+      </div>
+      {% if v.description %}
+      <p class="vuln-desc dim">{{ v.description[:200] }}{% if v.description|length > 200 %}…{% endif %}</p>
+      {% endif %}
+      {% if v.affected_service_ids %}
+      <p class="vuln-services dim">Affects: {{ v.affected_service_ids | join(', ') }}</p>
+      {% endif %}
+      <div class="vuln-actions">
+        <button class="btn-sm btn-secondary" onclick="triageVuln('{{ v.id }}')">Triage</button>
+        <button class="btn-sm btn-secondary" onclick="assignVuln('{{ v.id }}')">Assign</button>
+        <button class="btn-sm btn-secondary" onclick="closeVuln('{{ v.id }}')">Close</button>
+        {% if v.severity in ["critical", "high"] %}
+        <button class="btn-sm btn-secondary" onclick="promoteVuln('{{ v.id }}')">→ Risk Register</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="modal-overlay" id="modal-overlay" hidden onclick="closeModal()">
+  <div class="modal" id="modal-content" onclick="event.stopPropagation()">
+    <div id="modal-body"></div>
+    <button class="btn-secondary" onclick="closeModal()" style="margin-top:0.75rem">Cancel</button>
+  </div>
+</div>
+
+<script>
+let currentVulnId = null;
+
+function triageVuln(id) {
+  currentVulnId = id;
+  document.getElementById("modal-body").innerHTML = `
+    <h3>Triage vulnerability</h3>
+    <label>Severity reassessment (optional)</label>
+    <select id="triage-sev" class="audit-select">
+      <option value="">Keep current</option>
+      ${["critical","high","medium","low","informational"].map(s => `<option value="${s}">${s}</option>`).join("")}
+    </select>
+    <button class="btn-primary" onclick="submitTriage()" style="margin-top:0.75rem">Confirm triage</button>`;
+  document.getElementById("modal-overlay").hidden = false;
+}
+
+async function submitTriage() {
+  const sev = document.getElementById("triage-sev").value || null;
+  await fetch("/api/vulnerabilities/" + currentVulnId + "/triage", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({severity: sev}),
+  });
+  document.getElementById("vuln-" + currentVulnId).remove();
+  closeModal();
+}
+
+function assignVuln(id) {
+  currentVulnId = id;
+  document.getElementById("modal-body").innerHTML = `
+    <h3>Assign vulnerability</h3>
+    <label>Assign to</label>
+    <input type="text" id="assign-owner" class="intake-text-input" placeholder="Name or team">
+    <label style="margin-top:0.75rem; display:block">Due date (optional)</label>
+    <input type="date" id="assign-due" class="intake-text-input">
+    <button class="btn-primary" onclick="submitAssign()" style="margin-top:0.75rem">Assign</button>`;
+  document.getElementById("modal-overlay").hidden = false;
+}
+
+async function submitAssign() {
+  const owner = document.getElementById("assign-owner").value.trim();
+  if (!owner) { alert("Enter an owner"); return; }
+  const dueEl = document.getElementById("assign-due");
+  let dueAt = null;
+  if (dueEl.value) {
+    dueAt = Math.floor(new Date(dueEl.value).getTime() / 1000);
+  }
+  await fetch("/api/vulnerabilities/" + currentVulnId + "/assign", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({assigned_to: owner, due_at: dueAt}),
+  });
+  document.getElementById("vuln-" + currentVulnId).remove();
+  closeModal();
+}
+
+function closeVuln(id) {
+  currentVulnId = id;
+  document.getElementById("modal-body").innerHTML = `
+    <h3>Close vulnerability</h3>
+    <label>Reason</label>
+    <select id="close-reason" class="audit-select">
+      <option value="patched">Patched / remediated</option>
+      <option value="accepted">Accepted risk</option>
+      <option value="wont_fix">Won't fix</option>
+    </select>
+    <div id="rationale-wrap" hidden>
+      <label style="margin-top:0.75rem; display:block">Rationale (for accepted risk)</label>
+      <textarea id="close-rationale" class="intake-textarea" rows="2"></textarea>
+    </div>
+    <button class="btn-primary" onclick="submitClose()" style="margin-top:0.75rem">Close vulnerability</button>
+    <script>document.getElementById("close-reason").onchange = function() {
+      document.getElementById("rationale-wrap").hidden = this.value !== "accepted";
+    };<\/script>`;
+  document.getElementById("modal-overlay").hidden = false;
+}
+
+async function submitClose() {
+  const reason = document.getElementById("close-reason").value;
+  const rationale = document.getElementById("close-rationale")?.value || null;
+  await fetch("/api/vulnerabilities/" + currentVulnId + "/close", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({reason, accepted_rationale: rationale}),
+  });
+  document.getElementById("vuln-" + currentVulnId).remove();
+  closeModal();
+}
+
+async function promoteVuln(id) {
+  if (!confirm("Add this vulnerability to the risk register?")) return;
+  const res = await fetch("/api/vulnerabilities/" + id + "/promote", {method: "POST"});
+  const data = await res.json();
+  if (res.ok) alert("Added to risk register (id: " + data.risk_id + ")");
+}
+
+function closeModal() {
+  document.getElementById("modal-overlay").hidden = true;
+}
+</script>
+{% endblock %}

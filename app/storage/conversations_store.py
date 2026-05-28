@@ -95,6 +95,16 @@ def delete(conv_id: str) -> None:
         get_conn().execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
 
 
+def set_mode(conv_id: str, mode: str) -> None:
+    """Set the chat mode (normal|discovery) on a conversation."""
+    conn = get_conn()
+    with LOCK:
+        conn.execute(
+            "UPDATE conversations SET mode = ?, updated_at = ? WHERE id = ?",
+            (mode, time.time(), conv_id),
+        )
+
+
 def touch(conv_id: str, title: str | None = None) -> None:
     conn = get_conn()
     with LOCK:

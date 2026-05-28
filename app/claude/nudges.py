@@ -35,7 +35,11 @@ def generate_nudges() -> list[str]:
                _question_of_week, _journal_followup_suggestion,
                _architecture_drift, _decision_expiring,
                _unaddressed_threat, _risk_review_due,
-               _missing_ir_runbook):
+               _missing_ir_runbook,
+               # First-hire nudges
+               _intake_incomplete, _stack_audit_incomplete,
+               _first_hire_team_meeting, _first_hire_top_service_tm,
+               _first_hire_day30_check, _first_policy_draft):
         if nudges_store.count_open_today() >= _DAILY_CAP:
             break
         try:
@@ -374,3 +378,141 @@ def _unaddressed_threat() -> str | None:
                             priority=80,
                         )
     return None
+
+
+# ---------------- First-hire nudges (Redesign) ----------------
+
+def _intake_incomplete() -> str | None:
+    """Fire daily until the intake interview is complete."""
+    from app.role import get_state
+    state = get_state()
+    if state.intake_completed or not state.onboarded:
+        return None
+    return nudges_store.insert(
+        kind="intake_incomplete",
+        title="Complete your company intake",
+        body="The intake interview seeds your entity graph and generates your "
+             "Day-1 Brief — no documents required. Takes 15 minutes.",
+        payload={"link": "/intake"},
+        priority=90,
+    )
+
+
+def _stack_audit_incomplete() -> str | None:
+    """Fire weekly during Discovery phase until security stack audit is done."""
+    from app.role import current_lens, get_state
+    from app.storage import asset_inventory_store as inv
+    state = get_state()
+    if not state.intake_completed:
+        return None
+    if current_lens() not in ("map", "prioritize"):
+        return None
+    pct = inv.completion_percentage()
+    if pct >= 80:
+        return None
+    return nudges_store.insert(
+        kind="stack_audit_incomplete",
+        title=f"Security stack audit is {pct}% complete",
+        body="Your stack audit tells the prioritization engine which "
+             "compensating controls exist. Gaps there inflate risk scores.",
+        payload={"link": "/stack-audit", "completion_pct": pct},
+        priority=70,
+    )
+
+
+def _first_hire_team_meeting() -> str | None:
+    """Fire if a team entity exists with no meeting record in the last 14 days."""
+    from app.db import LOCK, get_conn
+    conn = get_conn()
+    cutoff = time.time() - 14 * 86400
+    with LOCK:
+        teams = conn.execute(
+            "SELECT e.id, e.name FROM entities e "
+            "WHERE e.type = 'Person' "
+            "AND json_extract(e.attrs_json, '$.kind') = 'team' "
+            "LIMIT 20"
+        ).fetchall()
+    if not teams:
+        return None
+    for t in teams:
+        with LOCK:
+            met = get_conn().execute(
+                "SELECT COUNT(*) AS n FROM meetings "
+                "WHERE starts_at >= ? AND title LIKE ?",
+                (cutoff, f"%{t['name']}%"),
+            ).fetchone()
+        if not met or met["n"] == 0:
+            return nudges_store.insert(
+                kind="first_hire_team_meeting",
+                title=f"You haven't met with {t['name']!r} yet",
+                body=f"No meeting with the {t['name']} team in the last "
+                     f"14 days. Schedule a 1:1 — they own services "
+                     f"in your entity graph.",
+                payload={"entity_id": t["id"], "link": "/meeting-prep"},
+                priority=65,
+            )
+    return None
+
+
+def _first_hire_top_service_tm() -> str | None:
+    """Fire at Day 14 if no threat model exists for any service."""
+    from app.role import tenure_day, get_state
+    from app.storage import threat_models_store
+    tday = tenure_day()
+    if tday < 14:
+        return None
+    state = get_state()
+    if not state.intake_completed:
+        return None
+    tms = threat_models_store.list_all_latest()
+    if tms:
+        return None
+    return nudges_store.insert(
+        kind="first_hire_top_service_tm",
+        title="Week 2 milestone: run a threat model",
+        body="You're at Day 14 and no threat models exist yet. Run a "
+             "threat model for your highest-risk service to surface risks "
+             "before the first board conversation.",
+        payload={"link": "/dfd"},
+        priority=75,
+    )
+
+
+def _first_hire_day30_check() -> str | None:
+    """Fire at Day 28 to prompt risk prioritization check-in."""
+    from app.role import tenure_day
+    tday = tenure_day()
+    if tday < 28 or tday > 35:
+        return None
+    return nudges_store.insert(
+        kind="first_hire_day30_check",
+        title="Day 30 is approaching — top 5 risks?",
+        body="Day 30 is a key milestone. Have you identified your top 5 "
+             "risks? The prioritization engine can generate a concrete "
+             "top-5 from your risk register.",
+        payload={"link": "/security-program"},
+        priority=80,
+    )
+
+
+def _first_policy_draft() -> str | None:
+    """Fire at Day 45 if no policy artifacts exist."""
+    from app.role import tenure_day
+    from app.db import LOCK, get_conn
+    tday = tenure_day()
+    if tday < 45:
+        return None
+    with LOCK:
+        count = get_conn().execute(
+            "SELECT COUNT(*) AS n FROM policy_artifact"
+        ).fetchone()["n"]
+    if count > 0:
+        return None
+    return nudges_store.insert(
+        kind="first_policy_draft",
+        title="Foundation phase: draft your first policies",
+        body="You're at Day 45. Time to draft your foundational security "
+             "policies. Tank can generate first drafts from your KB context.",
+        payload={"link": "/policies"},
+        priority=75,
+    )
