@@ -629,19 +629,37 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             ON backup_log(created_at);
         """
     )
+    # ── Migrations (additive only, idempotent, run-on-every-boot) ──
+    #
+    # Order matters: column adds run before any seed that references them,
+    # seeds run before the next phase that depends on the seeded rows.
+    # Each `_migrate_*` uses `_add_col_safe` (idempotent ALTER), or `CREATE
+    # TABLE IF NOT EXISTS`, or `IF EXISTS`-guarded backfills. Never reorder
+    # or delete entries here — old DBs replay the whole list on every boot.
+
+    # app_state column adds + token-cost columns on reports.
     _migrate_app_state_columns(conn)
     _migrate_project_columns(conn)
     _migrate_project_fields(conn)
     _migrate_reports_cache_columns(conn)
+
+    # Project/team/org hierarchy: seed default project, sweep unscoped
+    # rows, add team/org columns, then seed the org+team.
     _seed_default_project(conn)
     _migrate_unscoped_data(conn)
     _migrate_projects_team_fields(conn)
     _seed_org_team(conn)
+
+    # New artifact tables and column adds (DFD, risk register, IR runbooks).
     _migrate_dfd_columns(conn)
     _migrate_risk_register(conn)
     _migrate_ir_runbooks(conn)
+
+    # Vector extension table — separate from the main schema script because
+    # `vec0` is a loaded extension that may be unavailable (see _load_extensions).
     _init_vec_table(conn)
-    # Redesign migrations
+
+    # Onboarding redesign + later phases.
     _migrate_intake_fields(conn)
     _migrate_conversation_mode(conn)
     _migrate_project_starter_template(conn)

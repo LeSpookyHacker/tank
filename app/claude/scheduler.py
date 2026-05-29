@@ -39,7 +39,41 @@ from app.storage import scheduler_state_store
 log = logging.getLogger("tank.scheduler")
 
 _TASK: asyncio.Task | None = None
+
+# Wake interval. Every clock-time job below is gated by `hhmm >= "HH:MM"`,
+# so as long as we wake at least once per minute we won't miss a window.
+_TICK_INTERVAL_SECONDS = 60
+
+# ── Schedule (single source of truth for clock literals) ──
+#
+# Each entry is (idempotency-key, fire-after time, label-granularity). The
+# `_tick` dispatcher reads `_now()`, compares the wall clock, and asks
+# `scheduler_state_store.has_fired(key, label)` before firing. Labels are
+# daily for daily jobs, ISO-week for weekly jobs — so a Sunday-only job
+# fires at most once per ISO week even if we restart mid-Sunday.
+#
+# `digest_time` is user-configurable in app_state; the rest are fixed.
+_REFLECTION_TIME = "16:00"   # Friday afternoon — end-of-week ritual.
+_JOURNAL_TIME    = "18:00"   # Weekday evening — after work hours.
+_AUTO_BRIEFS_TIME = "22:00"  # Night before — meetings on tomorrow's calendar.
+_BACKUP_TIME     = "03:00"   # Sunday small hours — minimal write activity.
+_ATTACK_SURFACE_TIME = "09:00"  # Sunday morning — fresh week diff.
+_SEC_PROGRAM_TIME    = "09:30"  # Sunday morning — right after attack-surface.
+
+# Tenure-day milestones that fire an anniversary retro. The ordering here
+# also drives the philosophy-doc lifecycle: Day-30 seeds, the rest evolve.
 _ANNIVERSARIES = {30, 60, 90, 180, 365}
+
+# Cap auto-generated meeting briefs per night so a busy calendar doesn't
+# burn through the daily token budget.
+_AUTO_BRIEFS_MAX_PER_NIGHT = 5
+
+# How far ahead `_fire_auto_briefs` looks for meetings (in seconds).
+_AUTO_BRIEFS_LOOKAHEAD_START = 4 * 3600    # skip anything in the next 4h
+_AUTO_BRIEFS_LOOKAHEAD_END   = 36 * 3600   # up to ~tomorrow EOD
+
+# Weekly backup retention: keep the last N snapshots; older ones are unlinked.
+_BACKUP_RETAIN_N = 8
 
 
 def _now() -> datetime:
@@ -54,17 +88,23 @@ def _now() -> datetime:
 
 
 def _today_label(dt: datetime | None = None) -> str:
+    """Idempotency key for daily jobs: YYYY-MM-DD in scheduler-local tz."""
     return (dt or _now()).strftime("%Y-%m-%d")
 
 
 def _week_label(dt: datetime | None = None) -> str:
+    """Idempotency key for weekly jobs: ISO-week label (e.g. `2026-W22`).
+
+    Using ISO weeks means a Sunday-only job remains de-duplicated even if
+    the process restarts later that same Sunday.
+    """
     d = dt or _now()
     iso = d.isocalendar()
     return f"{iso[0]}-W{iso[1]:02d}"
 
 
 def start() -> None:
-    """Start the scheduler task. Called once from lifespan."""
+    """Start the scheduler task. Called once from `app.main.lifespan`."""
     global _TASK
     if _TASK is not None and not _TASK.done():
         return
@@ -73,6 +113,7 @@ def start() -> None:
 
 
 def stop() -> None:
+    """Cancel the scheduler task. Called from `app.main.lifespan` on shutdown."""
     global _TASK
     if _TASK is not None:
         _TASK.cancel()
@@ -81,23 +122,28 @@ def stop() -> None:
 
 
 def is_running() -> bool:
+    """Healthcheck hook — `/healthz` reports this."""
     return _TASK is not None and not _TASK.done()
 
 
 async def _run() -> None:
+    """Main loop. Catches per-tick exceptions so one bad job can't kill the loop."""
     try:
         while True:
             try:
                 await _tick()
             except Exception as exc:
                 log.exception("scheduler tick failed: %s", exc)
-            await asyncio.sleep(60)
+            await asyncio.sleep(_TICK_INTERVAL_SECONDS)
     except asyncio.CancelledError:
         log.info("scheduler cancelled")
         raise
 
 
 async def _tick() -> None:
+    """Single dispatch pass. Each branch is guarded by `has_fired()` so
+    same-day reruns across restarts are safe — durability lives in the
+    `scheduler_state` table, not in process memory."""
     now = _now()
     today_label = _today_label(now)
     week_label = _week_label(now)
@@ -105,34 +151,43 @@ async def _tick() -> None:
     weekday_short = now.strftime("%a").lower()[:3]
     state = get_state()
 
+    # ── Daily digest (user-configurable time) ──
+    # Regenerates nudges, fires due report subscriptions, checks anniversaries.
     if hhmm >= state.digest_time and \
             not scheduler_state_store.has_fired("digest", today_label):
         await _fire_digest(today_label)
 
+    # ── Weekly reflection (user-configurable day, fixed 16:00) ──
     if weekday_short == state.reflection_day.lower()[:3] \
-            and hhmm >= "16:00" \
+            and hhmm >= _REFLECTION_TIME \
             and not scheduler_state_store.has_fired("reflection", today_label):
         await _fire_reflection(today_label)
 
-    if now.weekday() < 5 and hhmm >= "18:00" \
+    # ── Weekday journal prompt (Mon–Fri at 18:00) ──
+    # `weekday() < 5` is Monday–Friday in Python's ISO numbering.
+    if now.weekday() < 5 and hhmm >= _JOURNAL_TIME \
             and not scheduler_state_store.has_fired("journal_prompt", today_label):
         await _fire_journal_prompt(today_label)
 
-    if hhmm >= "22:00" \
+    # ── Nightly auto-briefs for tomorrow's meetings (22:00) ──
+    if hhmm >= _AUTO_BRIEFS_TIME \
             and not scheduler_state_store.has_fired("auto_briefs", today_label):
         await _fire_auto_briefs(today_label)
 
-    if weekday_short == "sun" and hhmm >= "09:00" \
+    # ── Sunday attack-surface snapshot (09:00) ──
+    if weekday_short == "sun" and hhmm >= _ATTACK_SURFACE_TIME \
             and not scheduler_state_store.has_fired(
                 "attack_surface_snapshot", week_label):
         await _fire_attack_surface_snapshot(week_label)
 
-    if weekday_short == "sun" and hhmm >= "09:30" \
+    # ── Sunday security-program metrics snapshot (09:30) ──
+    if weekday_short == "sun" and hhmm >= _SEC_PROGRAM_TIME \
             and not scheduler_state_store.has_fired(
                 "security_program_snapshot", week_label):
         await _fire_security_program_snapshot(week_label)
 
-    if weekday_short == "sun" and hhmm >= "03:00" \
+    # ── Sunday SQLite backup (03:00, while write traffic is minimal) ──
+    if weekday_short == "sun" and hhmm >= _BACKUP_TIME \
             and not scheduler_state_store.has_fired(
                 "weekly_backup", week_label):
         await _fire_weekly_backup(week_label)
@@ -141,10 +196,18 @@ async def _tick() -> None:
 # ---------------- job bodies ----------------
 
 async def _fire_digest(today_label: str) -> None:
+    """Daily digest tick: regenerate nudges, run due subscriptions, anniversary check.
+
+    Each sub-task is wrapped so a failure in one (e.g. anniversary) doesn't
+    skip the next (subscriptions). `mark_fired` runs first so a crash in
+    one sub-task can't trigger a same-day re-fire.
+    """
     scheduler_state_store.mark_fired("digest", today_label)
     log.info("digest firing for %s", today_label)
     publish("scheduler.global", "digest_fired", {"date": today_label})
 
+    # Nudges and subscriptions call Sonnet → must run in an executor so the
+    # blocking SDK call doesn't stall the scheduler loop.
     try:
         from app.claude import nudges as nudges_mod
         loop = asyncio.get_event_loop()
@@ -164,12 +227,18 @@ async def _fire_digest(today_label: str) -> None:
 
 
 async def _fire_reflection(today_label: str) -> None:
+    """Weekly reflection: emit an event; the UI surfaces the prompt elsewhere.
+
+    Intentionally light — we don't call Sonnet here. The downstream consumer
+    (reflection page) reads journal entries on demand.
+    """
     scheduler_state_store.mark_fired("reflection", today_label)
     log.info("weekly reflection firing for %s", today_label)
     publish("scheduler.global", "reflection_due", {"date": today_label})
 
 
 async def _fire_journal_prompt(today_label: str) -> None:
+    """Insert a journal nudge if the user hasn't already written one today."""
     scheduler_state_store.mark_fired("journal_prompt", today_label)
     from app.storage import journal_store, nudges_store
     today = journal_store.get_today()
@@ -186,6 +255,12 @@ async def _fire_journal_prompt(today_label: str) -> None:
 
 
 async def _fire_auto_briefs(today_label: str) -> None:
+    """Generate meeting-prep briefs for tomorrow's calendar items.
+
+    Lookahead window is 4h–36h: skips anything imminent (no time to act on
+    a brief) and stops around tomorrow's EOD. Capped at
+    `_AUTO_BRIEFS_MAX_PER_NIGHT` to bound token spend on busy calendars.
+    """
     scheduler_state_store.mark_fired("auto_briefs", today_label)
     try:
         from app.storage import meetings_store
@@ -193,14 +268,14 @@ async def _fire_auto_briefs(today_label: str) -> None:
         return
     from app.claude import meeting_prep as mp_mod
 
-    start = time.time() + 4 * 3600
-    end = time.time() + 36 * 3600
+    start = time.time() + _AUTO_BRIEFS_LOOKAHEAD_START
+    end = time.time() + _AUTO_BRIEFS_LOOKAHEAD_END
     upcoming = meetings_store.list_between(start, end) \
         if hasattr(meetings_store, "list_between") else []
     loop = asyncio.get_event_loop()
     generated = 0
     for m in upcoming:
-        if generated >= 5:
+        if generated >= _AUTO_BRIEFS_MAX_PER_NIGHT:
             break
         attendees = m.get("attendees") or []
         if not attendees:
@@ -219,6 +294,8 @@ async def _fire_auto_briefs(today_label: str) -> None:
 
 
 async def _fire_attack_surface_snapshot(week_label: str) -> None:
+    """Weekly attack-surface snapshot. Diff against the prior week is what
+    the UI surfaces — see `app/claude/attack_surface.py`."""
     scheduler_state_store.mark_fired("attack_surface_snapshot", week_label)
     try:
         from app.claude.attack_surface import snapshot
@@ -234,6 +311,11 @@ async def _fire_attack_surface_snapshot(week_label: str) -> None:
 
 
 async def _fire_security_program_snapshot(week_label: str) -> None:
+    """Weekly counters snapshot (open risks, vuln age, TM drift, etc.).
+
+    Persisted to `security_program_snapshots`; the dashboard diffs the
+    latest two to show week-over-week deltas.
+    """
     scheduler_state_store.mark_fired("security_program_snapshot", week_label)
     loop = asyncio.get_event_loop()
     try:
@@ -246,7 +328,7 @@ async def _fire_security_program_snapshot(week_label: str) -> None:
 
 
 async def _fire_weekly_backup(week_label: str) -> None:
-    """Online SQLite backup. Keeps the last 8 weekly snapshots."""
+    """Trigger the online SQLite backup. Retention enforced inside `_take_backup`."""
     scheduler_state_store.mark_fired("weekly_backup", week_label)
     loop = asyncio.get_event_loop()
     try:
@@ -257,7 +339,12 @@ async def _fire_weekly_backup(week_label: str) -> None:
 
 
 def _take_backup() -> None:
-    """Run inside the executor — uses sqlite3 .backup which is online-safe."""
+    """Online `sqlite3.Connection.backup()` to `~/.tank/backups/db-YYYY-MM-DD.sqlite`.
+
+    Safe to run concurrently with writes because the source DB is in WAL
+    mode — `.backup()` walks pages without blocking writers. Runs inside
+    the scheduler's executor so it doesn't stall the event loop.
+    """
     import sqlite3
     from pathlib import Path
 
@@ -286,8 +373,8 @@ def _take_backup() -> None:
     backup_log_store.record(dst, size)
     log.info("backup written: %s (%d bytes)", dst, size)
 
-    # Retention: drop anything beyond the last 8.
-    for stale in backup_log_store.stale(keep_n=8):
+    # Retention: drop anything beyond the most recent `_BACKUP_RETAIN_N`.
+    for stale in backup_log_store.stale(keep_n=_BACKUP_RETAIN_N):
         p = Path(stale["path"])
         if p.exists():
             try:
@@ -298,6 +385,12 @@ def _take_backup() -> None:
 
 
 async def _run_due_subscriptions() -> None:
+    """Fire every report subscription whose `next_run_at` has passed.
+
+    Looks up the generator in REPORT_REGISTRY. Scope-bearing report kinds
+    (threat_landscape, questions_for_team) require the scope JSON to carry
+    the relevant target (service_id, team_or_person); skip if missing.
+    """
     from app.claude.reports import REPORT_REGISTRY
     from app.storage import subscriptions_store
     loop = asyncio.get_event_loop()
@@ -331,6 +424,13 @@ async def _run_due_subscriptions() -> None:
 
 
 async def _maybe_anniversary() -> None:
+    """Fire anniversary retros on tenure-day milestones.
+
+    Three artifacts ship per milestone: a generic retro, a security-focused
+    retro, and a philosophy doc (seeded at Day-30, evolved thereafter).
+    De-duped via `reports_store.latest_for_kind` so a same-day retrigger
+    can't double-write.
+    """
     state = get_state()
     if not state.tenure_started_at:
         return

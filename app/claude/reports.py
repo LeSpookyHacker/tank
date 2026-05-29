@@ -39,7 +39,17 @@ T = TypeVar("T", bound=BaseModel)
 
 def _build_scope_block(service_id: str | None = None,
                        limit_per_type: int = 30) -> dict:
-    """Cache-controlled text block summarizing the relevant KB slice."""
+    """Cache-controlled text block summarizing the relevant KB slice.
+
+    Why this exists: the same KB scope feeds every generator in
+    REPORT_REGISTRY. Wrapping it in an `ephemeral` cache block means the
+    first generator's call warms the cache and subsequent generators pay
+    cache-read rates for the block — empirically ~2x cheaper end-to-end.
+
+    `service_id` swaps the leading section to a per-service summary
+    (`threat_landscape`, `oncall_handoff`); the global type-bucketed
+    listing always follows so KB-wide reports get the same shape.
+    """
     parts: list[str] = ["## KB scope"]
 
     if service_id:
@@ -628,20 +638,34 @@ def program_roadmap() -> str:
                      content_md_redacted=md, usage=usage)
 
 
+# ── Report registry: kind → generator function ──
+#
+# Used by:
+# - `app/routers/reports.py::generate_report` (HTTP-triggered runs)
+# - `app/claude/scheduler.py::_run_due_subscriptions` (recurring runs)
+#
+# Argument shape per kind:
+# - `threat_landscape(service_id)` and `questions_for(team_or_person)` take a
+#   single positional string; the scheduler reads this from `scope_json`.
+# - Everything else takes no arguments and aggregates KB-wide context.
+# Every generator returns the persisted `reports.id`.
 REPORT_REGISTRY = {
-    "threat_landscape": threat_landscape,
-    "cross_service_gaps": cross_service_gaps,
-    "plan_30_60_90": plan_30_60_90,
-    "stakeholder_map": stakeholder_map,
-    "questions_for_team": questions_for,
-    "control_matrix": control_matrix,
-    "oncall_handoff": oncall_handoff,
-    "weekly_security_digest": weekly_security_digest,
-    "attack_mapping": attack_mapping,
-    "iam_audit": iam_audit,
-    "risk_register": risk_register,
-    # Leadership communication reports (Phase 7)
-    "state_of_security": state_of_security,
-    "initial_assessment": initial_assessment,
-    "program_roadmap": program_roadmap,
+    # Per-service deep dives. Reuse the same cached scope when run together.
+    "threat_landscape":       threat_landscape,        # one service, STRIDE-style threats
+    "cross_service_gaps":     cross_service_gaps,      # gaps across all services
+    "oncall_handoff":         oncall_handoff,          # rotation-handoff brief
+    # KB-wide aggregate views.
+    "plan_30_60_90":          plan_30_60_90,           # 90-day partner plan
+    "stakeholder_map":        stakeholder_map,         # who-owns-what
+    "questions_for_team":     questions_for,           # interview prompts for a target
+    "control_matrix":         control_matrix,          # controls vs. services
+    "weekly_security_digest": weekly_security_digest,  # weekly aggregate
+    # Coverage / visibility analyses.
+    "attack_mapping":         attack_mapping,          # ATT&CK technique coverage
+    "iam_audit":              iam_audit,               # IAM policy review
+    "risk_register":          risk_register,           # full register as markdown
+    # Leadership communication (Phase 7).
+    "state_of_security":      state_of_security,
+    "initial_assessment":     initial_assessment,
+    "program_roadmap":        program_roadmap,
 }

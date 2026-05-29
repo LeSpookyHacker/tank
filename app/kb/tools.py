@@ -1,16 +1,40 @@
 """Anthropic tool-use schemas + local dispatch table for the chat loop.
 
-Tools available to the chat assistant:
-- search_kb        — hybrid retrieval over chunks
-- get_entity       — full entity card by id or (type, name)
-- list_relationships — outgoing/incoming edges
-- find_control_gaps  — services that lack a given control family
-- list_entities    — pagination by type
-- get_document     — document metadata + optional chunks
+Each entry in `TOOL_SCHEMAS` is in Anthropic's tool-use format and gets
+passed verbatim to `messages.stream(tools=...)`. The chat loop in
+`app/claude/chat.py` dispatches `tool_use` blocks back into this module
+via `execute_tool(name, args)`.
 
-Tool results are already-redacted (chunks were redacted at ingest).
-A defense-in-depth `apply_redactions` pass runs in chat.py before
-serializing the result back to Claude.
+Tools available to the chat assistant (15 total, grouped by purpose):
+
+  Retrieval / lookup
+    - search_kb                 — hybrid (vector + BM25) chunk search
+    - get_entity                — full entity card by id or (type, name)
+    - list_entities             — paginate by type
+    - get_document              — document metadata + optional chunks
+    - list_relationships        — outgoing/incoming edges
+
+  Coverage / gap analysis
+    - find_control_gaps         — services missing a control family
+    - find_detection_for_technique  — Sigma rules matching an ATT&CK technique
+    - find_iam_risks            — risky IAM policy patterns
+    - find_evidence_for_control — compliance evidence for a control id
+
+  Living artifacts
+    - get_threat_model          — current TM for a service
+    - find_decisions            — decisions matching a query
+    - get_recent_decisions      — N most recent decisions
+    - find_ir_runbooks          — runbooks for a service/scenario
+    - get_risk_register         — open risks (filterable)
+
+  Memory
+    - search_lessons            — lessons-learned DB search
+
+Invariants:
+- Tool results are already-redacted (chunks were redacted at ingest;
+  entity names/descriptions pass through `apply_redactions` at upsert).
+- A defense-in-depth `apply_redactions` pass runs in `chat.py` before
+  the tool_result block is sent back to Claude. Don't bypass.
 """
 from __future__ import annotations
 
@@ -287,7 +311,13 @@ TOOL_SCHEMAS: list[dict] = [
 # ---------------- dispatch ----------------
 
 def execute_tool(name: str, args: dict[str, Any]) -> dict | list:
-    """Execute a tool call locally. Returns JSON-serializable output."""
+    """Execute a tool call locally. Returns JSON-serializable output.
+
+    All input is treated as untrusted — caps and clamps on numeric args,
+    bounded string truncation on free-form text. The chat loop is the
+    only caller; it serializes the return value, redacts it (defense in
+    depth), and feeds it back to Claude as a tool_result block.
+    """
     if name == "search_kb":
         hits = hybrid_search(
             str(args.get("query", ""))[:500],
