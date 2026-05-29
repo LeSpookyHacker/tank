@@ -1627,6 +1627,15 @@ form label select {
 .ingest-status.ok    { color: var(--good); }
 .ingest-status.error { color: var(--danger); }
 .ingest-status.busy  { color: var(--warn); }
+.ingest-vision-notice {
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--text-mute);
+  padding: 0.4rem 0.75rem;
+  background: rgb(var(--nyx-iris) / 0.06);
+  border-radius: 6px;
+  border-left: 2px solid var(--warn);
+}
 .recent-docs { margin-top: 2rem; }
 .recent-docs table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .recent-docs th {

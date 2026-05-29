@@ -2,10 +2,13 @@
 # Redesign: added team_id, org_id, status, tags, risk_level, icon, last_activity_at.
 from __future__ import annotations
 
+import re
 import time
 import uuid
 
 from app.db import LOCK, get_conn
+
+_SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def create_project(
@@ -86,6 +89,9 @@ def update_project(project_id: str, **kwargs) -> None:
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return
+    for k in updates:
+        if not _SAFE_IDENT.match(k):
+            raise ValueError(f"update_project: invalid column name {k!r}")
     set_clause = ", ".join(f"{k} = ?" for k in updates)
     values = list(updates.values()) + [project_id]
     conn = get_conn()

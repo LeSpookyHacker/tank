@@ -16,6 +16,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from app.ingest.path_guard import is_blocked_path
 from app.ingest.pipeline import ingest, ingest_repo
 from app.storage import documents_store
 
@@ -95,6 +96,9 @@ async def ingest_path(req: IngestPathRequest,
     if not any(p == r or str(p).startswith(str(r) + os.sep)
                for r in _ALLOWED_INGEST_ROOTS):
         raise HTTPException(403, "path outside allowed ingest directories")
+    blocked = is_blocked_path(p)
+    if blocked:
+        raise HTTPException(403, f"path not allowed (sensitive directory: {blocked})")
     if not p.exists():
         raise HTTPException(404, f"no such path: {req.path}")
 
@@ -125,6 +129,9 @@ async def ingest_repo_endpoint(req: IngestRepoRequest,
     if not any(p == r or str(p).startswith(str(r) + os.sep)
                for r in _ALLOWED_INGEST_ROOTS):
         raise HTTPException(403, "path outside allowed ingest directories")
+    blocked = is_blocked_path(p)
+    if blocked:
+        raise HTTPException(403, f"path not allowed (sensitive directory: {blocked})")
     if not p.is_dir():
         raise HTTPException(404, f"no such directory: {req.path}")
     background_tasks.add_task(_do_ingest_repo, p, req.category)

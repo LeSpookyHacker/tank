@@ -1,10 +1,13 @@
 # teams_store.py — CRUD for the teams table.
 from __future__ import annotations
 
+import re
 import time
 import uuid
 
 from app.db import LOCK, get_conn
+
+_SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def insert_team(
@@ -55,6 +58,9 @@ def update_team(team_id: str, **kwargs: str) -> None:
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return
+    for k in updates:
+        if not _SAFE_IDENT.match(k):
+            raise ValueError(f"update_team: invalid column name {k!r}")
     set_clause = ", ".join(f"{k} = ?" for k in updates)
     values = list(updates.values()) + [team_id]
     conn = get_conn()
