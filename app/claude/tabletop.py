@@ -71,7 +71,6 @@ def _generate(service_id: str | None, threat_kind: str | None,
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=3072,
-            thinking={"type": "adaptive"},
             system=[{"type": "text", "text": prompt,
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user",

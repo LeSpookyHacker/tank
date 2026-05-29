@@ -1,6 +1,6 @@
 """Six report generators sharing a cached scope.
 
-All six use `claude-sonnet-4-6` with adaptive thinking. The scoped
+All six use `claude-sonnet-4-6` with structured output. The scoped
 context (entities + linked chunks) is built once per scope and reused
 across generators via prompt caching, so a 6-report run is ~2x cheaper
 than running each cold.
@@ -113,7 +113,6 @@ def _run(prompt_name: str, output_format: Type[T], *,
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=8192,
-            thinking={"type": "adaptive"},
             system=[system_block],
             messages=[{"role": "user", "content": user_blocks}],
             output_format=output_format,

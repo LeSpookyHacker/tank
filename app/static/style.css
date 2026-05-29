@@ -2944,6 +2944,7 @@ html:not(.theme-light) .icon-sun { display:none; }
 .vuln-desc, .vuln-services { font-size: 0.82rem; margin: 0.25rem 0; }
 .vuln-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; flex-wrap: wrap; }
 .modal-overlay { position: fixed; inset: 0; background: rgb(0 0 0 / .5); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.modal-overlay[hidden] { display: none; }
 .modal { background: rgb(var(--nyx-dusk)); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; min-width: 340px; max-width: 480px; }
 .modal h3 { margin: 0 0 1rem; }
 /* Plan */

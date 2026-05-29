@@ -122,7 +122,6 @@ def _generate_draft(title: str, redacted_freewrite: str,
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             system=[{"type": "text", "text": prompt,
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user",

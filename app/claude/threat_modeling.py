@@ -176,7 +176,6 @@ def generate(service_id: str) -> str:
     resp = client.messages.parse(
         model=MODEL,
         max_tokens=8192,
-        thinking={"type": "adaptive"},
         system=[system_block],
         messages=[{"role": "user", "content": user_blocks}],
         output_format=ThreatModelV2,

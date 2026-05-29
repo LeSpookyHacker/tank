@@ -32,7 +32,6 @@ def generate(day_n: int) -> str:
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
                 "text": load_prompt("anniversary"),

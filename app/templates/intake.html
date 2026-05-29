@@ -21,10 +21,16 @@
       {% endif %}
     </div>
     {% if existing and existing.completed_at %}
-    <p class="dim" style="margin-top: 1rem; font-size: 0.85rem;">
-      You've already completed an intake interview.
-      Starting a new one will create a new record — your previous answers are preserved.
-    </p>
+    <div style="margin-top: 1.5rem; padding: 1rem 1.25rem; background: var(--surface-2); border-radius: 8px; border: 1px solid var(--border);">
+      <p class="dim" style="margin: 0 0 0.75rem; font-size: 0.875rem;">
+        You've already completed an intake interview.
+        Starting a new one will create a new record — your previous answers are preserved.
+      </p>
+      <button class="btn-secondary" id="regen-brief-btn" onclick="regenDay1Brief()" style="font-size: 0.85rem;">
+        Regenerate Day-1 Brief
+      </button>
+      <span id="regen-brief-status" style="margin-left: 0.75rem; font-size: 0.85rem; display: none;"></span>
+    </div>
     {% endif %}
   </div>
 
@@ -258,6 +264,29 @@ function hasAnswer(q) {
     return ans && ans.choice && ans.choice.length > 0;
   }
   return true;
+}
+
+async function regenDay1Brief() {
+  const btn = document.getElementById("regen-brief-btn");
+  const status = document.getElementById("regen-brief-status");
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+  status.style.display = "none";
+
+  const res = await fetch("/api/intake/regenerate-day1-brief", {method: "POST"});
+  if (res.ok) {
+    btn.textContent = "Regenerate Day-1 Brief";
+    btn.disabled = false;
+    status.style.display = "inline";
+    status.style.color = "var(--accent)";
+    status.innerHTML = '✓ Generating in background — <a href="/reports">check Reports</a> in a moment.';
+  } else {
+    btn.textContent = "Regenerate Day-1 Brief";
+    btn.disabled = false;
+    status.style.display = "inline";
+    status.style.color = "var(--sev-high, #EA580C)";
+    status.textContent = "Failed — check server logs.";
+  }
 }
 
 async function submitIntake() {

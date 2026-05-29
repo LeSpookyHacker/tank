@@ -255,7 +255,8 @@ async def intake_complete(
         "kb_bootstrap_stage": "intake_done",
     }
     if answers.get("q7_eng_size"):
-        state_kwargs["approx_team_size"] = answers["q7_eng_size"]
+        val = answers["q7_eng_size"]
+        state_kwargs["approx_team_size"] = val[0] if isinstance(val, list) else val
     if answers.get("q13_compliance"):
         targets = answers["q13_compliance"]
         if isinstance(targets, list):
@@ -266,6 +267,24 @@ async def intake_complete(
 
     background_tasks.add_task(_seed_and_brief, body.interview_id, answers)
     return JSONResponse({"ok": True, "interview_id": body.interview_id})
+
+
+@router.post("/api/intake/regenerate-day1-brief")
+async def regenerate_day1_brief(background_tasks: BackgroundTasks) -> JSONResponse:
+    """Re-generate the Day-1 brief from the most recent completed intake interview."""
+    existing = intake_store.get_latest()
+    if not existing or not existing.get("completed_at"):
+        return JSONResponse({"error": "No completed intake interview found"}, status_code=404)
+    background_tasks.add_task(_brief_only, existing["id"], existing.get("answers", {}))
+    return JSONResponse({"ok": True, "interview_id": existing["id"]})
+
+
+def _brief_only(interview_id: str, answers: dict) -> None:
+    try:
+        from app.claude.day1_brief import generate_from_intake
+        generate_from_intake(answers)
+    except Exception:
+        log.exception("Day-1 brief regeneration failed for interview %s", interview_id)
 
 
 def _seed_and_brief(interview_id: str, answers: dict) -> None:

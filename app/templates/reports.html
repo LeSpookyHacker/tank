@@ -9,6 +9,24 @@
 </section>
 
 <section class="reports-grid">
+  {% if day1_briefs is defined %}
+  <article class="report-kind-card">
+    <header>
+      <h2>Day-1 Brief</h2>
+      <a href="/intake" class="btn-secondary" style="font-size:0.8rem;">Regenerate</a>
+    </header>
+    <ul class="report-list">
+      {% for r in day1_briefs %}
+        <li><a href="/reports/{{ r.id }}">
+          <span class="dim">{{ r.created_at | int }}</span>
+          {{ r.title }}
+        </a></li>
+      {% else %}
+        <li class="dim">none yet — complete the <a href="/intake">intake interview</a></li>
+      {% endfor %}
+    </ul>
+  </article>
+  {% endif %}
   {% for kind in kinds %}
     <article class="report-kind-card">
       <header>

@@ -58,7 +58,6 @@ def assess(risk_id: str) -> RiskAssessmentOutput | None:
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             system=[system_block],
             messages=[{"role": "user", "content": [
                 context_block,

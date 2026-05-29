@@ -44,7 +44,6 @@ def prepare(*, who: str, when: str | None = None,
         resp = client.messages.parse(
             model=HAIKU_MODEL,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
                 "text": load_prompt("meeting_prep"),

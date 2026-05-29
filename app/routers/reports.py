@@ -34,7 +34,8 @@ async def reports_page(request: Request):
     return templates.TemplateResponse(
         request=request, name="reports.html",
         context={"state": state, "by_kind": by_kind,
-                 "kinds": list(REPORT_REGISTRY.keys())},
+                 "kinds": list(REPORT_REGISTRY.keys()),
+                 "day1_briefs": reports_store.list_by_kind(kind="day1_brief", limit=5)},
     )
 
 

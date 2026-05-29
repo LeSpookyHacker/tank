@@ -35,7 +35,6 @@ def generate() -> str:
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
                 "text": load_prompt("day1_brief"),
@@ -89,7 +88,6 @@ def generate_from_intake(answers: dict) -> str:
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
                 "text": load_prompt("intake_day1_brief"),

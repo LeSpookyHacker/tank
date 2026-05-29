@@ -214,7 +214,6 @@ def extract_from_diagram(b64: str, media_type: str) -> dict:
         resp = client.messages.parse(
             model=MODEL,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
                 "text": prompt_text,
