@@ -1,7 +1,7 @@
 # Secrets Management Policy
 
 **Policy ID**: SEC-POL-003  
-**Owner**: Security (mei.watanabe@helixrobotics.com)  
+**Owner**: Diana Okoro (diana.okoro@helixrobotics.com) — interim owner; transfer to incoming security hire within first 30 days  
 **Approved by**: tom.brandt@helixrobotics.com  
 **Effective date**: 2025-09-01  
 **Review cycle**: Annual  
@@ -123,6 +123,6 @@ by Snowflake network policies restricting access to Helix's AWS Elastic IPs.
 
 | Role | Contact |
 | --- | --- |
-| Policy owner | mei.watanabe@helixrobotics.com |
+| Policy owner | diana.okoro@helixrobotics.com |
 | Vault admin | diana.okoro@helixrobotics.com |
 | Escalation | tom.brandt@helixrobotics.com |

@@ -96,7 +96,7 @@ or certificate exposure windows.
 | 2 | Add security-checklist item: "Does this change affect credential/cert TTLs?" | diana.okoro | 2025-11-28 | ✅ Done |
 | 3 | Reduce Datadog alert threshold for bulk pre-signed URL volume to 10 URLs/5min | diana.okoro | 2025-12-01 | ✅ Done |
 | 4 | Write Sigma rule for S3 bulk pre-signed URL generation | diana.okoro | 2025-12-15 | 🔄 In progress |
-| 5 | Evaluate whether pre-signed URL audit logs should go to SIEM in real-time | mei.watanabe | 2026-01-15 | ⬜ Open |
+| 5 | Evaluate whether pre-signed URL audit logs should go to SIEM in real-time | diana.okoro | 2026-01-15 | ⬜ Open |
 | 6 | Investigate feasibility of S3 pre-signed URL revocation (HELIX-2120) | yui.tanaka | 2026-02-01 | ⬜ Open |
 
 ---
