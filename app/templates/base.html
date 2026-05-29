@@ -166,6 +166,7 @@
       <a href="/settings" class="lnav-link-standalone"><span class="lnav-icon">⚙</span><span class="lnav-label">Settings</span></a>
     </div>
 
+    <div class="lnav-resize-handle" id="lnav-resize-handle"></div>
     <button class="left-nav-collapse-btn" id="lnav-collapse-btn"
             onclick="lnavCollapse()" title="Collapse sidebar">‹</button>
   </nav>
@@ -181,7 +182,7 @@
             onclick="gchatToggle()" title="Global chat">
       ▰ Chat
     </button>
-    <div class="gchat-panel" id="gchat-panel" hidden>
+    <div class="gchat-panel" id="gchat-panel">
       <div class="gchat-header">
         <span class="gchat-title">▰ Chat</span>
         <a class="gchat-fullscreen" id="gchat-fullscreen" href="/chat" title="Full chat">⤢</a>
@@ -275,9 +276,12 @@
           .catch(function () {});
       }
 
+      var toggleBtn = document.getElementById("gchat-toggle-btn");
+
       window.gchatToggle = function () {
         open = !open;
-        panel.hidden = !open;
+        panel.classList.toggle("open", open);
+        if (toggleBtn) toggleBtn.textContent = open ? "✕ Close" : "▰ Chat";
         if (open && !convId) initConv();
       };
 
@@ -342,33 +346,43 @@
     // ── Left navigation ──
     (function () {
       var COLLAPSED_KEY = "tank-sidenav-collapsed";
-      var GROUP_KEY = "tank-sidenav-groups";
+      var GROUP_KEY     = "tank-sidenav-groups";
+      var LNAV_WIDTH_KEY = "tank-sidenav-width";
+      var LNAV_MIN_W = 160, LNAV_MAX_W = 420;
+
       var nav = document.getElementById("left-nav");
       var btn = document.getElementById("lnav-collapse-btn");
       if (!nav) return;
 
-      // Restore collapse state
+      // ── Restore saved sidebar width ──
+      var savedW = parseInt(localStorage.getItem(LNAV_WIDTH_KEY) || "0", 10);
+      if (savedW >= LNAV_MIN_W && savedW <= LNAV_MAX_W) {
+        document.documentElement.style.setProperty("--lnav-w", savedW + "px");
+      }
+
+      // ── Restore collapse state ──
       var isCollapsed = localStorage.getItem(COLLAPSED_KEY) === "1";
       if (isCollapsed) {
         nav.classList.add("collapsed");
         if (btn) btn.textContent = "›";
       }
 
-      // Restore group open/closed state
+      // ── Restore group open/closed state ──
       var groupState = {};
       try { groupState = JSON.parse(localStorage.getItem(GROUP_KEY) || "{}"); } catch(e) {}
 
       var allGroups = ["discover", "analyze", "track", "build", "report", "knowledge"];
       allGroups.forEach(function(g) {
-        var items = document.getElementById("group-" + g);
+        var items   = document.getElementById("group-" + g);
         var chevron = document.getElementById("chevron-" + g);
-        // Default: groups open unless explicitly closed
+        var groupEl = items ? items.closest(".lnav-group") : null;
         var open = groupState[g] !== false;
-        if (items) items.classList.toggle("open", open);
-        if (chevron) chevron.textContent = open ? "⌄" : "›";
+        if (items)   items.classList.toggle("open", open);
+        if (groupEl) groupEl.classList.toggle("open", open);
+        if (chevron) chevron.textContent = "›";
       });
 
-      // Highlight active link
+      // ── Highlight active link ──
       var path = location.pathname;
       nav.querySelectorAll("a").forEach(function(a) {
         var href = a.getAttribute("href");
@@ -377,22 +391,56 @@
         }
       });
 
+      // ── Toggle group expand/collapse ──
       window.lnavToggle = function(group) {
-        var items = document.getElementById("group-" + group);
-        var chevron = document.getElementById("chevron-" + group);
+        var items   = document.getElementById("group-" + group);
+        var groupEl = items ? items.closest(".lnav-group") : null;
         if (!items) return;
         var open = items.classList.toggle("open");
-        if (chevron) chevron.textContent = open ? "⌄" : "›";
+        if (groupEl) groupEl.classList.toggle("open", open);
         groupState[group] = open;
         try { localStorage.setItem(GROUP_KEY, JSON.stringify(groupState)); } catch(e) {}
       };
 
+      // ── Toggle sidebar collapse ──
       window.lnavCollapse = function() {
         isCollapsed = !isCollapsed;
         nav.classList.toggle("collapsed", isCollapsed);
         if (btn) btn.textContent = isCollapsed ? "›" : "‹";
         try { localStorage.setItem(COLLAPSED_KEY, isCollapsed ? "1" : "0"); } catch(e) {}
       };
+
+      // ── Drag-to-resize ──
+      var resizeHandle = document.getElementById("lnav-resize-handle");
+      if (resizeHandle) {
+        resizeHandle.addEventListener("mousedown", function (e) {
+          if (isCollapsed) return;
+          e.preventDefault();
+          resizeHandle.classList.add("dragging");
+          var startX = e.clientX;
+          var startW = nav.getBoundingClientRect().width;
+          document.body.style.cursor = "col-resize";
+          document.body.style.userSelect = "none";
+
+          function onMove(e) {
+            var newW = Math.max(LNAV_MIN_W, Math.min(LNAV_MAX_W, startW + (e.clientX - startX)));
+            document.documentElement.style.setProperty("--lnav-w", newW + "px");
+          }
+          function onUp() {
+            resizeHandle.classList.remove("dragging");
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            var finalW = Math.round(parseFloat(
+              getComputedStyle(document.documentElement).getPropertyValue("--lnav-w")
+            ));
+            try { localStorage.setItem(LNAV_WIDTH_KEY, finalW); } catch (_) {}
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+          }
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        });
+      }
     })();
   </script>
 

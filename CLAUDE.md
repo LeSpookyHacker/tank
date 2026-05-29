@@ -13,15 +13,23 @@ locally, builds a typed knowledge graph, and uses Claude Sonnet 4.6
 for:
 
 - Chat with 15 tools over the KB.
-- 10 report kinds (threat landscape, cross-service gaps, 30/60/90,
+- 14 report kinds (threat landscape, cross-service gaps, 30/60/90,
   stakeholder map, questions-for-team, control matrix, on-call
-  handoff, weekly security digest, ATT&CK mapping, IAM audit).
+  handoff, weekly security digest, ATT&CK mapping, IAM audit,
+  risk register, state of security, initial assessment, program roadmap).
 - Living artifacts: versioned threat models (drift-aware), decisions
-  log, design reviews, postmortems, tabletops.
+  log, design reviews, postmortems, tabletops, IR runbooks, policies
+  (5 kinds), 90-day plan.
 - Partner mode: Day-1 brief, journal, follow-ups, recurring reports,
   anniversary retros (generic + security-focused), philosophy doc.
 - Second brain: lessons-learned DB, glossary, ownership dashboard,
   tenure-aware lens (map / prioritize / execute / maintain).
+- Security program dashboard: aggregated health metrics, executive
+  brief, weekly snapshots, compliance wizard.
+- Risk register + vulnerability triage: CRUD risk register, vuln
+  intake queue with triage/assign/promote-to-risk workflow.
+- First-hire onboarding: intake interview (seeds entity stubs),
+  GitHub/team discovery, stack audit, 90-day plan generator.
 
 The **headline guarantee** is non-negotiable: nothing reaches the
 Anthropic API in cleartext. Everything passes through
@@ -187,11 +195,16 @@ The **scheduler** is a single `asyncio.Task` started in
 `app/main.py::lifespan` and cancelled on shutdown. It wakes every 60s
 and dispatches:
 
-- Daily digest at `app_state.digest_time` → regenerate nudges (8 kinds,
+- Daily at `app_state.digest_time` → regenerate nudges (8 kinds,
   rate-limited to 2/day), run due `report_subscriptions`, anniversary
   check at days 30/60/90/180/365.
-- Friday 16:00 → weekly reflection trigger.
+- `reflection_day` 16:00 (default Friday) → weekly reflection trigger.
 - Weekday 18:00 → journal-prompt nudge if no entry today.
+- Daily 22:00 → auto meeting-prep briefs for tomorrow's ICS meetings
+  (rate-limited to 5/day).
+- Sunday 09:00 → attack-surface snapshot (diffs against prior week).
+- Sunday 09:30 → security-program metrics snapshot.
+- Sunday 03:00 → weekly SQLite backup.
 
 The **tenure lens** (`app/role.py::current_lens()`) returns
 `map | prioritize | execute | maintain` based on
@@ -210,7 +223,7 @@ lens.**
 | Add a new report | `app/claude/reports.py` (add to `REPORT_REGISTRY`), `prompts/report_<kind>.md`, Pydantic schema in `app/schemas.py`, router case in `app/routers/reports.py::generate_report` |
 | Add a new nudge kind | `app/claude/nudges.py::generate_nudges()` (add a gate function), call `nudges_store.insert(kind=...)` |
 | Add a SQL table | `app/db.py::_init_schema` (CREATE TABLE IF NOT EXISTS) + an additive migration in `_migrate_app_state_columns` if you're adding columns to an existing table |
-| Change the home dashboard | `app/routers/pages.py` (data) + `app/templates/index.html` (render) |
+| Change the home dashboard / top-nav | `app/routers/dashboard.py` — handles `/`, `/dashboard`, `/teams/*`, `/search`; the Org→Team→Project hierarchy lives here |
 | Add a versioned artifact (TM-style) | Mirror `app/storage/threat_models_store.py` (version per scope) + `app/claude/threat_modeling.py` (delta-aware regen with prior in prompt) |
 | Author a workstream artifact | Mirror Phase 13: `<artifact>s_store.py` + `app/claude/<artifact>.py` (seed via Sonnet from freewrite) + `prompts/<artifact>_draft.md` + 2 templates (`<artifact>s.html` list, `<artifact>_<new\|detail>.html`) |
 | Add a coverage / visibility analysis | Pattern in Phase 14: `app/kb/<kind>.py` for in-process queries + `app/claude/<analysis>.py` for Sonnet-driven synthesis + dedicated parser if the artifact is a new ingest type |
@@ -219,8 +232,16 @@ lens.**
 | Add a continuous-ingestion connector | `app/ingest/watchers/<kind>.py` implementing `scan(watcher_row) -> ScanResult` + register in `watchers/__init__.py::dispatch`. Kinds: `folder`, `ics_url`, `cve_feed`, `github_repo`. Users enable via Settings → Integrations. |
 | Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt) and `build_kb_block(hits, entity_cards)` (retrieved context). Both return `{"cache_control": {"type": "ephemeral"}}` blocks. |
 | Change smart auto-categorization rules | `app/ingest/auto_categorize.py` — `suggest_category(path)` (path-keyword + content-sniff heuristics) and `walk_directory(root)` (returns `(path, category)` pairs, skipping hidden/.git/node_modules). Mirrors these heuristics in `app/templates/ingest.html` JS (`guessCategory`). |
-| Add or switch projects | `app/storage/projects_store.py` + `app/routers/projects.py`. `project_id TEXT` FK added to 7 tables (documents, chunks, entities, relationships, reports, conversations, messages). Active project set in `app_state`; the project switcher in the topnav reads it from `/api/projects`. |
+| Add or switch projects | `app/storage/projects_store.py` + `app/routers/projects.py`. `project_id TEXT` FK added to 7 tables (documents, chunks, entities, relationships, reports, conversations, messages). Active project set in `app_state`; the project switcher in the topnav reads it from `/api/projects`. Projects belong to Teams (`team_id`); Teams belong to an Org (`org_id`). The full 3-level hierarchy (Org→Team→Project) is navigated via `app/routers/dashboard.py`. |
 | Change the side-panel chat UI | `app/templates/base.html` — the entire panel markup + ~180-line JS IIFE lives at the bottom of the `<script>` block. Panel is suppressed on `/chat` and `/onboarding` via `SUPPRESS_PATHS`. Width (240–600px), open/closed state, and `panelConvId` persist in `localStorage`. `--topbar-h` and `--footer-h` are set at runtime so the panel height fits exactly between them. CSS in `app/static/style.css` under `/* ── Side panel layout ──`. |
+| Add/modify IR runbooks | `app/claude/ir_runbook.py::generate(service_id, threat_scenario, severity)` → `app/storage/ir_runbooks_store.py` → `app/routers/ir_runbooks.py`; prompt in `prompts/ir_runbook.md`. Runbook is KB-contextual (pulls service TM, postmortems, IAM). |
+| Add/modify policy generation | `app/claude/policy_generator.py` — 5 kinds: `acceptable_use`, `incident_response`, `secure_sdl`, `vulnerability_management`, `data_classification`. Mirrors the `reports.py` pattern; prompts in `prompts/policy_<kind>.md`. Router: `app/routers/policies.py`. |
+| Add/modify risk register | `app/storage/risks_store.py` + `app/claude/risk_register.py::assess(risk_id)` (Sonnet-driven assessment). Vulnerability intake queue at `app/storage/vulnerabilities_store.py`; promote-to-risk via `promote_to_risk()`. Router: `app/routers/risks.py` + `app/routers/vulnerabilities.py`. |
+| Change security program metrics | `app/routers/security_program.py::_collect_metrics()` — aggregates counts from all major tables into `SecurityProgramMetrics`. `take_snapshot()` persists to `security_program_snapshots`. Exec brief via `POST /api/security-program/executive-brief`. |
+| Change the intake interview | `app/routers/intake.py` (questions + complete flow) + `app/claude/intake_seeder.py::seed_from_answers()` (creates entity stubs with `provenance='user'`, `stub_source='intake_interview'`). State persists in `intake_interview` table. |
+| Modify the discovery flow | `app/routers/discovery.py` — GitHub org scan (`POST /api/discovery/github-scan`) and team/people CSV import (`POST /api/discovery/team-import`). Both feed the entity graph. |
+| Add/modify 90-day plan | `app/claude/plan_generator.py::generate()` + `app/storage/plan_store.py` (`ninety_day_plan` table). Router: `app/routers/plan.py`. |
+| Change the Org→Team hierarchy | `app/storage/{organizations,teams}_store.py` + `app/routers/teams.py`. Projects belong to Teams; Teams belong to an Org. Routes: `/teams/{team_id}`, `/teams/{team_id}/projects/{project_id}`. `app/routers/dashboard.py` handles all hierarchy rendering. |
 
 ## Living artifacts pattern (Phase 12+)
 
@@ -295,6 +316,53 @@ Day-30 and evolved at Day-60/90/180/365. `/me` is the personal
 ownership dashboard — users claim Service entities; the heuristic
 risk score weighs TM drift, unaddressed threats, expired decisions,
 and open postmortem action items.
+
+**8. Risk register + vulnerability triage** (`app/claude/risk_register.py`,
+`app/storage/{risks,vulnerabilities}_store.py`,
+`app/routers/{risks,vulnerabilities}.py`).
+
+`risks` table holds assessed risks with `likelihood`, `impact`,
+`composite_score`, and `review_due_at`. `assess(risk_id)` calls Sonnet
+with KB context to fill those fields. `vulnerabilities` is an intake
+queue: `create → triage (set severity/notes) → assign (owner + due) →
+close (patched/accepted/wont_fix) | promote_to_risk()`. The
+`risk_register` report in `REPORT_REGISTRY` renders the full register as
+a markdown table.
+
+**9. First-hire onboarding suite** (`app/routers/{intake,discovery,
+stack_audit,plan}.py`, `app/claude/{intake_seeder,plan_generator}.py`,
+`app/storage/{intake,plan,asset_inventory}_store.py`).
+
+Four sequential steps surfaced in `/onboarding`:
+1. **Intake interview** — structured Q&A seeds entity stubs (`provenance='user'`,
+   `stub_source='intake_interview'`, confidence 0.3) and populates
+   `app_state` (role, tenure start, team, company).
+2. **Discovery** — GitHub org scan + team/people CSV import feed the entity
+   graph without full-document ingest.
+3. **Stack audit** — user categorizes discovered services via a drag-and-drop
+   matrix; categories persist in `asset_inventory`.
+4. **90-day plan** — `plan_generator.generate()` produces a phased task
+   list seeded from intake answers + KB, stored in `ninety_day_plan`.
+
+**10. Security program dashboard** (`app/routers/security_program.py`,
+`app/storage/` via direct DB queries, `prompts/executive_security_brief.md`).
+
+`_collect_metrics()` aggregates counts from all major tables into
+`SecurityProgramMetrics` (open risks, vuln age, TM drift, compliance
+coverage, nudge counts, etc.). `take_snapshot()` snapshots these into
+`security_program_snapshots` (diffs surfaced in the UI). The Sunday 09:30
+scheduler job fires automatically. `POST /api/security-program/executive-brief`
+generates a Sonnet-written exec brief rehydrated for display.
+
+**11. Policy generator** (`app/claude/policy_generator.py`,
+`app/storage/policies_store.py`, `app/routers/policies.py`).
+
+Five policy kinds: `acceptable_use`, `incident_response`, `secure_sdl`,
+`vulnerability_management`, `data_classification`. Each calls Sonnet with
+the org's KB context (entity graph + role profile). Prompts in
+`prompts/policy_<kind>.md`. The result is stored in `policy_artifact`
+and rendered as markdown in `/policies/<kind>`. Mirrors the `reports.py`
+pattern — reuse `_build_scope_block()` idiom for KB injection.
 
 ## Token cost tracking (three tables)
 

@@ -2110,7 +2110,7 @@ html:not(.theme-light) .icon-sun { display:none; }
 /* ── Main content area ── */
 .global-main {
   min-height: calc(100vh - 52px - 40px);
-  padding: 0;
+  padding: 0 0 3.5rem;
   max-width: 100%;
 }
 
@@ -2533,8 +2533,9 @@ html:not(.theme-light) .icon-sun { display:none; }
   width:340px; max-height:480px;
   background:rgb(var(--nyx-dusk)); border:1px solid var(--border);
   border-radius:14px; box-shadow:var(--shadow-nyx);
-  display:flex; flex-direction:column; overflow:hidden;
+  display:none; flex-direction:column; overflow:hidden;
 }
+.gchat-panel.open { display:flex; }
 .gchat-header { display:flex; align-items:center; padding:0.65rem 0.85rem; border-bottom:1px solid var(--border-soft); gap:0.5rem; flex-shrink:0; }
 .gchat-title { font-weight:600; font-size:0.88rem; flex:1; color:var(--accent); }
 .gchat-fullscreen { color:var(--text-dim); font-size:1.1rem; }
@@ -2664,6 +2665,7 @@ html:not(.theme-light) .icon-sun { display:none; }
 /* Push main content right when sidebar is visible */
 .global-main {
   margin-left: var(--lnav-w);
+  padding-left: 1.5rem;
   transition: margin-left 0.2s ease;
 }
 .global-footer { margin-left: var(--lnav-w); }
@@ -2735,8 +2737,19 @@ html:not(.theme-light) .icon-sun { display:none; }
   font-family: var(--sans);
   text-align: left;
 }
-.lnav-group-header:hover { color: var(--text-dim); }
-.lnav-chevron { font-size: 0.85rem; transition: transform .15s; }
+.lnav-group-header:hover {
+  color: var(--text-dim);
+  background: rgb(var(--nyx-iris) / 0.08);
+  border-radius: 6px;
+}
+.lnav-chevron {
+  font-size: 0.9rem;
+  display: inline-block;
+  transition: transform 0.18s ease;
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+.lnav-group.open .lnav-chevron { transform: rotate(90deg); }
 
 /* Items list */
 .lnav-items {
@@ -2818,10 +2831,25 @@ html:not(.theme-light) .icon-sun { display:none; }
 }
 .left-nav-collapse-btn:hover { color: var(--text); }
 
+/* ── Sidebar resize handle ── */
+.lnav-resize-handle {
+  position: absolute;
+  top: 0; right: -3px; bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 100;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.lnav-resize-handle:hover,
+.lnav-resize-handle.dragging {
+  background: rgb(var(--nyx-iris) / 0.3);
+}
+
 /* ── Responsive: hide sidebar on narrow screens ── */
 @media (max-width: 768px) {
   .left-nav { display: none; }
-  .global-main { margin-left: 0 !important; }
+  .global-main { margin-left: 0 !important; padding-left: 0 !important; }
 }
 
 /* ── Wizard / policy detail additional CSS ── */
