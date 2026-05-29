@@ -1,99 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Tank — Welcome aboard{% endblock %}
+{% block title %}Tank — Setup{% endblock %}
 
 {% block content %}
 <section class="onboarding">
-  <h1>Welcome aboard.</h1>
+  <h1>Before we begin.</h1>
   <p class="lede">
-    Tank is your operator — like Tank in <em>The Matrix</em>, but for
-    a new security job. The goal: get you from "lost in a sea of docs"
-    to "I have a map" in your first few weeks.
+    Tank is a local-first knowledge base and AI partner for new security engineers.
+    You feed it your employer's docs — architecture, CMDB, IAM policies, Sigma rules,
+    org charts — and it builds a redacted knowledge graph your team never sees.
+    Chat, threat models, reports, and your 90-day plan all run against that graph.
   </p>
 
-  <p>Before anything else, the deal:</p>
+  <p>The privacy contract, before anything else:</p>
   <ul class="promise">
     <li>Nothing leaves this machine in cleartext.</li>
-    <li>Internal hostnames, emails, IPs, AWS account IDs, and secrets
-        are redacted locally <strong>before</strong> any Claude API call.</li>
-    <li>Secrets are one-way hashed — Tank can't rehydrate them.</li>
+    <li>Internal hostnames, emails, IPs, AWS account IDs, and secrets are
+        redacted locally <strong>before</strong> any Claude API call.</li>
+    <li>Secrets are one-way hashed — Tank cannot rehydrate them.</li>
     <li>Wipe everything with one button in Settings.</li>
   </ul>
 
-  <div class="sample-callout" id="sample-callout">
-    <span class="sample-callout-label">Testing?</span>
-    Load the <strong>Helix Robotics</strong> synthetic dataset — a fictional
-    company invented for testing purposes only. No real data.
-    <button class="btn-sample" onclick="loadSampleData()">Load sample data →</button>
-  </div>
-  <div class="sample-loaded-notice" id="sample-loaded-notice" hidden>
-    ⚠ Helix Robotics sample data loaded — entirely fictional, for testing only.
-    Fields are pre-filled; adjust anything you like before finishing.
-  </div>
-
   <h2>Step 1 — Your role</h2>
+  <p class="field-help">This sets the framing Tank uses across chat, reports, and your daily brief.</p>
   <div class="role-pick">
-    <button class="role-btn" data-role="ic" onclick="pickRole('ic')">Staff/Sr IC</button>
+    <button class="role-btn" data-role="ic" onclick="pickRole('ic')">Staff / Sr IC</button>
     <button class="role-btn" data-role="manager" onclick="pickRole('manager')">Manager</button>
     <button class="role-btn" data-role="both" onclick="pickRole('both')">Both</button>
   </div>
 
-  <h2>Step 2 — Your scope (paste anything; we'll extract the shape)</h2>
-  <textarea id="scope-input" rows="6"
-    placeholder="Paste your offer letter, JD, or a short paragraph: what's the team, who's your manager, what are you supposed to focus on?"></textarea>
-
-  <h2>Step 3 — Internal TLD (optional)</h2>
-  <input id="tld-input" type="text"
-    placeholder="e.g. helix.internal">
+  <h2>Step 2 — Internal TLD <span style="font-weight:400;font-size:.85em;opacity:.6">(optional)</span></h2>
+  <input id="tld-input" type="text" placeholder="e.g. corp.internal">
   <p class="field-help">
-    <strong>TLD (Top-Level Domain)</strong> is the suffix shared by all your internal hostnames.
-    If your services live at <code>api.helix.internal</code> and <code>db01.helix.internal</code>,
-    your TLD is <code>helix.internal</code>. Every hostname ending in this domain is replaced
-    with <code>INTERNAL_HOST_*</code> before any data reaches the AI.
-    Leave blank if your infrastructure uses a public domain or you're not sure.
+    The suffix shared by all your internal hostnames. If services live at
+    <code>api.corp.internal</code>, your TLD is <code>corp.internal</code>.
+    Every hostname ending in this domain is replaced with <code>INTERNAL_HOST_*</code>
+    before any data reaches the AI. Leave blank if you're not sure — you can set it
+    in Settings later.
   </p>
-
-  <h2>Step 4 — Cadence</h2>
-  <div class="cadence">
-    <label>Digest time:
-      <input id="digest-input" type="time" value="08:00">
-    </label>
-    <label>Reflection day:
-      <select id="reflect-input">
-        <option value="mon">Monday</option>
-        <option value="tue">Tuesday</option>
-        <option value="wed">Wednesday</option>
-        <option value="thu">Thursday</option>
-        <option value="fri" selected>Friday</option>
-      </select>
-    </label>
-  </div>
-  <p class="field-help">
-    <strong>Digest time</strong> — when Tank runs your daily brief: nudges, open follow-ups,
-    and any scheduled reports land at this hour.<br>
-    <strong>Reflection day</strong> — which weekday triggers your weekly review and
-    security digest (generated locally by Tank, not sent anywhere externally).
-  </p>
-
-  <h2>Step 5 — Ready</h2>
-  <p class="dim">Hitting <em>finish</em> sets your tenure start date, generates your
-  Day-1 brief, and drops you on the home dashboard.</p>
-  <p class="dim"><strong>Your first move after this screen:</strong> head to
-  <a href="/ingest">Ingest docs →</a> and upload what you have:</p>
-  <ul class="ingest-guide">
-    <li><strong>Architecture diagrams, runbooks, design docs</strong> → category <code>architecture</code></li>
-    <li><strong>Source repos or code summaries</strong> → category <code>code</code></li>
-    <li><strong>CMDB exports, service inventory</strong> → category <code>cmdb</code></li>
-    <li><strong>Org charts, team wikis, process docs</strong> → category <code>people_process</code></li>
-    <li><strong>Sigma rules (.yml), IAM policies (.json), control frameworks</strong> → auto-detected</li>
-  </ul>
-  <p class="dim">The more you feed Tank, the richer chat, threat models, and reports become.</p>
 
   <div class="onboarding-actions">
-    <button class="btn-primary" onclick="completeOnboarding()">Finish & generate Day-1 brief</button>
+    <button class="btn-primary" onclick="startOnboarding()">Continue to intake interview →</button>
     <form method="post" action="/api/onboarding/skip" style="display:inline">
       <button type="submit" class="btn-secondary">Skip for now</button>
     </form>
   </div>
+  <p class="field-help" style="margin-top:.75rem">
+    The intake interview (next step) is a 20-question structured interview that seeds
+    your knowledge graph and generates your Day-1 brief. It takes about five minutes
+    and is the fastest way to make Tank useful.
+  </p>
 </section>
 
 <script>
@@ -106,53 +61,28 @@ function pickRole(role) {
   });
 }
 
-async function completeOnboarding() {
-  const scope = document.getElementById("scope-input").value.trim();
+async function startOnboarding() {
   const tld = document.getElementById("tld-input").value.trim();
-  const digest = document.getElementById("digest-input").value || "08:00";
-  const reflect = document.getElementById("reflect-input").value || "fri";
 
   await fetch("/api/onboarding/role", {
-    method: "POST", headers: {"Content-Type": "application/json"},
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({role_mode: chosenRole}),
   });
-  if (scope) {
-    await fetch("/api/onboarding/scope", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({freewrite: scope}),
-    });
-  }
+
   if (tld) {
     await fetch("/api/onboarding/internal-tld", {
-      method: "POST", headers: {"Content-Type": "application/json"},
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify({internal_tld: tld}),
     });
   }
-  await fetch("/api/onboarding/cadence", {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({digest_time: digest, reflection_day: reflect}),
-  });
-  await fetch("/api/onboarding/complete", {method: "POST"});
-  window.location = "/";
+
+  const res = await fetch("/api/onboarding/complete", {method: "POST"});
+  const data = await res.json();
+  window.location = data.redirect || "/intake";
 }
 
-const SAMPLE_SCOPE = `I'm joining Helix Robotics as a Senior Security Engineer on the Detection & Response team. Helix builds payments and identity infrastructure for the robotics OEM market — Stripe + Auth0 for industrial automation customers. Around 80 employees, Series B (closed Q3 2025).
-
-My manager is Priya Shah (Director of Engineering, Platform). Key collaborators: Marcus Chen (Staff Eng, Identity team), Sam Liu (Payments), Alice Tanaka (SRE Lead), Raj Patel (FinOps).
-
-90-day focus: (1) stand up vulnerability management on Snyk, (2) audit IAM in prod AWS account and kill long-lived keys, (3) build a threat model for the payments path. Stack: AWS EKS (us-west-2), RDS PostgreSQL, DynamoDB, S3, Okta SSO, Vault for secrets. Internal TLD is helix.internal.`;
-
-function loadSampleData() {
-  pickRole("ic");
-  document.getElementById("scope-input").value = SAMPLE_SCOPE;
-  document.getElementById("tld-input").value = "helix.internal";
-  document.getElementById("digest-input").value = "08:00";
-  document.getElementById("reflect-input").value = "fri";
-  document.getElementById("sample-callout").hidden = true;
-  document.getElementById("sample-loaded-notice").hidden = false;
-}
-
-// Pre-select "Both" by default.
 pickRole("both");
 </script>
 {% endblock %}

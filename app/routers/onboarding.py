@@ -1,28 +1,25 @@
-"""Onboarding endpoints — 5-step conversational intake.
+"""Onboarding endpoints — minimal pre-intake gate.
 
-Phase-1 shipped a skip-only stub. This is the full flow:
+Collects only what must be known before data collection starts:
+  1. Role frame (IC / Manager / Both).
+  2. Internal TLD (for redaction rules).
 
-1. Role frame (IC / Manager / Both).
-2. Scope sketch (paste offer letter or freewrite → extract chips).
-3. Calendar dump (paste or .ics URL → seed people graph; optional).
-4. Initial docs (drop-in or skip; background-ingested).
-5. Cadence (digest time, reflection day).
-
-At the end, we set `tenure_started_at` and kick off the Day-1 brief.
-The brief is rendered as a Report (`kind='day1_brief'`).
+On complete, marks onboarded=True and redirects to /intake, where the
+20-question structured interview seeds the entity graph and generates
+the Day-1 brief. Cadence settings (digest time, reflection day) live
+in Settings.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from typing import Literal
 
-from app.role import RoleMode, UserScope, get_state, update_state
+from app.role import RoleMode, UserScope, update_state
 
 router = APIRouter(prefix="/api/onboarding")
 log = logging.getLogger("tank.onboarding")
@@ -86,23 +83,14 @@ async def set_cadence(body: SetCadence) -> dict:
 
 
 @router.post("/complete")
-async def complete(background_tasks: BackgroundTasks) -> dict:
-    """Mark onboarding complete, set tenure_started_at, kick off Day-1 brief."""
+async def complete() -> dict:
+    """Mark onboarding complete, set tenure_started_at, redirect to intake."""
     update_state(onboarded=True, tenure_started_at=time.time())
-    background_tasks.add_task(_generate_day1_brief)
-    return {"ok": True, "redirect": "/"}
+    return {"ok": True, "redirect": "/intake"}
 
 
 @router.post("/skip")
 async def skip() -> RedirectResponse:
-    """Legacy skip — leaves Day-1 brief ungenerated."""
+    """Skip onboarding entirely — lands on home; setup_banner will prompt intake."""
     update_state(onboarded=True, tenure_started_at=time.time())
     return RedirectResponse(url="/", status_code=303)
-
-
-def _generate_day1_brief() -> None:
-    try:
-        from app.claude.day1_brief import generate
-        generate()
-    except Exception:
-        log.exception("Day-1 brief generation failed")
