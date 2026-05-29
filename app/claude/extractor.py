@@ -31,11 +31,14 @@ log = logging.getLogger("tank.extractor")
 _BATCH_SIZE = 4
 
 # Limit concurrent extraction calls so bulk folder ingests don't blow the
-# rate limit. Two slots means at most 2 Claude calls in flight at once
-# across all background ingest tasks.
-_SEM = threading.Semaphore(2)
+# rate limit. At most this many Claude calls are in flight at once across
+# all background ingest tasks.
+_EXTRACT_CONCURRENCY = 2
+_SEM = threading.Semaphore(_EXTRACT_CONCURRENCY)
 
-# Seconds to wait before each retry attempt (1st through 5th).
+# Wait this many seconds between 429 retries (1st → 5th attempt). After
+# the 5th wait the call returns an empty extraction rather than raising;
+# entity extraction is a best-effort enrichment, not load-bearing.
 _RETRY_DELAYS = [5, 15, 30, 60, 120]
 
 
@@ -136,6 +139,13 @@ def extract_entities_for_doc(doc_id: str, chunks: list[dict],
 
 def _persist(doc_id: str, batch_chunk_ids: list[str],
              extraction: ChunkExtraction) -> None:
+    """Upsert entities + relationships from a single batch.
+
+    Entities get `provenance='inferred'` (Sonnet concluded them, not
+    user-stated). Relationship endpoints that aren't in the entity list
+    get auto-created at half the relationship's confidence so a missing
+    Sonnet endpoint doesn't drop the edge entirely.
+    """
     name_to_id: dict[tuple[str, str], str] = {}
     for ent in extraction.entities:
         eid = entities_store.upsert_entity(

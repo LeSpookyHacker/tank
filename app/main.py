@@ -1,3 +1,18 @@
+"""FastAPI entry point.
+
+Owns:
+- App-wide middleware (security headers, optional API-key gate).
+- Lifespan: DB init + scheduler start/stop.
+- `/healthz` liveness probe for systemd.
+- Router wiring (one `include_router` per feature area).
+
+If you're adding a new feature, you typically only need to:
+1. Create the router under `app/routers/<feature>.py`.
+2. Append a single `app.include_router(<feature>.router)` line below.
+
+If you're adding a feature that needs to run on a schedule, wire it in
+`app/claude/scheduler.py` instead — not here.
+"""
 from __future__ import annotations
 
 import logging

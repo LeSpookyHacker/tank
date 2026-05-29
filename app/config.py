@@ -1,3 +1,15 @@
+"""Process-wide configuration: env, paths, the Anthropic client, prompt loader.
+
+Module-level constants are read once at import. If you change an env var
+on a running process, restart — values are not re-read on demand.
+
+`log_token_usage(call_site, model, usage)` is the spend-tracking contract:
+every Claude call must invoke it after getting a response, or the spend
+won't show up in `/api/usage/cost`. The shared write path:
+
+    response = client.messages.X(...)
+    log_token_usage("<module.callsite>", MODEL, getattr(response, "usage", None))
+"""
 from __future__ import annotations
 
 import logging
@@ -36,6 +48,12 @@ _log = logging.getLogger("tank.tokens")
 
 @lru_cache
 def get_client() -> Anthropic:
+    """Process-wide Anthropic client. Cached so prompt-cache hits work.
+
+    The SDK keeps its own connection pool; sharing one client across all
+    callers is what lets prompt-cache breakpoints (system + KB blocks) get
+    cache reads instead of cache writes.
+    """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError(
@@ -55,6 +73,9 @@ def get_client() -> Anthropic:
 
 
 def load_prompt(name: str) -> str:
+    """Read `prompts/<name>.md`. Prompts live in files (not Python) so they
+    can be edited without restarting the server and so version control
+    shows clean prompt diffs."""
     return (PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 

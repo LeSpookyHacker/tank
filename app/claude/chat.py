@@ -40,8 +40,21 @@ from app.storage import (chunks_store, conversations_store, entities_store,
 
 log = logging.getLogger("tank.chat")
 
-# KB chunk count below which the chat loop enters discovery mode.
+# When the KB has fewer than this many chunks, chat switches to "discovery
+# mode": skip retrieval (nothing useful to retrieve), swap in a different
+# system prompt that focuses on interviewing the user, and watch the
+# response for `TANK_ENTITY_SUGGEST` annotations the UI surfaces as
+# entity-confirmation chips.
 DISCOVERY_THRESHOLD = 10
+
+# Cap for the tool-use loop. Most turns finish in 1–3 iterations; the cap
+# is here so a runaway tool-call cycle can't burn the token budget.
+_MAX_TOOL_ITERATIONS = 8
+
+# Hits-to-entity-cards fan-out and result tail used as citations.
+_ENTITY_CARDS_PER_TURN = 8
+_HYBRID_SEARCH_K = 12
+_CITATIONS_FROM_HITS = 5
 
 _ENTITY_SUGGEST_RE = re.compile(
     r"TANK_ENTITY_SUGGEST:(\{[^\n]+\})", re.MULTILINE
@@ -81,6 +94,12 @@ _PLACEHOLDER_RE = _build_placeholder_re()
 
 
 def _used_placeholders(*texts: str) -> set[str]:
+    """Collect every redaction placeholder appearing across `texts`.
+
+    Used to constrain rehydration to only the placeholders Claude actually
+    saw in the prompt — keeps a confused/malicious response from forcing
+    the rehydration of arbitrary redaction_map entries.
+    """
     out: set[str] = set()
     for t in texts:
         if not t:
@@ -89,7 +108,7 @@ def _used_placeholders(*texts: str) -> set[str]:
     return out
 
 
-def _entity_cards_for_hits(hits: list, k: int = 8) -> list[dict]:
+def _entity_cards_for_hits(hits: list, k: int = _ENTITY_CARDS_PER_TURN) -> list[dict]:
     """Pull entity cards for the top-K entities cited across hits."""
     if not hits:
         return []
@@ -175,7 +194,7 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
     hit_dicts: list[dict] = []
     entity_cards: list[dict] = []
     if not is_discovery:
-        hits = hybrid_search(user_redacted, k=12)
+        hits = hybrid_search(user_redacted, k=_HYBRID_SEARCH_K)
         hit_dicts = [
             {
                 "chunk_id": h.chunk_id,
@@ -262,17 +281,19 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
     iteration = 0
     while True:
         iteration += 1
-        if iteration > 8:
-            log.warning("chat loop hit iteration cap (8)")
+        if iteration > _MAX_TOOL_ITERATIONS:
+            log.warning("chat loop hit iteration cap (%d)", _MAX_TOOL_ITERATIONS)
             publish(topic, "warning", {
-                "message": "Tool-use loop capped at 8 iterations. "
-                           "The response may be incomplete.",
+                "message": f"Tool-use loop capped at {_MAX_TOOL_ITERATIONS} "
+                           "iterations. The response may be incomplete.",
             })
             break
 
+        # The Anthropic SDK's stream is a *synchronous* context manager.
+        # We run it inside the default executor and bridge each event to
+        # the asyncio side via the event bus. This is why `event_bus.py`
+        # is built on thread-safe queues.
         stream_cm = await loop.run_in_executor(None, _run_stream)
-        # The Anthropic SDK's stream returns a context manager. We
-        # iterate its sync events from a thread and bridge into asyncio.
         text_block_chunks: list[str] = []
         tool_calls: list[dict] = []
         any_text = False
@@ -385,7 +406,7 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
         {"chunk_id": h["chunk_id"],
          "document_id": h["document_id"],
          "section_path": h.get("section_path")}
-        for h in hit_dicts[:5]
+        for h in hit_dicts[:_CITATIONS_FROM_HITS]
     ])
 
     msg_id = messages_store.append(
