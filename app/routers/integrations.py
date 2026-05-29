@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 import uuid
 from pathlib import Path
@@ -12,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.db import LOCK, get_conn
+from app.ingest.path_guard import is_blocked_path
 from app.ingest.watchers import dispatch
 
 router = APIRouter(prefix="/api/integrations")
@@ -30,21 +30,12 @@ def _validate_watcher_target(kind: str, target: str) -> None:
     """Reject obviously dangerous targets at creation time."""
     if kind == "folder":
         try:
-            resolved = Path(target).resolve()
+            p = Path(target).resolve()
         except Exception:
             raise HTTPException(400, "invalid folder path")
-        blocked_prefixes = (
-            "/etc", "/proc", "/sys", "/dev", "/root",
-            os.path.expanduser("~/.ssh"),
-            os.path.expanduser("~/.gnupg"),
-        )
-        for prefix in blocked_prefixes:
-            try:
-                if resolved.is_relative_to(Path(prefix)):
-                    raise HTTPException(400, f"folder target not allowed: {prefix}")
-            except AttributeError:
-                if str(resolved).startswith(str(Path(prefix))):
-                    raise HTTPException(400, f"folder target not allowed: {prefix}")
+        blocked = is_blocked_path(p)
+        if blocked:
+            raise HTTPException(400, f"folder target not allowed: {blocked}")
 
 
 @router.get("/watchers")

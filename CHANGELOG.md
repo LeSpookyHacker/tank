@@ -12,6 +12,27 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-05-29] — Security hardening: adversarial audit pass 4 (fresh full re-audit)
+
+### Security
+
+**Pass 4 — Sensitive-path guard, SQL identifier validation, fresh full re-audit (3 code fixes + 5 documented findings)**
+
+- **VULN-P4-01 (Medium):** Sensitive-path blocklist gap on one-off ingest — `POST /api/ingest/path` and `POST /api/ingest/repo` allowed any path under `Path.home()`, including `~/.ssh`, `~/.aws/credentials`, and `~/.tank/db.sqlite`. Factored shared guard into `app/ingest/path_guard.py::is_blocked_path()` covering `/etc /proc /sys /dev ~/.ssh ~/.gnupg ~/.aws ~/.tank ~/.config`; called from both ingest endpoints and the folder-watcher target validator (`integrations.py`), replacing the watcher's inline blocklist. Tests in `tests/test_ingest_path_guard.py`.
+- **VULN-P4-02 (Low):** SQL identifier injection regression risk in `app/db.py::_add_col_safe` — `table` parameter was interpolated into `PRAGMA table_info({table})` and `ALTER TABLE {table}` without validation. Added `re.fullmatch` guard; raises `ValueError` for any non-identifier table name.
+- **VULN-P4-03 (Low):** SQL identifier injection regression risk in `app/storage/teams_store.py::update_team` and `app/storage/projects_store.py::update_project` — both build `UPDATE` SET clauses from `**kwargs` keys via f-string interpolation; keys were allowlisted but not separately validated. Added `_SAFE_IDENT` regex assertion after allowlist filtering.
+- **VULN-P4-04 (Medium, documented only):** CSP `script-src 'unsafe-inline'` weakens XSS defense; removal requires nonce migration across ~20 templates — deferred as a planned sprint.
+- **VULN-P4-05 (Low, documented only):** GitHub token accepted in POST body of `POST /api/discovery/github-scan` — may appear in access logs; recommend `Authorization: Bearer` header or `TANK_GITHUB_TOKEN` env var.
+- **VULN-P4-06 (Info, documented only):** Architecture images sent unredacted to Anthropic API during vision extraction — by design; recommend UI disclosure text.
+- **VULN-P4-07 (Info, documented only):** Unpinned `>=` dependency versions in `requirements.txt` — recommend lock file for production.
+- **VULN-P4-08 (Info, documented only):** Prompt injection via ingested documents — mitigated by `_KB_TRUST_HEADER` in `caching.py`; inherent LLM limitation noted.
+
+**Re-confirmed intact from passes 1–3 (34 prior fixes verified):** API-key gate, CSRF on wipe, ICS SSRF guard, cve/github/discovery SSRF (hardcoded domains), SQL parameterization, FTS5 phrase-quoting, command injection absence, safe YAML deserialization, upload path traversal, symlink traversal (folder watcher), XSS (DOMPurify on all markdown templates), ReDoS (SIGALRM timeout), placeholder format injection, redaction completeness across all Claude call sites, UUID4 IDs, DoS size/depth bounds, no committed secrets.
+
+Full findings report: [`docs/security/audit-pass-4.md`](security/audit-pass-4.md)
+
+---
+
 ## [2026-05-27] — Security hardening: adversarial audit passes 1–3 (34 vulnerabilities)
 
 ### Security

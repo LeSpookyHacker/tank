@@ -18,6 +18,7 @@ The full data model is documented in the architecture plan. Key invariants:
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import threading
 from pathlib import Path
@@ -648,8 +649,13 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_decisions_founding(conn)
 
 
+_SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
 def _add_col_safe(conn: sqlite3.Connection, table: str, col_def: str) -> None:
     """Add a column to an existing table if it doesn't already exist."""
+    if not _SAFE_IDENT.match(table):
+        raise ValueError(f"_add_col_safe: invalid table name {table!r}")
     existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
     col_name = col_def.split()[0]
     if col_name not in existing:
