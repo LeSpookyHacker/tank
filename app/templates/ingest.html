@@ -21,13 +21,19 @@
       <div class="field-row">
         <input type="file" id="file-input"
                accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt"
-               multiple>
+               multiple onchange="onFileInputChange(this)">
         <label class="btn-secondary folder-pick-label" title="Pick a folder to upload all files inside it">
           Pick folder
           <input type="file" id="folder-input" webkitdirectory multiple
                  style="display:none" onchange="uploadFolder(this)">
         </label>
         <button class="btn-primary" onclick="uploadFile()">Upload</button>
+      </div>
+      <div id="vision-notice" class="ingest-vision-notice" hidden>
+        <strong>Privacy notice:</strong> Images (PNG / JPG) are sent to the Anthropic API in their
+        original form for AI-based text extraction. Internal hostnames, IP addresses, or other
+        sensitive details visible in the image are transmitted <em>before</em> local redaction is
+        applied.
       </div>
       <div class="ingest-status" id="file-status"></div>
     </div>
@@ -120,6 +126,13 @@ function guessCategory(relPath) {
   for (const [kw, cat] of _PATH_RULES) { if (low.includes(kw)) return cat; }
   const ext = low.split(".").pop();
   return _EXT_DEFAULTS[ext] || "people_process";
+}
+
+// ---- Show/hide vision-notice when image files are selected ----
+function onFileInputChange(input) {
+  var files = [...input.files];
+  var hasImage = files.some(function(f) { return /\.(png|jpg|jpeg)$/i.test(f.name); });
+  document.getElementById('vision-notice').hidden = !hasImage;
 }
 
 // ---- Upload individual file(s) ----

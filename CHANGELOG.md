@@ -23,7 +23,7 @@ For the full narrative build history with architectural rationale and tradeoff d
 - **VULN-P4-03 (Low):** SQL identifier injection regression risk in `app/storage/teams_store.py::update_team` and `app/storage/projects_store.py::update_project` — both build `UPDATE` SET clauses from `**kwargs` keys via f-string interpolation; keys were allowlisted but not separately validated. Added `_SAFE_IDENT` regex assertion after allowlist filtering.
 - **VULN-P4-04 (Medium, documented only):** CSP `script-src 'unsafe-inline'` weakens XSS defense; removal requires nonce migration across ~20 templates — deferred as a planned sprint.
 - **VULN-P4-05 (Low, documented only):** GitHub token accepted in POST body of `POST /api/discovery/github-scan` — may appear in access logs; recommend `Authorization: Bearer` header or `TANK_GITHUB_TOKEN` env var.
-- **VULN-P4-06 (Info, documented only):** Architecture images sent unredacted to Anthropic API during vision extraction — by design; recommend UI disclosure text.
+- **VULN-P4-06 (Info, fixed):** Architecture images sent unredacted to Anthropic API during vision extraction — by design, but now disclosed. `app/templates/ingest.html` shows a privacy notice banner automatically when PNG/JPG files are selected. `app/templates/dfd.html` existing image notice updated to include the same privacy language. CSS added for the notice style.
 - **VULN-P4-07 (Info, documented only):** Unpinned `>=` dependency versions in `requirements.txt` — recommend lock file for production.
 - **VULN-P4-08 (Info, documented only):** Prompt injection via ingested documents — mitigated by `_KB_TRUST_HEADER` in `caching.py`; inherent LLM limitation noted.
 

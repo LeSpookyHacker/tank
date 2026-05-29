@@ -224,13 +224,15 @@ CWE-312 (Cleartext Storage of Sensitive Information), CWE-532 (Insertion of Sens
 **Category:** OWASP GenAI LLM06 – Sensitive Information Disclosure  
 **Severity:** Informational  
 **Confidence:** Confirmed (by design)  
-**Location:** `app/ingest/parsers/image.py`, `app/claude/extractor.py`
+**Location:** `app/ingest/parsers/image.py`, `app/claude/extractor.py` — **UI disclosure applied in this pass**
 
 **Description:**
 When a diagram/image is ingested, the raw image bytes are base64-encoded and sent to the Anthropic API for vision-based entity extraction. The extracted text is redacted post-extraction before storage, but the original image (which may contain hostnames, IPs, or internal architecture details) is sent unredacted. This is an inherent limitation of pre-ingestion image processing.
 
-**Recommended Fix:**
-Add a prominent disclosure in the UI when a user ingests an image type (`.png`, `.jpg`, `.drawio`): *"Architecture diagrams are sent to the Anthropic API in their original form for entity extraction. Internal hostnames and IPs visible in the image will be transmitted unredacted."* No code change required.
+**Fix Applied:**
+- `app/templates/ingest.html`: A hidden `#vision-notice` disclosure banner is shown automatically when the user selects one or more PNG/JPG files. Text: *"Images (PNG/JPG) are sent to the Anthropic API in their original form for AI-based text extraction. Internal hostnames, IP addresses, or other sensitive details visible in the image are transmitted before local redaction is applied."*
+- `app/templates/dfd.html`: The existing `#upload-image-notice` (already shown when an image is selected for DFD analysis) was updated to include the same privacy language, replacing the previous vague accuracy-only message.
+- `app/static/style.css`: Added `.ingest-vision-notice` style matching the `dfd-notice` treatment.
 
 ---
 
@@ -302,7 +304,7 @@ No code change needed for current threat model. If Tank is ever extended to inge
 | High | 0 | — |
 | Medium | 2 | 1 (VULN-P4-01) |
 | Low | 3 | 2 (VULN-P4-02, VULN-P4-03) |
-| Informational | 3 | — |
+| Informational | 3 | 1 (VULN-P4-06 — UI disclosure) |
 
 ### Recommended Focus for Next Iteration
 
