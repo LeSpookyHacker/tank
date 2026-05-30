@@ -10,9 +10,10 @@
 ## Why this role, why now
 
 Helix has been fortunate. We have great engineers who care about security, and
-Diana Okoro has kept our detection and incident response function running almost
-single-handedly. But we are past the point where we can treat security as a
-shared responsibility that nobody owns strategically.
+our SRE team — Diana Okoro especially — has kept the lights on by firefighting
+incidents and standing up basic Datadog detections reactively. But that has
+always been a side-duty bolted onto reliability work. We have never had anyone
+who owns security strategically. You are our first dedicated security hire.
 
 Three things are converging:
 
@@ -41,8 +42,9 @@ the short version:
 ### First 30 days — understand and document
 - Walk every service with its owner. Start with identity-svc (Marcus), payments-api
   (Sam), and pii-vault (currently unowned — this is a problem).
-- Get a copy of our open security debt. Diana has the Datadog searches; Raj has the
-  IAM picture; Priya has the architecture notes she's been keeping.
+- Get a copy of our open security debt. Diana (SRE) has the Datadog searches she
+  built reactively; Raj has the IAM picture; Priya has the architecture notes
+  she's been keeping.
 - Sit in on platform-on-call handoff once. Security incidents often start there.
 
 ### Days 30–60 — fix the most pressing things
@@ -59,14 +61,14 @@ Three things I want done or substantially in-progress by day 60:
    the migration work; you own getting it done.
 
 3. **CI-side secret detection** (action item from the April postmortem). Every
-   repo needs `detect-secrets` in CI. Diana scoped the work; it's a first-project
-   candidate for you.
+   repo needs `detect-secrets` in CI. Alice (SRE) roughed out the work during the
+   incident; it's a first-project candidate for you to own properly.
 
 ### Days 60–90 — program foundation
-- Own the secrets management policy (SEC-POL-003, currently held by Diana as
-  interim owner).
+- Own the secrets management policy (SEC-POL-003, currently an unowned
+  placeholder Tom is holding on paper until you take it).
 - Write or adopt an incident response runbook for pii-vault (RB-SEC-004 is the
-  placeholder, also held by Diana right now).
+  placeholder, also unowned right now).
 - Give me a written summary of our biggest unaddressed risks and a prioritized list
   of what you plan to tackle next. This feeds directly into the SOC 2 prep.
 
@@ -76,7 +78,7 @@ Three things I want done or substantially in-progress by day 60:
 
 | Person | Why |
 | --- | --- |
-| **Diana Okoro** | She owns detection, SIEM, security on-call, and Vault admin today. She knows more about our incident history than anyone. Sit with her first. |
+| **Diana Okoro** | Senior SRE. She built the Datadog detections and ran most past incidents reactively, and knows our incident history better than anyone. She's a partner, not the security owner — that's you now. Sit with her first. |
 | **Alice Tanaka** | SRE lead, runs platform-on-call, holds the break-glass credentials. She's seen most of our operational incidents. |
 | **Raj Patel** | FinOps lead and de-facto IAM governor. He knows every long-lived credential and AWS permission set. |
 | **Marcus Chen** | Staff engineer, owns identity-svc. The most security-conscious engineer on the team. He's been keeping a list of identity gaps for months. |
@@ -104,14 +106,16 @@ are the ones I think of as the most important:
 
 ## A note on Diana
 
-Diana has been the entire security function at Helix for a year and a half. She
-has been doing the job of two people. She will be an invaluable partner and she
-deserves credit for the posture we have today. Please coordinate with her, not
-around her.
+Diana is a Senior SRE, and for the last year and a half she's been the closest
+thing we had to security — building Datadog detections, chasing incidents, and
+keeping Vault running, all on top of her reliability work. None of that was her
+job; she did it because no one else would. She deserves credit for the posture
+we have today, and she'll be an invaluable partner. Please coordinate with her,
+not around her.
 
-Her domain is detection, response, and Vault operations. Yours is security
-engineering, AppSec, cloud security, and the program. There will be natural
-overlap — work it out together.
+But to be clear: she is not the security owner, and she shouldn't be. Detection,
+response, the program, AppSec, cloud security — all of it is yours now. Lean on
+her SRE knowledge; don't leave the security function on her plate.
 
 ---
 

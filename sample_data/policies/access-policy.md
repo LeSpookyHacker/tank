@@ -1,6 +1,6 @@
 # Access Policy
 
-**Document owner:** Tom Brennan (VP Engineering)
+**Document owner:** Tom Brandt (CTO)
 **Effective:** 2025-09-01 (last revised 2026-02-14)
 **Approval cadence:** annual; next review 2026-09-01.
 
@@ -42,11 +42,11 @@ operated by Helix Robotics. "Production" means anything in account
 
 | Role | Granted to | Allowed accounts |
 | --- | --- | --- |
-| AdministratorAccess | Tom Brennan, Alice Tanaka (break-glass) | all |
-| PlatformEngineer | Marcus Chen, Yui Hayashi, Alice Tanaka | prod, staging, tooling |
+| AdministratorAccess | Tom Brandt, Alice Tanaka (break-glass) | all |
+| PlatformEngineer | Marcus Chen, Yui Tanaka, Alice Tanaka | prod, staging, tooling |
 | ReadOnly | every engineer | all |
 | FinOpsReadWrite | Raj Patel | all (cost-explorer scoped) |
-| Security | Diana Okoro, new security hire | all |
+| Security | Mei Watanabe (first security hire) | all |
 | Auditor | external audit firm during attestation window | tooling + security only |
 
 Break-glass admin use is logged to the security S3 bucket

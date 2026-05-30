@@ -1,6 +1,7 @@
 # Runbook — investigate a suspicious customer login
 
-**Last reviewed:** 2026-04-22 by Diana Okoro
+**Last reviewed:** 2026-04-22 by Diana Okoro (SRE — pre-dates the first
+security hire; now a security-owned runbook)
 
 ## Trigger
 
@@ -12,8 +13,8 @@ A Datadog alert from `customer-login-anomaly`. Common reasons:
 - Multiple successful logins for the same `sub` within 5 minutes
   from different geos.
 
-The alert pages the security-watch rotation (currently Diana; you
-once you start).
+The alert pages the SRE-run siem-watch rotation today (there's no security
+on-call yet); you'll own this once you stand up a real security rotation.
 
 ## Investigate
 
@@ -74,4 +75,4 @@ customer-success owner for that account, not you. Hand off via
   raise to that customer's CSM; their integration may be allowing
   credential reuse.
 - Repeat sub across multiple alerts → look for a slow credential
-  stuffing campaign. Diana has dashboards.
+  stuffing campaign. SRE has the Datadog dashboards.

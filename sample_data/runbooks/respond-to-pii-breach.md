@@ -1,7 +1,7 @@
 # Runbook: Respond to PII Breach or Suspected PII Exposure
 
 **Runbook ID**: RB-SEC-004  
-**Owner**: Diana Okoro (diana.okoro@helixrobotics.com) — interim; transfer to incoming security hire within first 30 days  
+**Owner**: Unowned — interim-held by Tom Brandt (CTO); transfers to the incoming first security hire within first 30 days  
 **Last updated**: 2026-03-01  
 **Applies to**: Any suspected or confirmed unauthorized access to customer PII
 stored in `pii-vault` or replicated to the analytics pipeline.
@@ -33,8 +33,9 @@ Invoke immediately if any of the following are observed:
 
 ## Step 1: Alert and assemble
 
-**IC (Incident Commander)**: Security on-call (diana.okoro@helixrobotics.com).
-Once the incoming security hire joins, this role transfers to them.
+**IC (Incident Commander)**: SRE on-call lead (alice.tanaka@helixrobotics.com)
+today — there is no security on-call yet. Once the incoming first security hire
+joins, this role transfers to them.
 
 Page the following via PagerDuty immediately:
 
@@ -174,7 +175,7 @@ If the breach involved a compromised AWS credential or CMK:
 
 | Role | Contact |
 | --- | --- |
-| Security on-call | diana.okoro@helixrobotics.com |
+| Security on-call | none yet — SRE on-call covers (alice.tanaka@helixrobotics.com) until the first security hire |
 | Platform on-call | alice.tanaka@helixrobotics.com |
 | CTO (P0/P1) | tom.brandt@helixrobotics.com |
 | Legal | legal@helixrobotics.com |

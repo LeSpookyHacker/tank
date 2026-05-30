@@ -2,10 +2,10 @@
 
 **Severity:** Sev-2 (containment within 1 hour, no confirmed access)
 **Duration:** 09:14 – 10:08 UTC (54m)
-**Incident commander:** Diana Okoro
+**Incident commander:** Alice Tanaka (SRE Lead)
 **Tech lead:** Raj Patel
 **Comms:** Priya Shah
-**Author:** Diana Okoro
+**Author:** Alice Tanaka (SRE Lead)
 
 ## Summary
 
@@ -33,11 +33,11 @@ between leak time (09:08) and rotation completion (09:51).
 | 09:12 | GitHub Secret Scanning detects the AWS key. |
 | 09:14 | AWS receives the GitHub report. AWS Quarantine SCP applied to `iam-user/ci-snyk`. |
 | 09:14 | AWS sends notification email to security@helixrobotics.com and root account contact. |
-| 09:19 | Diana sees the email, declares Sev-2 in `#security-alerts`. |
+| 09:19 | Alice (SRE on-call) sees the email, declares Sev-2 in `#security-alerts`. |
 | 09:23 | Raj joins; confirms the user was `iam-user/ci-snyk` (used by Snyk SaaS for CodeArtifact reads). |
 | 09:30 | Raj generates a new access key and updates the Snyk SaaS config. |
 | 09:42 | Snyk integration confirmed working with the new key. |
-| 09:48 | Diana queries CloudTrail for any API calls using the leaked AccessKeyId in the last 24h. **Zero hits.** |
+| 09:48 | Alice queries CloudTrail for any API calls using the leaked AccessKeyId in the last 24h. **Zero hits.** |
 | 09:51 | Old key deleted. |
 | 09:58 | Engineer notified, paired with Raj on a cleanup of git history on the public repo. |
 | 10:08 | Incident closed. |
@@ -61,7 +61,7 @@ Two contributing factors:
 - AWS Quarantine SCP applied automatically.
 - We had `security@helixrobotics.com` configured as an AWS
   notification target.
-- Diana was at her desk and triaged within 5 minutes of the email.
+- Alice (SRE on-call) was at her desk and triaged within 5 minutes of the email.
 
 ## Action items
 
@@ -74,7 +74,7 @@ Two contributing factors:
       detect-secrets findings (security@, due TBD — this is the
       new hire's first big project candidate)
 - [ ] All-hands reminder: never copy prod credentials onto laptops;
-      use Vault dev mode (tom.brennan, completed 2026-04-12)
+      use Vault dev mode (tom.brandt, completed 2026-04-12)
 - [ ] Set up a per-user IAM key inventory dashboard
       (raj.patel, ongoing)
 

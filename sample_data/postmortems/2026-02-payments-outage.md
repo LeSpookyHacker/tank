@@ -4,7 +4,7 @@
 **Duration:** 14:02 – 18:09 UTC (4h 7m)
 **Incident commander:** Alice Tanaka
 **Tech lead:** Sam Liu
-**Comms:** Tom Brennan
+**Comms:** Tom Brandt
 **Authors:** Sam Liu, Alice Tanaka
 
 ## Summary

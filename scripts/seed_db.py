@@ -79,7 +79,7 @@ TEAMS = [
     },
     {
         "name": "Threat Intelligence",
-        "description": "Detection engineering, incident response, and ATT&CK mapping. Led by Diana Okoro.",
+        "description": "Detection engineering, incident response, and ATT&CK mapping. Net-new function the first security hire is standing up (previously handled reactively by SRE).",
         "color": "#dc2626",
         "icon": "🔍",
     },
@@ -1187,7 +1187,8 @@ JOURNAL_ENTRIES = [
             "- identity-svc is considered the crown jewel — JWT signing key compromise = game over.\n"
             "- pii-vault is highest-risk because it's sole custodian of customer billing addresses.\n"
             "  No one has done a threat model on it recently.\n"
-            "- Diana (Detection & Response) is my closest security partner. Weekly 1:1 Thursdays.\n"
+            "- Diana (Senior SRE) carried security reactively before me — my best source on "
+            "incident history and the existing Datadog detections. Weekly 1:1 Thursdays.\n"
             "- First 30 days: learn the architecture, meet the service owners, identify the top 3 risks.\n"
             "- TODO: Read all postmortems. Ask Marcus about HELIX-2108 (RDS IAM auth gap)."
         ),
@@ -1221,7 +1222,8 @@ JOURNAL_ENTRIES = [
             "Shared the DFD analysis report with Priya. She wants a similar analysis for pii-vault "
             "before the board meeting on June 15.\n\n"
             "Started draft of the threat model write-up for identity-svc. "
-            "Also confirmed with Diana that she'll add Vault Sentinel policies to Q3 roadmap."
+            "Also confirmed with Alice (SRE, Vault admin) that she'll add Vault Sentinel "
+            "policies to the Q3 roadmap."
         ),
     },
 ]

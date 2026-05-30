@@ -46,8 +46,10 @@ systems.
 
 - SOC 2 Type I attestation from 2024 Q4. Type II audit window opens
   September 2026 — first big external deadline.
-- One previous security hire: Diana Okoro, joined Q1 2026 to build out
-  Detection & Response. You're the second.
+- No prior dedicated security hire. **You are the first.** Security has
+  been a side-duty the SRE team (Diana Okoro especially) absorbed
+  reactively — Datadog detections, incident firefighting, Vault ops — on
+  top of reliability work. Nobody has owned it strategically.
 - No formal AppSec program. No formal threat modeling. No central
   vulnerability management. Snyk scans run on PRs but findings aren't
   triaged.
@@ -61,10 +63,11 @@ systems.
 
 ## Your scope (loose, to be refined during onboarding)
 
-You're joining Priya Shah's Platform org as "Security Engineer." The
-written JD says "AppSec-flavored, but expect to touch cloud and
-detection partnership." Priya has hinted at three first-quarter
-priorities, none yet committed:
+You report directly to Tom Brandt (CTO) as Helix's first "Security
+Engineer" — there's no security team to slot into yet. The written JD
+says "AppSec-flavored, but expect to touch cloud and detection." Tom and
+Priya Shah (Director of Eng, Platform — your closest engineering partner)
+have hinted at three first-quarter priorities, none yet committed:
 
 1. Stand up a real vulnerability-management workflow on top of Snyk.
 2. Audit IAM in the prod account, kill long-lived keys.
@@ -78,9 +81,11 @@ overlaps with #1-3 above.
 
 (See `people/org-chart.md` for the full tree.)
 
-1. **Priya Shah** — Director of Engineering, Platform. Your manager.
-2. **Diana Okoro** — Detection & Response. The other security
-   engineer. You'll partner closely.
+1. **Priya Shah** — Director of Engineering, Platform. Your closest
+   engineering partner (you report to Tom Brandt, the CTO).
+2. **Diana Okoro** — Senior SRE. Has carried security-adjacent
+   firefighting reactively; your best source on incident history. A
+   partner, not a security owner — that's now you.
 3. **Marcus Chen** — Staff Engineer, Identity team. Owns the
    crown-jewel service (identity-svc).
 4. **Alice Tanaka** — SRE Lead. Holds keys to most of prod, gatekeeps

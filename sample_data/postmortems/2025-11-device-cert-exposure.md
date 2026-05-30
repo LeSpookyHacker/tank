@@ -5,7 +5,7 @@
 **Severity**: P1 (near-miss — no confirmed exfiltration)  
 **Duration**: 6 hours 22 minutes (07:14 – 13:36 PST)  
 **Services affected**: `webhook-router`, `device-registry`  
-**IC**: diana.okoro@helixrobotics.com  
+**IC**: alice.tanaka@helixrobotics.com (SRE Lead — no security owner at the time)  
 **Participants**: yui.tanaka@helixrobotics.com, alice.tanaka@helixrobotics.com,
 tom.brandt@helixrobotics.com (notified), marcus.chen@helixrobotics.com (SME)
 
@@ -40,7 +40,7 @@ duration of the cert TTL (90 days).
 | 07:15 | First pre-signed URL with 7-day TTL generated and delivered to OEM customer device |
 | 09:30 | Automated daily deploy of new certs triggers 80+ pre-signed URL generations within 3 minutes |
 | 11:02 | Datadog alert fires: "Unusual S3 presigned URL volume from webhook-router" |
-| 11:15 | Diana pages platform-on-call; Yui begins investigation |
+| 11:15 | Alice pages platform-on-call; Yui begins investigation |
 | 11:34 | Root cause identified (TTL misconfiguration in v1.8.2) |
 | 11:50 | `webhook-router` v1.8.3 deployed with TTL reverted to 5 minutes |
 | 12:10 | S3 Object Lock applied to device-cert bucket: new pre-signed URLs cannot exceed 10 minutes |
@@ -93,10 +93,10 @@ or certificate exposure windows.
 | # | Action | Owner | Due | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Add S3 bucket policy to cap pre-signed URL TTL at 10 minutes for device-cert bucket | yui.tanaka | 2025-11-21 | ✅ Done (done at 12:10 during incident) |
-| 2 | Add security-checklist item: "Does this change affect credential/cert TTLs?" | diana.okoro | 2025-11-28 | ✅ Done |
-| 3 | Reduce Datadog alert threshold for bulk pre-signed URL volume to 10 URLs/5min | diana.okoro | 2025-12-01 | ✅ Done |
-| 4 | Write Sigma rule for S3 bulk pre-signed URL generation | diana.okoro | 2025-12-15 | 🔄 In progress |
-| 5 | Evaluate whether pre-signed URL audit logs should go to SIEM in real-time | diana.okoro | 2026-01-15 | ⬜ Open |
+| 2 | Add security-checklist item: "Does this change affect credential/cert TTLs?" | alice.tanaka | 2025-11-28 | ✅ Done |
+| 3 | Reduce Datadog alert threshold for bulk pre-signed URL volume to 10 URLs/5min | alice.tanaka | 2025-12-01 | ✅ Done |
+| 4 | Write Sigma rule for S3 bulk pre-signed URL generation | alice.tanaka | 2025-12-15 | 🔄 In progress |
+| 5 | Evaluate whether pre-signed URL audit logs should go to SIEM in real-time | alice.tanaka | 2026-01-15 | ⬜ Open |
 | 6 | Investigate feasibility of S3 pre-signed URL revocation (HELIX-2120) | yui.tanaka | 2026-02-01 | ⬜ Open |
 
 ---
@@ -125,6 +125,6 @@ or certificate exposure windows.
 
 ## Thanks
 
-Diana Okoro and Yui Tanaka for fast incident response. Alice Tanaka for running
+Diana Okoro (SRE) and Yui Tanaka for fast incident response. Alice Tanaka for running
 comms with OEM customers. Marcus Chen for the JWKS and mTLS cert architecture
 context.

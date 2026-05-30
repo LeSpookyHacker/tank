@@ -1,6 +1,6 @@
 # Data Classification
 
-**Owner:** Tom Brennan
+**Owner:** Tom Brandt
 **Effective:** 2025-08-01
 
 ## Tiers

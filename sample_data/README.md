@@ -52,12 +52,13 @@ so Stage 2/3 will load instantly with no API call.
 
 ## Scenario
 
-You've just joined **Helix Robotics** as the second Security Engineer
-(the first is Diana Okoro on Detection & Response). Helix is ~80 people,
-Series B (Q3 2025), processing payments and identity for robotics OEMs.
-Your scope as a new hire is loosely defined — somewhere between AppSec,
-Cloud Sec, and "general security plumbing" — and you'll spend the next
-30/60/90 days figuring out what matters.
+You've just joined **Helix Robotics** as its **first dedicated Security
+Engineer**. There was no security team before you — security has been a
+side-duty the SRE team (Diana Okoro especially) absorbed reactively.
+Helix is ~80 people, Series B (Q3 2025), processing payments and identity
+for robotics OEMs. Your scope as the first hire is loosely defined —
+somewhere between AppSec, Cloud Sec, and "general security plumbing" —
+and you'll spend the next 30/60/90 days figuring out what matters.
 
 Helix's HQ is Austin; satellites in Seattle and Lisbon. The internal
 TLD is `helix.internal`. AWS prod account is `999988887777`, staging
@@ -181,7 +182,7 @@ Each item below maps to a Tank feature it stresses:
 | CODEOWNERS says Marcus owns payments-api; CMDB says Sam | contradiction-surfacing nudge |
 | Postmortem references a deleted runbook | stale_context nudge |
 | `webhook-router` has a postmortem (INC-2025-0047) + Sigma rule (SSRF) | cross-service coverage exercised |
-| Diana mentioned in 3 docs but never has a dedicated entity card | pattern_detection nudge |
+| Diana (SRE) mentioned in several docs but never has a dedicated entity card | pattern_detection nudge |
 | One CMDB row lacks `owner_email` | data-quality flag |
 | `priya.shah@helixrobotics.com` repeated in 6+ artifacts | email placeholder reuse |
 | Mixed criticality labels (CMDB "critical" vs runbook "tier-2") | contradiction-surfacing |

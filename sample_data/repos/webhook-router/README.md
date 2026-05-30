@@ -3,7 +3,7 @@
 Internal event bus → outbound HTTPS POSTs to customer-supplied webhook
 URLs. HMAC-signed. Retries with exponential backoff up to 24 hours.
 
-**Owner:** Yui Hayashi (yui@helix.internal)
+**Owner:** Yui Tanaka (yui@helix.internal)
 **Team:** Platform
 **On-call rotation:** Platform on-call (PagerDuty service
 `platform-prod`)

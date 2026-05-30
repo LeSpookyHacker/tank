@@ -5,7 +5,7 @@
 | Account ID | Name | Purpose | Owner |
 | --- | --- | --- | --- |
 | `999988887777` | `helix-prod` | Customer-facing prod | Alice Tanaka |
-| `888877776666` | `helix-staging` | Pre-prod, analytics, dev/test | Yui Hayashi |
+| `888877776666` | `helix-staging` | Pre-prod, analytics, dev/test | Yui Tanaka |
 | `777766665555` | `helix-tooling` | SSO landing, CI runners, central logs | Raj Patel |
 | `666655554444` | `helix-security` | Security tooling, log archive | (you, eventually) |
 | `555544443333` | `helix-sandbox` | Per-engineer playgrounds | (free for all) |
@@ -26,7 +26,7 @@ Permission sets:
 - `PlatformEngineer` — Marcus, Yui, Alice
 - `ReadOnly` — every employee in the engineering group
 - `FinOpsReadWrite` — Raj
-- `Security` — Diana, you
+- `Security` — you (first security hire)
 - `Auditor` — external audit firm during compliance windows
 
 ## Region layout

@@ -8,6 +8,47 @@
     <p class="lede">Feed Tank your docs, repos, and data. Everything is redacted locally before touching the AI.</p>
   </div>
 
+  <!-- Unified bulk drop zone: chuck anything at Tank -->
+  <div class="bulk-zone">
+    <div class="bulk-drop" id="bulk-drop">
+      <div class="bulk-drop-inner">
+        <div class="bulk-drop-icon">⇪</div>
+        <p class="bulk-drop-title">Drop files, folders, or repos here</p>
+        <p class="bulk-drop-hint">
+          Tank sorts, redacts, and analyzes everything automatically. Git repos are
+          detected and summarized — raw source is never sent.
+        </p>
+        <button class="btn-secondary" type="button"
+                onclick="document.getElementById('bulk-file-input').click()">Or choose files…</button>
+        <input type="file" id="bulk-file-input" multiple style="display:none"
+               accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt"
+               onchange="bulkFromInput(this)">
+      </div>
+    </div>
+    <div class="bulk-path-row">
+      <input type="text" id="bulk-path-input"
+             placeholder="…or point Tank at a local path (best for repos):  /home/you/work"
+             onkeydown="if(event.key==='Enter')bulkFromPath()">
+      <button class="btn-primary" onclick="bulkFromPath()">Process</button>
+    </div>
+    <div class="bulk-vision-notice" id="bulk-vision-notice" hidden>
+      <strong>Note:</strong> images (PNG/JPG) are sent to the API for text extraction
+      <em>before</em> local redaction.
+    </div>
+
+    <div class="bulk-progress" id="bulk-progress" hidden>
+      <div class="bulk-progress-head">
+        <span id="bulk-progress-label">Planning…</span>
+        <span class="dim" id="bulk-progress-count"></span>
+      </div>
+      <div class="bulk-bar"><div class="bulk-bar-fill" id="bulk-bar-fill"></div></div>
+      <ul class="bulk-item-list" id="bulk-item-list"></ul>
+    </div>
+    <div class="bulk-summary" id="bulk-summary" hidden></div>
+  </div>
+
+  <details class="ingest-advanced">
+    <summary>Advanced: individual upload / path / repo panels</summary>
   <div class="ingest-panels">
 
     <!-- File / folder upload -->
@@ -64,6 +105,7 @@
       <div class="ingest-status" id="repo-status"></div>
     </div>
   </div>
+  </details>
 
   <!-- Recent ingestions -->
   <div class="recent-docs">
@@ -211,6 +253,169 @@ async function ingestPath() {
   }
 }
 
+// ================= Bulk "chuck-it-at-Tank" drop zone =================
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+const _bulkDrop = document.getElementById("bulk-drop");
+["dragenter","dragover"].forEach(ev => _bulkDrop.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); _bulkDrop.classList.add("dragover");
+}));
+["dragleave","drop"].forEach(ev => _bulkDrop.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); _bulkDrop.classList.remove("dragover");
+}));
+_bulkDrop.addEventListener("drop", async e => {
+  const dt = e.dataTransfer;
+  const collected = [];
+  if (dt.items && dt.items.length && dt.items[0].webkitGetAsEntry) {
+    const entries = [];
+    for (const it of dt.items) { const en = it.webkitGetAsEntry(); if (en) entries.push(en); }
+    for (const en of entries) await walkEntry(en, "", collected);
+  } else {
+    for (const f of dt.files) collected.push({file: f, rel: f.name});
+  }
+  bulkUpload(collected);
+});
+
+// Recurse a dropped DirectoryEntry, preserving relative paths.
+function walkEntry(entry, prefix, out) {
+  return new Promise(resolve => {
+    if (entry.isFile) {
+      entry.file(f => { out.push({file: f, rel: prefix + entry.name}); resolve(); },
+                 () => resolve());
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const readBatch = () => reader.readEntries(async ents => {
+        if (!ents.length) { resolve(); return; }      // empty batch = done
+        for (const en of ents) await walkEntry(en, prefix + entry.name + "/", out);
+        readBatch();                                    // readers return in batches
+      }, () => resolve());
+      readBatch();
+    } else { resolve(); }
+  });
+}
+
+function bulkFromInput(input) {
+  const collected = [...input.files].map(f => ({file: f, rel: f.webkitRelativePath || f.name}));
+  if (collected.length) bulkUpload(collected);
+  input.value = "";
+}
+
+async function bulkUpload(collected) {
+  if (!collected.length) return;
+  document.getElementById("bulk-vision-notice").hidden =
+    !collected.some(c => /\.(png|jpg|jpeg)$/i.test(c.rel));
+  const fd = new FormData();
+  const rels = [];
+  for (const c of collected) { fd.append("files", c.file, c.file.name); rels.push(c.rel); }
+  fd.append("rel_paths", JSON.stringify(rels));
+  bulkStartUI();
+  try {
+    const r = await fetch("/api/ingest/bulk-upload", {method: "POST", body: fd});
+    const j = await r.json();
+    if (!r.ok) { bulkError(j.detail || "Upload failed."); return; }
+    bulkStream(j.task_id);
+  } catch (e) { bulkError("Network error: " + e.message); }
+}
+
+async function bulkFromPath() {
+  const path = document.getElementById("bulk-path-input").value.trim();
+  if (!path) return;
+  bulkStartUI();
+  try {
+    const r = await fetch("/api/ingest/bulk-path", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({paths: [path]}),
+    });
+    const j = await r.json();
+    if (!r.ok) { bulkError(j.detail || "Failed."); return; }
+    bulkStream(j.task_id);
+  } catch (e) { bulkError("Network error: " + e.message); }
+}
+
+let _bulkTotal = 0, _bulkDone = 0;
+function bulkStartUI() {
+  _bulkTotal = 0; _bulkDone = 0;
+  document.getElementById("bulk-progress").hidden = false;
+  document.getElementById("bulk-summary").hidden = true;
+  document.getElementById("bulk-item-list").innerHTML = "";
+  document.getElementById("bulk-bar-fill").style.width = "0%";
+  document.getElementById("bulk-progress-label").textContent = "Planning…";
+  document.getElementById("bulk-progress-count").textContent = "";
+}
+
+function bulkError(msg) {
+  document.getElementById("bulk-progress").hidden = false;
+  document.getElementById("bulk-progress-label").textContent = "Error";
+  const s = document.getElementById("bulk-summary");
+  s.hidden = false; s.className = "bulk-summary error"; s.textContent = msg;
+}
+
+function bulkStream(taskId) {
+  const es = new EventSource(`/api/ingest/bulk/${taskId}/stream`);
+  const list = document.getElementById("bulk-item-list");
+  const rows = {};
+
+  es.addEventListener("plan", e => {
+    const d = JSON.parse(e.data);
+    _bulkTotal = d.total;
+    document.getElementById("bulk-progress-label").textContent =
+      `Processing ${d.total} item(s) — ${d.files} file(s), ${d.repos} repo(s)`;
+    document.getElementById("bulk-progress-count").textContent = `0/${d.total}`;
+  });
+
+  es.addEventListener("item", e => {
+    const d = JSON.parse(e.data);
+    let row = rows[d.index];
+    if (!row) { row = document.createElement("li"); row.className = "bulk-item";
+                rows[d.index] = row; list.appendChild(row); }
+    const icon = d.kind === "repo" ? "📦" : "📄";
+    const badge = {
+      started: '<span class="bi-stat busy">…</span>',
+      done:    '<span class="bi-stat ok">✓</span>',
+      skipped: '<span class="bi-stat skip">dup</span>',
+      error:   '<span class="bi-stat err">✕</span>',
+    }[d.status] || "";
+    row.innerHTML = badge + `<span class="bi-icon">${icon}</span>` +
+      `<span class="bi-name">${escapeHtml(d.name)}</span>` +
+      (d.category ? `<code class="bi-cat">${d.category}</code>` : "");
+    if (d.status !== "started") {
+      _bulkDone++;
+      document.getElementById("bulk-progress-count").textContent = `${_bulkDone}/${_bulkTotal}`;
+      const pct = _bulkTotal ? Math.round(_bulkDone / _bulkTotal * 100) : 0;
+      document.getElementById("bulk-bar-fill").style.width = pct + "%";
+    }
+  });
+
+  es.addEventListener("done", e => {
+    const d = JSON.parse(e.data);
+    es.close();
+    document.getElementById("bulk-progress-label").textContent = "Complete";
+    document.getElementById("bulk-bar-fill").style.width = "100%";
+    const cats = Object.entries(d.by_category || {})
+      .map(([k, v]) => `<code>${k}: ${v}</code>`).join(" ");
+    const s = document.getElementById("bulk-summary");
+    s.hidden = false; s.className = "bulk-summary ok";
+    s.innerHTML =
+      `<strong>Done.</strong> ${d.ingested} ingested · ${d.skipped} duplicate(s) skipped · ` +
+      `${d.repos} repo(s) · ${d.errors} error(s).` +
+      `<div class="bulk-summary-cats">Knowledge base now holds: ${cats}</div>` +
+      `<div class="bulk-summary-links">Entities extract in the background — ` +
+      `<a href="/entities">view entity graph</a> · the list below refreshes shortly.</div>`;
+    setTimeout(() => window.location.reload(), 4000);
+  });
+
+  es.addEventListener("error", e => {
+    // Server-sent error events carry a payload; native connection errors don't.
+    if (e.data) {
+      try { bulkError(JSON.parse(e.data).error || "Ingest failed."); } catch (_) {}
+      es.close();
+    }
+  });
+}
+
 // ---- Git repo ----
 async function ingestRepo() {
   const path = document.getElementById("repo-input").value.trim();
@@ -238,4 +443,48 @@ async function ingestRepo() {
   Have a Data Flow Diagram?
   <a href="/dfd">Analyze it with STRIDE threat modeling →</a>
 </div>
+
+<style>
+.bulk-zone { margin: 1.25rem 0 2rem; }
+.bulk-drop {
+  border: 2px dashed var(--border); border-radius: 14px;
+  padding: 2.25rem 1.5rem; text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.bulk-drop.dragover { border-color: var(--accent); background: rgb(255 255 255 / .03); }
+.bulk-drop-icon { font-size: 2.2rem; line-height: 1; opacity: .7; }
+.bulk-drop-title { font-size: 1.1rem; font-weight: 600; margin: .5rem 0 .25rem; }
+.bulk-drop-hint { color: var(--text-muted); font-size: .85rem; max-width: 46ch;
+  margin: 0 auto .9rem; }
+.bulk-path-row { display: flex; gap: .6rem; margin-top: .75rem; }
+.bulk-path-row input { flex: 1; }
+.bulk-vision-notice { margin-top: .6rem; font-size: .8rem; color: var(--text-muted);
+  background: rgb(217 119 6 / .08); border: 1px solid rgb(217 119 6 / .25);
+  border-radius: 8px; padding: .5rem .75rem; }
+.bulk-progress { margin-top: 1.25rem; }
+.bulk-progress-head { display: flex; justify-content: space-between;
+  font-size: .9rem; margin-bottom: .4rem; }
+.bulk-bar { height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; }
+.bulk-bar-fill { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+.bulk-item-list { list-style: none; padding: 0; margin: .9rem 0 0; max-height: 320px;
+  overflow-y: auto; display: grid; gap: .3rem; }
+.bulk-item { display: flex; align-items: center; gap: .55rem; font-size: .85rem;
+  padding: .3rem .5rem; border-radius: 6px; background: var(--surface); }
+.bulk-item .bi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bulk-item .bi-cat { font-size: .72rem; opacity: .75; }
+.bi-stat { width: 1.4rem; text-align: center; font-weight: 600; }
+.bi-stat.busy { color: var(--text-muted); }
+.bi-stat.ok { color: var(--sev-low, #4F46E5); }
+.bi-stat.skip { color: var(--text-muted); font-size: .7rem; }
+.bi-stat.err { color: var(--sev-high, #EA580C); }
+.bulk-summary { margin-top: 1rem; padding: .85rem 1rem; border-radius: 10px;
+  font-size: .88rem; border: 1px solid var(--border); }
+.bulk-summary.ok { background: rgb(79 70 229 / .08); border-color: rgb(79 70 229 / .3); }
+.bulk-summary.error { background: rgb(234 88 12 / .08); border-color: rgb(234 88 12 / .3); }
+.bulk-summary-cats { margin-top: .5rem; display: flex; flex-wrap: wrap; gap: .4rem; }
+.bulk-summary-links { margin-top: .5rem; color: var(--text-muted); font-size: .82rem; }
+.ingest-advanced { margin-bottom: 1.5rem; }
+.ingest-advanced > summary { cursor: pointer; color: var(--accent); font-size: .9rem;
+  margin-bottom: .75rem; }
+</style>
 {% endblock %}

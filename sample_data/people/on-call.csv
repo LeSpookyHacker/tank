@@ -3,4 +3,4 @@ platform-on-call,identity-svc;orders-api;webhook-router;device-registry;EKS,alic
 payments-on-call,payments-api;pii-vault,sam.liu@helixrobotics.com,marcus.chen@helixrobotics.com,Monday,24/7
 frontend-on-call,dashboard-web,lukas.bauer@helixrobotics.com,frontend-eng-1@helixrobotics.com,Monday,business-hours-pacific
 data-pipeline-watch,analytics-pipeline,vendor-snowflake-support,priya.shah@helixrobotics.com,n/a-vendor-managed,business-hours-pacific
-security-watch,Datadog SIEM;incident response,diana.okoro@helixrobotics.com,,Monday,business-hours-pacific
+siem-watch,Datadog SIEM;security alerts (reactive SRE-run — no dedicated security on-call yet),alice.tanaka@helixrobotics.com,carlos.reyes@helixrobotics.com,Monday,business-hours-pacific

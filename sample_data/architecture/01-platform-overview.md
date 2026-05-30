@@ -1,6 +1,6 @@
 # Helix Robotics — Platform Architecture Overview
 
-**Last updated:** 2026-03-12 by Yui Hayashi
+**Last updated:** 2026-03-12 by Yui Tanaka
 **Status:** Living document — services churn; if you spot drift, ping
 `#platform-eng` in Slack.
 
@@ -53,7 +53,7 @@ end-users via identity-svc.
 
 ### orders-api
 
-Owner: Yui Hayashi (yui@helix.internal)
+Owner: Yui Tanaka (yui@helix.internal)
 Hostname: `orders.helix.internal` (no external surface).
 Stack: Python 3.11, FastAPI, PostgreSQL.
 
@@ -62,7 +62,7 @@ via dashboard-web, which proxies through identity-svc into orders-api.
 
 ### webhook-router
 
-Owner: Yui Hayashi
+Owner: Yui Tanaka
 Hostname: `webhooks.helix.internal` (egress only).
 Stack: Go 1.22, DynamoDB.
 
@@ -76,7 +76,7 @@ We publish the NAT IP block to customers so they can allowlist.
 
 ### device-registry
 
-Owner: Yui Hayashi
+Owner: Yui Tanaka
 Hostname: `devices.helix.internal`.
 Stack: Python 3.11, DynamoDB (single-table design).
 
@@ -134,15 +134,16 @@ on top, three rotations:
 - Payments on-call (covers payments-api, pii-vault).
 - Frontend on-call (covers dashboard-web).
 
-There is no security on-call yet. Diana and you are exploring whether
-to add one.
+There is no security on-call yet — SRE covers security alerts reactively
+(the siem-watch rotation). Standing up a real one is on you as the first
+security hire.
 
 ## Known gaps
 
 (Things written down so we don't forget them — not a prioritized list.)
 
 - No bot-protection layer in front of dashboard-web. Sees periodic
-  credential-stuffing bursts (Diana has dashboards).
+  credential-stuffing bursts (SRE has Datadog dashboards).
 - IAM has long-lived access keys for two legacy CI integrations.
   Tracked in HELIX-1879 (Raj's queue).
 - `pii-vault` access logs are kept but never alerted on.

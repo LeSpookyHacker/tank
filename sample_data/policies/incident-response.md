@@ -1,6 +1,6 @@
 # Incident Response Plan
 
-**Owner:** Diana Okoro (interim, to be co-owned with new security hire)
+**Owner:** Unowned — interim-held by Tom Brandt (CTO); transfers to the incoming first security hire
 **Effective:** 2026-01-15
 **Last fire-drill:** 2025-11-02 (tabletop, payments-api scenario)
 
@@ -34,8 +34,10 @@ declaring is low; cost of missing is high.
 
 ## Roles during an incident
 
-1. **Incident Commander (IC)** — runs the response. Defaults to
-   Diana; for Sev-1 escalates to Alice + Diana co-leading.
+1. **Incident Commander (IC)** — runs the response. Today this defaults
+   to the SRE on-call lead (Alice Tanaka), since there is no security
+   owner yet; once the first security hire is up to speed, security-class
+   incidents move to them.
 2. **Tech Lead** — closest engineer to the affected system.
 3. **Comms Lead** — Tom for Sev-1; Priya for Sev-2; otherwise IC.
 4. **Scribe** — designated by IC at incident start. Logs every
