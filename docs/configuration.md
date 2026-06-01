@@ -56,6 +56,7 @@ cp .env.example .env
 |----------|------|---------|-------------|
 | `TANK_API_MAX_RETRIES` | integer | `4` | Number of times the SDK retries on 5xx, 429, or connection errors with exponential backoff. Increase on a flaky network; decrease to fail fast during development. |
 | `TANK_API_TIMEOUT_SECONDS` | float | `600` | Per-request timeout ceiling in seconds. 600s (10 minutes) accommodates the longest report generations. Reduce during development if you want faster failures. |
+| `TANK_TOOL_TOKEN_EFFICIENT` | `1` or unset | unset | Set to `1` to opt into Anthropic's `token-efficient-tools-2025-02-19` beta header on the chat path. Reduces tool-use protocol overhead by ~14% on tool-heavy turns. Gated by flag so a regression can be flipped off without a deploy. Has no effect on non-chat call sites. |
 
 ### Debugging
 
@@ -114,6 +115,8 @@ TANK_API_TIMEOUT_SECONDS=600
 # ── Debugging ─────────────────────────────────────────────────────────────────
 # Uncomment to log per-call token counts to the console.
 # TANK_DEBUG_TOKENS=1
+# Uncomment to enable Anthropic's token-efficient tools beta on chat (~14% savings).
+# TANK_TOOL_TOKEN_EFFICIENT=1
 
 # ── Integrations ──────────────────────────────────────────────────────────────
 # Uncomment and set if you connect the Nyx disclosure-triage tool.

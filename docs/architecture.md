@@ -125,9 +125,25 @@ Haiku does not support extended thinking — remove `thinking=...` from any call
 1. **`messages`** — chat turns (all 4 fields: in/out/cache_read/cache_create)
 2. **`reports`** — generated reports (`cache_read_in`/`cache_create_in` columns)
 3. **`api_calls`** — all other Claude calls; every module calls
-   `config.log_token_usage(call_site, model, usage)` after each response
+   `config.log_token_usage(call_site, model, usage)` after each response.
+   Batch results log as `batches.<kind>` rows here too.
 
 Set `TANK_DEBUG_TOKENS=1` to log per-call counts to the console.
+
+### Prompt-cache TTLs
+
+`app/claude/caching.py` exposes two `cache_control` constants and a
+canonical scope helper:
+
+| Helper | TTL | What it caches |
+| --- | --- | --- |
+| `CACHE_5M` | 5 min ephemeral | Per-turn KB hit block (search results vary by query, so a longer TTL doesn't help) |
+| `CACHE_1H` | 1 h extended ephemeral | System prompts + role/lens + KB entity scope + threat-model prior version + `policy_base` rules — anything stable across a working session |
+| `build_scope_block(service_id=None)` | uses `CACHE_1H` | Single shared block fed to reports, anniversaries, day-1 brief, plan generator, meeting prep, policy generator, compliance wizard. Digest-time bursts that run multiple reports share this cache. |
+
+`build_system_block(role_mode, lens)` and `build_kb_block(hits, cards)`
+are the chat-specific helpers. The KB block is intentionally `CACHE_5M`
+because the hit set is per-query; everything else uses `CACHE_1H`.
 
 ---
 
@@ -196,9 +212,12 @@ via [app/claude/event_bus.py](../app/claude/event_bus.py).
 
 ### 3. Reports + artifacts (`app/claude/reports.py` + Phase 12-15 modules)
 
-Ten report kinds in `REPORT_REGISTRY`, sharing a cached scope block
-(`_build_scope_block`). Running all reports against the same global
-scope reuses the prompt cache — roughly 2× cheaper than cold runs.
+Fourteen report kinds in `REPORT_REGISTRY`, sharing a cached scope
+block built by `app/claude/caching.py::build_scope_block` (with a
+thin `_build_scope_block` re-export in `reports.py` for back-compat).
+Running multiple reports against the same global scope reuses the
+1h-TTL prompt cache, so a digest tick that fires several subscriptions
+back-to-back pays cache-read rates after the first.
 
 Each report: `messages.parse(output_format=PydanticClass)` → render
 Markdown → persist both redacted (audit) and rehydrated (display) in
@@ -216,6 +235,16 @@ the `reports` table.
 | `weekly_security_digest` | 13 | Mon-AM week-over-week summary |
 | `attack_mapping` | 14 | Threats × ATT&CK technique × detection coverage |
 | `iam_audit` | 14 | Ranked IAMPolicy risk audit |
+| `risk_register` | 14 | Full register as a markdown table, ranked by residual score |
+| `state_of_security` | 7+ | Monthly exec brief |
+| `initial_assessment` | 7+ | 30-day Day-N findings report |
+| `program_roadmap` | 7+ | 12-month roadmap from current trajectory |
+
+Each kind that calls `messages.parse` also has a row in
+`_BATCH_DISPATCH` (in `reports.py`) so the scheduler can submit due
+subscriptions through the Batches API at 50% off — see the **Message
+Batches** subsystem below. The synchronous path stays in place for
+the HTTP route `POST /api/reports/{kind}` where the caller is waiting.
 
 Beyond the report registry, **versioned artifacts** live in their
 own tables:
@@ -244,17 +273,47 @@ cancelled on shutdown. Wakes every 60s and dispatches:
 
 | Trigger | Job | Notes |
 | --- | --- | --- |
-| `app_state.digest_time` daily | nudge regen (8 kinds, rate-limited to 2/day), due `report_subscriptions` run, anniversary check at days 30/60/90/180/365 | Anniversary fires both the generic retro and the security-focused retro; seeds/evolves philosophy doc at the right milestone |
+| `app_state.digest_time` daily | nudge regen (8 kinds, rate-limited to 2/day), due `report_subscriptions` run, anniversary check at days 30/60/90/180/365 | Subscriptions submit one `report_subscription` batch (12 of 14 kinds). Anniversary submits one `anniversary_bundle` batch carrying generic + security retros + philosophy seed/evolve. |
 | `reflection_day` 16:00 | Weekly reflection trigger | UI-driven from here |
 | Weekday 18:00 | Journal-prompt nudge | Only if no entry today |
-| Daily 22:00 | Auto pre-meeting briefs | Up to 5 generated for tomorrow's ICS meetings |
-| Sunday 09:00 | Attack-surface snapshot | Diffs against prior week |
+| Daily 22:00 | Auto pre-meeting briefs | Up to 5 submitted as one `auto_brief` batch; rehydrated briefs persist to `meeting_briefs` when the batch lands |
+| Sunday 09:00 | Attack-surface snapshot | Diffs against prior week (no Claude call) |
 | Sunday 03:00 | SQLite backup | Retention: 8 most recent |
+| Every tick (~60s) | `batches.poll_inflight` | Refreshes status of every in-flight Anthropic batch; dispatches finished results to the registered handler |
 
 Last-fired markers are persisted to the `scheduler_state` table.
 Restarts (intentional or `Restart=on-failure`) no longer double-fire
 or skip same-day jobs. Set `TANK_TIMEZONE` if your VM's `localtime`
 isn't yours.
+
+### Anthropic Message Batches (50% off)
+
+`app/claude/batches.py` wraps `client.messages.batches.create`. Each
+fan-out workload above submits one batch per tick; results land
+asynchronously and are processed by a kind-specific handler registered
+via `@batches.register("<kind>")`. Aggregator patterns (one combined
+report from N per-TM responses, as in `attack_mapping`) use
+`@batches.register_finalizer("<kind>")` to run once after all
+per-result handlers fire.
+
+The Batches endpoint doesn't accept `output_format=PydanticClass`, so
+each consumer module uses the structured-output adapter in
+`app/claude/batch_helpers.py`:
+
+- `tool_params_for(cls)` builds `(tools, tool_choice)` to force a
+  single tool call whose `input_schema` is `cls.model_json_schema()`.
+- `extract_validated(msg, cls)` walks the response for the `tool_use`
+  block and validates its `.input` against the class.
+
+In-flight batches live in the `batch_jobs` table (`id`, `anthropic_id`,
+`kind`, `status`, `payload_json`, `result_summary`). The
+`attack_mapping` aggregator additionally uses a short-lived
+`attack_mapping_scratch` table to buffer per-TM rows between the
+per-result handler and the finalizer.
+
+The synchronous `messages.parse` path stays in place for every HTTP
+route where the caller is waiting — `POST /api/reports/{kind}`,
+`POST /api/meeting-prep`, the `attack_mapping` HTTP path, etc.
 
 ### The tenure lens
 
@@ -308,8 +367,11 @@ Second brain (Phase 15):
   lessons, glossary, owned_entities
 
 Ops layer:
-  scheduler_state    (durable last-fired markers)
-  backup_log         (weekly snapshot ledger)
+  scheduler_state         (durable last-fired markers)
+  backup_log              (weekly snapshot ledger)
+  batch_jobs              (Anthropic Message Batches in-flight + history)
+  meeting_briefs          (rehydrated auto-briefs from nightly batches)
+  attack_mapping_scratch  (per-TM rows buffered for the attack-mapping finalizer)
 ```
 
 ### Entity types (14)
@@ -341,8 +403,11 @@ the trust badge in the UI and is queryable:
 These are codified in [CLAUDE.md](../CLAUDE.md) — anyone writing new
 code should hold to them.
 
-- **One model**: `MODEL = "claude-sonnet-4-6"` everywhere. No per-call
-  overrides without a strong reason; uniform prompt-cache behavior.
+- **Two models, strict split**: `MODEL = "claude-sonnet-4-6"` for
+  reasoning paths (chat, reports, threat models, design reviews, …);
+  `HAIKU_MODEL = "claude-haiku-4-5-20251001"` for structured-extraction
+  paths with predictable schemas. Haiku does not support extended
+  thinking — strip `thinking=` from any call switched to Haiku.
 - **Pre-redact at ingest**, not at send time. The invariant "if it's
   in `chunks.text_redacted`, it's already safe" beats trying to
   remember every code path.
@@ -356,9 +421,12 @@ code should hold to them.
   Privacy beats retrieval quality.
 - **Anthropic SDK call shape**: `messages.parse(model=MODEL,
   thinking={"type":"adaptive"}, system=[...], messages=[...],
-  output_format=PydanticClass)` for structured output;
-  `messages.stream(...)` for chat. Prompt caching via inline
-  `{"type":"text","text":"...","cache_control":{"type":"ephemeral"}}`.
+  output_format=PydanticClass)` for interactive structured output;
+  `messages.stream(...)` for chat; `messages.batches.create(requests=[...])`
+  via `app/claude/batches.py` for scheduler fan-out (50% off, async,
+  no `output_format` — use `tool_params_for` / `extract_validated`).
+  Prompt caching via the `CACHE_5M` / `CACHE_1H` constants from
+  `app/claude/caching.py`, not inline literals.
 - **SQLite**: single global connection guarded by `threading.Lock`.
   All writes inside `with LOCK:`. WAL mode + foreign keys on.
 
