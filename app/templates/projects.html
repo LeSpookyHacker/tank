@@ -9,7 +9,7 @@
       <h1>Projects</h1>
       <p class="lede">Organise your knowledge base, threat models, design reviews, and conversations by project.</p>
     </div>
-    <button class="btn-primary" onclick="toggleCreateForm()" id="new-proj-btn" style="flex-shrink:0;margin-top:0.25rem">+ New project</button>
+    <button class="btn-primary" id="new-proj-btn" style="flex-shrink:0;margin-top:0.25rem">+ New project</button>
   </div>
 
   {# ── Create form (collapsed by default) ── #}
@@ -35,8 +35,8 @@
     <input type="text" id="new-desc" placeholder="Description (optional)"
       style="width:100%;margin-bottom:0.6rem;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
     <div style="display:flex;gap:0.5rem">
-      <button class="btn-primary" onclick="createProject()">Create</button>
-      <button class="btn-secondary" onclick="toggleCreateForm()">Cancel</button>
+      <button class="btn-primary" id="btn-create-project">Create</button>
+      <button class="btn-secondary" id="btn-cancel-create">Cancel</button>
     </div>
     <div class="ingest-status" id="create-status" style="margin-top:0.5rem"></div>
   </div>
@@ -60,12 +60,12 @@
         <div class="proj-card__desc dim">{{ p.description }}</div>
         {% endif %}
         <div class="proj-card__actions">
-          <a href="/projects/{{ p.id }}" class="btn-secondary proj-card__open" onclick="markOpened('{{ p.id }}')">Open →</a>
+          <a href="/projects/{{ p.id }}" class="btn-secondary proj-card__open proj-open-link" data-project-id="{{ p.id }}">Open →</a>
           {% if p.id != active_id %}
-          <button class="btn-secondary" onclick="activateProject('{{ p.id }}')">Switch to</button>
+          <button class="btn-secondary proj-activate-btn" data-project-id="{{ p.id }}">Switch to</button>
           {% endif %}
           {% if p.id != 'default' %}
-          <button class="btn-secondary danger" onclick="deleteProject('{{ p.id }}', '{{ p.name }}')">Delete</button>
+          <button class="btn-secondary danger proj-delete-btn" data-project-id="{{ p.id }}" data-project-name="{{ p.name }}">Delete</button>
           {% endif %}
         </div>
       </div>
@@ -127,6 +127,20 @@ async function activateProject(id) {
   await fetch(`/api/projects/${id}/activate`, {method: "POST"});
   window.location.reload();
 }
+
+// Wire buttons (replaces inline onclick).
+document.getElementById("new-proj-btn").addEventListener("click", toggleCreateForm);
+document.getElementById("btn-create-project").addEventListener("click", createProject);
+document.getElementById("btn-cancel-create").addEventListener("click", toggleCreateForm);
+document.querySelectorAll(".proj-open-link[data-project-id]").forEach(function(a) {
+  a.addEventListener("click", function() { markOpened(a.dataset.projectId); });
+});
+document.querySelectorAll(".proj-activate-btn[data-project-id]").forEach(function(btn) {
+  btn.addEventListener("click", function() { activateProject(btn.dataset.projectId); });
+});
+document.querySelectorAll(".proj-delete-btn[data-project-id]").forEach(function(btn) {
+  btn.addEventListener("click", function() { deleteProject(btn.dataset.projectId, btn.dataset.projectName); });
+});
 
 async function deleteProject(id, name) {
   if (!confirm(`Delete project "${name}"? Its documents will be moved to Default.`)) return;

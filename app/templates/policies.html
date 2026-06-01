@@ -28,9 +28,9 @@
       <div class="policy-card-actions">
         {% if p.id %}
         <a href="/policies/{{ kind }}" class="btn-primary btn-sm">Edit →</a>
-        <button class="btn-secondary btn-sm" onclick="regenerate('{{ kind }}')">Regenerate</button>
+        <button class="btn-secondary btn-sm policy-action-btn" data-action="regenerate" data-kind="{{ kind }}">Regenerate</button>
         {% else %}
-        <button class="btn-primary" onclick="generate('{{ kind }}', this)">Generate →</button>
+        <button class="btn-primary policy-action-btn" data-action="generate" data-kind="{{ kind }}">Generate →</button>
         {% endif %}
       </div>
     </div>
@@ -63,6 +63,13 @@ async function regenerate(kind) {
   const data = await res.json();
   showToast(data.message || (res.ok ? "Regeneration started" : "Error"));
 }
+document.querySelectorAll(".policy-action-btn[data-kind]").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    if (btn.dataset.action === "generate") generate(btn.dataset.kind, btn);
+    else if (btn.dataset.action === "regenerate") regenerate(btn.dataset.kind);
+  });
+});
+
 function showToast(msg) {
   const el = document.getElementById("gen-toast");
   el.textContent = msg;

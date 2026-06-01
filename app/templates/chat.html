@@ -5,7 +5,7 @@
 <section class="chat-layout">
   <aside class="chat-sidebar">
     <h2>Conversations</h2>
-    <button class="btn-primary" onclick="newConversation()">+ new</button>
+    <button class="btn-primary btn-new-conv">+ new</button>
     <ul class="conv-list">
       {% for c in conversations %}
         <li class="conv-item {% if active and active.id == c.id %}active{% endif %}"
@@ -14,7 +14,7 @@
             <strong>{{ c.title or "(untitled)" }}</strong>
             <span class="conv-meta">{{ c.role_mode }} · {{ c.updated_at | int }}</span>
           </a>
-          <button class="conv-del" onclick="deleteConversation('{{ c.id }}')" title="Delete">×</button>
+          <button class="conv-del" data-conv-id="{{ c.id }}" title="Delete">×</button>
         </li>
       {% endfor %}
     </ul>
@@ -58,7 +58,7 @@
         </article>
       </div>
 
-      <form class="composer" onsubmit="return sendMessage(event)">
+      <form class="composer" id="chat-composer">
         <textarea id="composer-input"
                   placeholder="Ask Tank about your KB. Shift+Enter for newline."
                   rows="3"></textarea>
@@ -68,7 +68,7 @@
       <div class="empty-state">
         <h1>No conversation selected</h1>
         <p class="dim">Pick one from the sidebar or start a new chat.</p>
-        <button class="btn-primary" onclick="newConversation()">+ new conversation</button>
+        <button class="btn-primary btn-new-conv">+ new conversation</button>
       </div>
     {% endif %}
   </main>
@@ -178,6 +178,14 @@ async function deleteConversation(convId) {
     if (li) li.remove();
   }
 }
+
+// Wire static buttons and form (replaces inline onclick/onsubmit).
+document.querySelectorAll(".btn-new-conv").forEach(b => b.addEventListener("click", newConversation));
+document.querySelectorAll(".conv-del[data-conv-id]").forEach(b =>
+  b.addEventListener("click", () => deleteConversation(b.dataset.convId))
+);
+const _chatComposer = document.getElementById("chat-composer");
+if (_chatComposer) _chatComposer.addEventListener("submit", e => { e.preventDefault(); sendMessage(e); });
 
 // Enter sends; Shift+Enter inserts a newline.
 document.addEventListener("DOMContentLoaded", () => {

@@ -15,7 +15,7 @@
       and risks, and a Day-1 brief you can share with your manager.
     </p>
     <div class="intake-welcome-actions">
-      <button class="btn-primary" onclick="startIntake()">Start →</button>
+      <button class="btn-primary" id="btn-start-intake">Start →</button>
       {% if existing and existing.completed_at %}
       <a href="/" class="btn-secondary">Back to dashboard</a>
       {% endif %}
@@ -26,7 +26,7 @@
         You've already completed an intake interview.
         Starting a new one will create a new record — your previous answers are preserved.
       </p>
-      <button class="btn-secondary" id="regen-brief-btn" onclick="regenDay1Brief()" style="font-size: 0.85rem;">
+      <button class="btn-secondary" id="regen-brief-btn" style="font-size: 0.85rem;">
         Regenerate Day-1 Brief
       </button>
       <span id="regen-brief-status" style="margin-left: 0.75rem; font-size: 0.85rem; display: none;"></span>
@@ -46,8 +46,8 @@
     </div>
 
     <div class="intake-nav">
-      <button class="btn-secondary" id="intake-back-btn" onclick="prevQuestion()" hidden>← Back</button>
-      <button class="btn-primary" id="intake-next-btn" onclick="nextQuestion()">Next →</button>
+      <button class="btn-secondary" id="intake-back-btn" hidden>← Back</button>
+      <button class="btn-primary" id="intake-next-btn">Next →</button>
     </div>
 
     <div class="intake-skip-note" id="intake-skip-note">
@@ -130,7 +130,7 @@ function renderQuestion(index) {
     inputHtml = `<div class="intake-chips" id="q-input-chips">` +
       q.options.map(opt =>
         `<button type="button" class="intake-chip ${saved.includes(opt) ? 'selected' : ''}"
-          onclick="toggleChip(this, '${opt.replace(/'/g, "\\'")}')">${opt}</button>`
+          data-value="${opt.replace(/"/g, '&quot;')}">${opt}</button>`
       ).join("") +
     `</div>`;
   } else if (q.input_type === "yes_name") {
@@ -141,7 +141,7 @@ function renderQuestion(index) {
       <div class="intake-chips" id="q-yes-chips">
         ${q.options.map(opt =>
           `<button type="button" class="intake-chip ${savedChoice === opt ? 'selected' : ''}"
-            onclick="pickYesNo('${opt}')">${opt}</button>`
+            data-value="${opt}">${opt}</button>`
         ).join("")}
       </div>
       <input type="text" class="intake-text-input" id="q-yes-name-input"
@@ -157,7 +157,7 @@ function renderQuestion(index) {
       <div class="intake-chips" id="q-yes-chips">
         ${q.options.map(opt =>
           `<button type="button" class="intake-chip ${savedChoice === opt ? 'selected' : ''}"
-            onclick="pickYesDetail('${opt}')">${opt}</button>`
+            data-value="${opt}">${opt}</button>`
         ).join("")}
       </div>
       <textarea class="intake-textarea" id="q-yes-detail-input" rows="2"
@@ -288,6 +288,28 @@ async function regenDay1Brief() {
     status.textContent = "Failed — check server logs.";
   }
 }
+
+// Delegated handler for dynamically rendered chip buttons inside the question card.
+// Replaces inline onclick="toggleChip/pickYesNo/pickYesDetail" which CSP blocks.
+document.getElementById("intake-question-card").addEventListener("click", function(e) {
+  const chip = e.target.closest("button.intake-chip");
+  if (!chip) return;
+  const q = QUESTIONS[currentIndex];
+  const val = chip.dataset.value;
+  if (q.input_type === "chips") {
+    toggleChip(chip, val);
+  } else if (q.input_type === "yes_name") {
+    pickYesNo(val);
+  } else if (q.input_type === "yes_detail") {
+    pickYesDetail(val);
+  }
+});
+
+document.getElementById("btn-start-intake").addEventListener("click", startIntake);
+document.getElementById("intake-next-btn").addEventListener("click", nextQuestion);
+document.getElementById("intake-back-btn").addEventListener("click", prevQuestion);
+const _regenBtn = document.getElementById("regen-brief-btn");
+if (_regenBtn) _regenBtn.addEventListener("click", regenDay1Brief);
 
 async function submitIntake() {
   const nextBtn = document.getElementById("intake-next-btn");

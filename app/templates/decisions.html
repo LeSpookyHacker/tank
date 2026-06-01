@@ -38,7 +38,7 @@
 
   <details class="add-decision">
     <summary>+ add a decision</summary>
-    <form id="add-decision" onsubmit="return submitDecision(event);">
+    <form id="add-decision">
       <label>Title<input name="title" required></label>
       <label>Body
         <textarea name="body_md" rows="3" required
@@ -132,5 +132,6 @@ async function submitDecision(e) {
   window.location.reload();
   return false;
 }
+document.getElementById('add-decision').addEventListener('submit', submitDecision);
 </script>
 {% endblock %}

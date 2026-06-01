@@ -8,7 +8,7 @@
   <h2>Identity</h2>
   <div class="settings-row">
     <label>Role mode:
-      <select id="role-mode-select" onchange="setRole(this.value)">
+      <select id="role-mode-select">
         <option value="ic" {% if state.role_mode.value == "ic" %}selected{% endif %}>Staff IC</option>
         <option value="manager" {% if state.role_mode.value == "manager" %}selected{% endif %}>Manager</option>
         <option value="both" {% if state.role_mode.value == "both" %}selected{% endif %}>Both</option>
@@ -28,7 +28,7 @@
         {% endfor %}
       </select>
     </label>
-    <button class="btn-secondary" onclick="saveCadence()">save</button>
+    <button class="btn-secondary" id="btn-save-cadence">save</button>
   </div>
 
   <h2 id="redactions">Redaction rules</h2>
@@ -48,9 +48,9 @@
               <input type="checkbox" checked disabled>
               <span class="dim">required</span>
             {% else %}
-              <input type="checkbox"
-                {% if cr.enabled %}checked{% endif %}
-                onchange="toggleCategory('{{ cr.rule.category }}', this.checked)">
+              <input type="checkbox" class="redact-toggle"
+                data-category="{{ cr.rule.category }}"
+                {% if cr.enabled %}checked{% endif %}>
             {% endif %}
           </td>
           <td>{{ cr.rule.description }}</td>
@@ -89,7 +89,7 @@
                spellcheck="false"
                placeholder="delete tank">
       </label>
-      <button class="btn-secondary danger" onclick="doWipe()">Wipe everything</button>
+      <button class="btn-secondary danger" id="btn-do-wipe">Wipe everything</button>
     </div>
   </details>
 </section>
@@ -117,6 +117,17 @@ async function toggleCategory(cat, enabled) {
     body: JSON.stringify({category: cat, enabled}),
   });
 }
+// Wire buttons and inputs (replaces inline onclick/onchange).
+var _roleSelect = document.getElementById("role-mode-select");
+if (_roleSelect) _roleSelect.addEventListener("change", function() { setRole(this.value); });
+var _saveCadBtn = document.getElementById("btn-save-cadence");
+if (_saveCadBtn) _saveCadBtn.addEventListener("click", saveCadence);
+var _wipeBtn = document.getElementById("btn-do-wipe");
+if (_wipeBtn) _wipeBtn.addEventListener("click", doWipe);
+document.querySelectorAll(".redact-toggle[data-category]").forEach(function(cb) {
+  cb.addEventListener("change", function() { toggleCategory(cb.dataset.category, cb.checked); });
+});
+
 async function doWipe() {
   const phrase = document.getElementById("wipe-phrase").value;
   if (!confirm("This is irreversible. Last chance — proceed?")) return;

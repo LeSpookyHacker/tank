@@ -69,8 +69,7 @@
 
     {# Theme toggle #}
     <button id="theme-toggle" class="theme-toggle" type="button"
-            aria-label="Toggle theme" title="Toggle theme"
-            onclick="tankToggleTheme()">
+            aria-label="Toggle theme" title="Toggle theme">
       <span class="icon-moon" aria-hidden="true">☾</span>
       <span class="icon-sun"  aria-hidden="true">☀</span>
     </button>
@@ -88,7 +87,7 @@
       </a>
 
       <div class="lnav-group">
-        <button class="lnav-group-header" onclick="lnavToggle('discover')">
+        <button class="lnav-group-header" data-section="discover">
           <span class="lnav-group-label">Discover</span>
           <span class="lnav-chevron" id="chevron-discover">›</span>
         </button>
@@ -100,7 +99,7 @@
       </div>
 
       <div class="lnav-group">
-        <button class="lnav-group-header" onclick="lnavToggle('analyze')">
+        <button class="lnav-group-header" data-section="analyze">
           <span class="lnav-group-label">Analyze</span>
           <span class="lnav-chevron" id="chevron-analyze">›</span>
         </button>
@@ -112,7 +111,7 @@
       </div>
 
       <div class="lnav-group">
-        <button class="lnav-group-header" onclick="lnavToggle('track')">
+        <button class="lnav-group-header" data-section="track">
           <span class="lnav-group-label">Track</span>
           <span class="lnav-chevron" id="chevron-track">›</span>
         </button>
@@ -125,7 +124,7 @@
       </div>
 
       <div class="lnav-group">
-        <button class="lnav-group-header" onclick="lnavToggle('build')">
+        <button class="lnav-group-header" data-section="build">
           <span class="lnav-group-label">Build</span>
           <span class="lnav-chevron" id="chevron-build">›</span>
         </button>
@@ -138,7 +137,7 @@
       </div>
 
       <div class="lnav-group">
-        <button class="lnav-group-header" onclick="lnavToggle('report')">
+        <button class="lnav-group-header" data-section="report">
           <span class="lnav-group-label">Report</span>
           <span class="lnav-chevron" id="chevron-report">›</span>
         </button>
@@ -150,7 +149,7 @@
       </div>
 
       <div class="lnav-group">
-        <button class="lnav-group-header" onclick="lnavToggle('knowledge')">
+        <button class="lnav-group-header" data-section="knowledge">
           <span class="lnav-group-label">Knowledge</span>
           <span class="lnav-chevron" id="chevron-knowledge">›</span>
         </button>
@@ -168,7 +167,7 @@
 
     <div class="lnav-resize-handle" id="lnav-resize-handle"></div>
     <button class="left-nav-collapse-btn" id="lnav-collapse-btn"
-            onclick="lnavCollapse()" title="Collapse sidebar">‹</button>
+            title="Collapse sidebar">‹</button>
   </nav>
 
   {# ── Page content ── #}
@@ -179,20 +178,20 @@
   {# ── Global chat widget (bottom-right, hidden inside project workspaces) ── #}
   <div class="global-chat-widget" id="global-chat-widget">
     <button class="gchat-toggle-btn" id="gchat-toggle-btn"
-            onclick="gchatToggle()" title="Global chat">
+            title="Global chat">
       ▰ Chat
     </button>
     <div class="gchat-panel" id="gchat-panel">
       <div class="gchat-header">
         <span class="gchat-title">▰ Chat</span>
         <a class="gchat-fullscreen" id="gchat-fullscreen" href="/chat" title="Full chat">⤢</a>
-        <button class="gchat-close-btn" onclick="gchatToggle()" title="Close">✕</button>
+        <button class="gchat-close-btn" id="gchat-close-btn" title="Close">✕</button>
       </div>
       <div class="gchat-messages" id="gchat-messages"></div>
       <div class="gchat-stream" id="gchat-stream" hidden>
         <div class="gchat-stream-body" id="gchat-stream-body"></div>
       </div>
-      <form class="gchat-composer" id="gchat-composer" onsubmit="return gchatSend(event)">
+      <form class="gchat-composer" id="gchat-composer">
         <textarea id="gchat-input" rows="2" placeholder="Ask Tank anything…"></textarea>
         <button type="submit" id="gchat-send-btn" class="gchat-send-btn">↑</button>
       </form>
@@ -212,6 +211,8 @@
       root.classList.toggle("theme-light", next === "light");
       try { localStorage.setItem("tank-theme", next); } catch (e) {}
     }
+    var _themeBtn = document.getElementById("theme-toggle");
+    if (_themeBtn) _themeBtn.addEventListener("click", tankToggleTheme);
 
     // ── Cost badge ──
     (function () {
@@ -277,6 +278,8 @@
       }
 
       var toggleBtn = document.getElementById("gchat-toggle-btn");
+      var closeBtn  = document.getElementById("gchat-close-btn");
+      var composer  = document.getElementById("gchat-composer");
 
       window.gchatToggle = function () {
         open = !open;
@@ -284,6 +287,10 @@
         if (toggleBtn) toggleBtn.textContent = open ? "✕ Close" : "▰ Chat";
         if (open && !convId) initConv();
       };
+      if (toggleBtn) toggleBtn.addEventListener("click", window.gchatToggle);
+      if (closeBtn)  closeBtn.addEventListener("click", window.gchatToggle);
+
+      if (composer) composer.addEventListener("submit", function(e) { gchatSend(e); });
 
       window.gchatSend = function (e) {
         e.preventDefault();
@@ -409,6 +416,13 @@
         if (btn) btn.textContent = isCollapsed ? "›" : "‹";
         try { localStorage.setItem(COLLAPSED_KEY, isCollapsed ? "1" : "0"); } catch(e) {}
       };
+      if (btn) btn.addEventListener("click", window.lnavCollapse);
+
+      // Delegated listener for sidebar group headers (replaces inline onclick="lnavToggle(...)").
+      nav.addEventListener("click", function(e) {
+        var hdr = e.target.closest(".lnav-group-header");
+        if (hdr && hdr.dataset.section) window.lnavToggle(hdr.dataset.section);
+      });
 
       // ── Drag-to-resize ──
       var resizeHandle = document.getElementById("lnav-resize-handle");

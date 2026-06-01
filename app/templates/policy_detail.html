@@ -12,9 +12,9 @@
       <span class="dim" style="font-size:0.82rem">v{{ policy.version }}</span>
       <div class="policy-status-actions">
         {% if policy.status == 'draft' %}
-        <button class="btn-sm btn-secondary" onclick="setStatus('reviewed')">Mark reviewed</button>
+        <button class="btn-sm btn-secondary" class="btn-sm btn-secondary policy-status-btn" data-status="reviewed">Mark reviewed</button>
         {% elif policy.status == 'reviewed' %}
-        <button class="btn-sm btn-secondary" onclick="setStatus('approved')">Mark approved</button>
+        <button class="btn-sm btn-secondary" class="btn-sm btn-secondary policy-status-btn" data-status="approved">Mark approved</button>
         {% endif %}
       </div>
     </div>
@@ -24,14 +24,14 @@
   {% if not policy %}
   <div class="empty-state">
     <p>This policy hasn't been generated yet.</p>
-    <button class="btn-primary" onclick="generatePolicy()">Generate first draft →</button>
+    <button class="btn-primary" id="btn-generate-policy">Generate first draft →</button>
   </div>
   {% else %}
   <div class="policy-editor-layout">
     <div class="policy-editor-toolbar">
-      <button class="policy-view-btn active" id="btn-rendered" onclick="showRendered()">Rendered</button>
-      <button class="policy-view-btn" id="btn-raw" onclick="showRaw()">Edit Markdown</button>
-      <button class="btn-primary btn-sm" id="save-btn" onclick="savePolicy()" hidden>Save changes</button>
+      <button class="policy-view-btn active" id="btn-rendered">Rendered</button>
+      <button class="policy-view-btn" id="btn-raw">Edit Markdown</button>
+      <button class="btn-primary btn-sm" id="save-btn" hidden>Save changes</button>
     </div>
 
     <div id="rendered-view" class="policy-rendered markdown-body">
@@ -121,5 +121,16 @@ async function generatePolicy() {
     setTimeout(() => window.location.reload(), 4000);
   }
 }
+document.querySelectorAll(".policy-status-btn[data-status]").forEach(function(btn) {
+  btn.addEventListener("click", function() { setStatus(btn.dataset.status); });
+});
+var _genPol = document.getElementById("btn-generate-policy");
+if (_genPol) _genPol.addEventListener("click", generatePolicy);
+var _rend = document.getElementById("btn-rendered");
+if (_rend) _rend.addEventListener("click", showRendered);
+var _raw = document.getElementById("btn-raw");
+if (_raw) _raw.addEventListener("click", showRaw);
+var _savePol = document.getElementById("save-btn");
+if (_savePol) _savePol.addEventListener("click", savePolicy);
 </script>
 {% endblock %}

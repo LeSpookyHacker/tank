@@ -19,7 +19,7 @@
       {% endif %}
     </div>
     <div class="report-actions">
-      <button class="btn-ghost" onclick="window.print()">↓ PDF</button>
+      <button class="btn-ghost" id="btn-print-report">↓ PDF</button>
       <a class="btn-ghost"
          href="/api/reports/{{ report.id }}/export?format=md"
          download="{{ report.title | replace(' ', '_') }}.md">↓ Markdown</a>
@@ -48,5 +48,7 @@
       window.addEventListener("load", render);
     }
   })();
+var _printBtn = document.getElementById("btn-print-report");
+if (_printBtn) _printBtn.addEventListener("click", function() { window.print(); });
 </script>
 {% endblock %}

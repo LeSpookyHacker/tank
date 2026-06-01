@@ -10,7 +10,7 @@
       and an evaluation rubric.</p>
   </header>
 
-  <form id="tt-form" onsubmit="return submitTT(event);">
+  <form id="tt-form">
     <label>Service ID (optional)
       <input name="service_id"
              placeholder="entity id — copy from /entities">
@@ -45,5 +45,6 @@ async function submitTT(e) {
   else alert("generation failed");
   return false;
 }
+document.getElementById('tt-form').addEventListener('submit', submitTT);
 </script>
 {% endblock %}

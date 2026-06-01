@@ -52,7 +52,7 @@
 
   <details class="add-risk">
     <summary>+ add risk</summary>
-    <form id="add-risk-form" onsubmit="return submitRisk(event);">
+    <form id="add-risk-form">
       <label>Title <input name="title" required placeholder="e.g. Insufficient MFA on admin consoles"></label>
       <label>Description
         <textarea name="description" rows="3" required
@@ -212,5 +212,6 @@ async function submitRisk(e) {
   }
   return false;
 }
+document.getElementById("add-risk-form").addEventListener("submit", submitRisk);
 </script>
 {% endblock %}

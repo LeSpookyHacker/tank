@@ -18,18 +18,15 @@
           Tank sorts, redacts, and analyzes everything automatically. Git repos are
           detected and summarized — raw source is never sent.
         </p>
-        <button class="btn-secondary" type="button"
-                onclick="document.getElementById('bulk-file-input').click()">Or choose files…</button>
+        <button class="btn-secondary" type="button" id="btn-choose-files">Or choose files…</button>
         <input type="file" id="bulk-file-input" multiple style="display:none"
-               accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt"
-               onchange="bulkFromInput(this)">
+               accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt">
       </div>
     </div>
     <div class="bulk-path-row">
       <input type="text" id="bulk-path-input"
-             placeholder="…or point Tank at a local path (best for repos):  /home/you/work"
-             onkeydown="if(event.key==='Enter')bulkFromPath()">
-      <button class="btn-primary" onclick="bulkFromPath()">Process</button>
+             placeholder="…or point Tank at a local path (best for repos):  /home/you/work">
+      <button class="btn-primary" id="btn-bulk-from-path">Process</button>
     </div>
     <div class="bulk-vision-notice" id="bulk-vision-notice" hidden>
       <strong>Note:</strong> images (PNG/JPG) are sent to the API for text extraction
@@ -62,13 +59,12 @@
       <div class="field-row">
         <input type="file" id="file-input"
                accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt"
-               multiple onchange="onFileInputChange(this)">
+               multiple>
         <label class="btn-secondary folder-pick-label" title="Pick a folder to upload all files inside it">
           Pick folder
-          <input type="file" id="folder-input" webkitdirectory multiple
-                 style="display:none" onchange="uploadFolder(this)">
+          <input type="file" id="folder-input" webkitdirectory multiple style="display:none">
         </label>
-        <button class="btn-primary" onclick="uploadFile()">Upload</button>
+        <button class="btn-primary" id="btn-upload-file">Upload</button>
       </div>
       <div id="vision-notice" class="ingest-vision-notice" hidden>
         <strong>Privacy notice:</strong> Images (PNG / JPG) are sent to the Anthropic API in their
@@ -89,7 +85,7 @@
       </p>
       <div class="field-row">
         <input type="text" id="path-input" placeholder="/home/you/docs  or  /home/you/docs/runbook.md">
-        <button class="btn-primary" onclick="ingestPath()">Ingest</button>
+        <button class="btn-primary" id="btn-ingest-path">Ingest</button>
       </div>
       <div class="ingest-status" id="path-status"></div>
     </div>
@@ -100,7 +96,7 @@
       <p class="field-help">Provide a local repo path. Tank reads manifests, CI, Dockerfile, grep hits and README — <strong>never raw source files</strong>. Privacy-safe by design.</p>
       <div class="field-row">
         <input type="text" id="repo-input" placeholder="/home/you/src/my-service">
-        <button class="btn-primary" onclick="ingestRepo()">Ingest repo</button>
+        <button class="btn-primary" id="btn-ingest-repo">Ingest repo</button>
       </div>
       <div class="ingest-status" id="repo-status"></div>
     </div>
@@ -415,6 +411,30 @@ function bulkStream(taskId) {
     }
   });
 }
+
+// Wire all buttons and inputs (replaces inline onclick/onchange/onkeydown).
+(function() {
+  var chooseBtn = document.getElementById("btn-choose-files");
+  var bulkInput = document.getElementById("bulk-file-input");
+  var bulkPathInput = document.getElementById("bulk-path-input");
+  var fileInput = document.getElementById("file-input");
+  var folderInput = document.getElementById("folder-input");
+  if (chooseBtn && bulkInput) chooseBtn.addEventListener("click", function() { bulkInput.click(); });
+  if (bulkInput) bulkInput.addEventListener("change", function() { bulkFromInput(this); });
+  if (bulkPathInput) {
+    bulkPathInput.addEventListener("keydown", function(e) { if (e.key === "Enter") bulkFromPath(); });
+  }
+  var btnBulkPath = document.getElementById("btn-bulk-from-path");
+  if (btnBulkPath) btnBulkPath.addEventListener("click", bulkFromPath);
+  if (fileInput) fileInput.addEventListener("change", function() { onFileInputChange(this); });
+  if (folderInput) folderInput.addEventListener("change", function() { uploadFolder(this); });
+  var btnUpload = document.getElementById("btn-upload-file");
+  if (btnUpload) btnUpload.addEventListener("click", uploadFile);
+  var btnPath = document.getElementById("btn-ingest-path");
+  if (btnPath) btnPath.addEventListener("click", ingestPath);
+  var btnRepo = document.getElementById("btn-ingest-repo");
+  if (btnRepo) btnRepo.addEventListener("click", ingestRepo);
+})();
 
 // ---- Git repo ----
 async function ingestRepo() {

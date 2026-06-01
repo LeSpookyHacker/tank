@@ -22,15 +22,15 @@
     </div>
     <div class="dfd-workspace-header-right">
       <div class="dfd-export-wrap">
-        <button class="btn-ghost dfd-export-btn" onclick="toggleExportMenu()">Export ▾</button>
+        <button class="btn-ghost dfd-export-btn" id="btn-export-menu">Export ▾</button>
         <div class="dfd-export-menu" id="export-menu" hidden>
-          <button onclick="window.print(); closeExportMenu()">Print / Save as PDF</button>
-          <a href="/api/dfd/{{ dfd.id }}/export?format=mmd" download="{{ dfd.id }}_annotated.mmd" onclick="closeExportMenu()">Annotated .mmd</a>
-          <a href="/api/dfd/{{ dfd.id }}/export?format=original_mmd" download="{{ dfd.id }}_original.mmd" onclick="closeExportMenu()">Original .mmd</a>
-          <a href="/api/dfd/{{ dfd.id }}/export?format=json" download="{{ dfd.id }}.json" onclick="closeExportMenu()">JSON</a>
+          <button id="btn-print-pdf">Print / Save as PDF</button>
+          <a href="/api/dfd/{{ dfd.id }}/export?format=mmd" download="{{ dfd.id }}_annotated.mmd" class="export-menu-close-on-click">Annotated .mmd</a>
+          <a href="/api/dfd/{{ dfd.id }}/export?format=original_mmd" download="{{ dfd.id }}_original.mmd" class="export-menu-close-on-click">Original .mmd</a>
+          <a href="/api/dfd/{{ dfd.id }}/export?format=json" download="{{ dfd.id }}.json" class="export-menu-close-on-click">JSON</a>
         </div>
       </div>
-      <button class="btn-ghost" id="reanalyze-btn" onclick="reanalyze()" title="Re-run analysis (bypasses cache, uses API tokens)">↺ Run again</button>
+      <button class="btn-ghost" id="reanalyze-btn" title="Re-run analysis (bypasses cache, uses API tokens)">↺ Run again</button>
     </div>
   </div>
 
@@ -56,9 +56,9 @@
 
       <!-- Diagram zoom controls -->
       <div class="dfd-zoom-controls" id="zoom-controls" hidden>
-        <button onclick="zoom(0.15)" title="Zoom in">+</button>
-        <button onclick="zoom(-0.15)" title="Zoom out">−</button>
-        <button onclick="resetZoom()" title="Reset zoom">⊙</button>
+        <button class="zoom-btn" data-delta="0.15" title="Zoom in">+</button>
+        <button class="zoom-btn" data-delta="-0.15" title="Zoom out">−</button>
+        <button id="btn-reset-zoom" title="Reset zoom">⊙</button>
       </div>
 
       <!-- Diagram container -->
@@ -116,27 +116,27 @@
       <!-- Filter toolbar -->
       <div class="dfd-filter-bar" id="filter-bar" hidden>
         <div class="dfd-filter-group">
-          <button class="filter-pill active" data-filter="sev" data-value="all" onclick="setSevFilter('all')">All</button>
-          <button class="filter-pill" data-filter="sev" data-value="Critical" onclick="setSevFilter('Critical')" style="--pill-color:var(--sev-critical)">Critical</button>
-          <button class="filter-pill" data-filter="sev" data-value="High" onclick="setSevFilter('High')" style="--pill-color:var(--sev-high)">High</button>
-          <button class="filter-pill" data-filter="sev" data-value="Medium" onclick="setSevFilter('Medium')" style="--pill-color:var(--sev-medium)">Medium</button>
-          <button class="filter-pill" data-filter="sev" data-value="Low" onclick="setSevFilter('Low')" style="--pill-color:var(--sev-low)">Low</button>
+          <button class="filter-pill active" data-filter="sev" data-value="all">All</button>
+          <button class="filter-pill" data-filter="sev" data-value="Critical" style="--pill-color:var(--sev-critical)">Critical</button>
+          <button class="filter-pill" data-filter="sev" data-value="High" style="--pill-color:var(--sev-high)">High</button>
+          <button class="filter-pill" data-filter="sev" data-value="Medium" style="--pill-color:var(--sev-medium)">Medium</button>
+          <button class="filter-pill" data-filter="sev" data-value="Low" style="--pill-color:var(--sev-low)">Low</button>
         </div>
         <div class="dfd-filter-group dfd-stride-filters">
-          <button class="filter-pill active" data-filter="stride" data-value="all" onclick="setStrideFilter('all')">All</button>
-          <button class="filter-pill" data-filter="stride" data-value="Spoofing" onclick="setStrideFilter('Spoofing')" title="Impersonating another user, process, or system.">S</button>
-          <button class="filter-pill" data-filter="stride" data-value="Tampering" onclick="setStrideFilter('Tampering')" title="Unauthorized modification of data in transit or at rest.">T</button>
-          <button class="filter-pill" data-filter="stride" data-value="Repudiation" onclick="setStrideFilter('Repudiation')" title="Performing actions without accountability or audit trail.">R</button>
-          <button class="filter-pill" data-filter="stride" data-value="Information Disclosure" onclick="setStrideFilter('Information Disclosure')" title="Exposure of data to unauthorized parties.">I</button>
-          <button class="filter-pill" data-filter="stride" data-value="Denial of Service" onclick="setStrideFilter('Denial of Service')" title="Preventing legitimate users from accessing the system.">D</button>
-          <button class="filter-pill" data-filter="stride" data-value="Elevation of Privilege" onclick="setStrideFilter('Elevation of Privilege')" title="Gaining capabilities beyond what was granted.">E</button>
+          <button class="filter-pill active" data-filter="stride" data-value="all">All</button>
+          <button class="filter-pill" data-filter="stride" data-value="Spoofing" title="Impersonating another user, process, or system.">S</button>
+          <button class="filter-pill" data-filter="stride" data-value="Tampering" title="Unauthorized modification of data in transit or at rest.">T</button>
+          <button class="filter-pill" data-filter="stride" data-value="Repudiation" title="Performing actions without accountability or audit trail.">R</button>
+          <button class="filter-pill" data-filter="stride" data-value="Information Disclosure" title="Exposure of data to unauthorized parties.">I</button>
+          <button class="filter-pill" data-filter="stride" data-value="Denial of Service" title="Preventing legitimate users from accessing the system.">D</button>
+          <button class="filter-pill" data-filter="stride" data-value="Elevation of Privilege" title="Gaining capabilities beyond what was granted.">E</button>
         </div>
       </div>
 
       <!-- Element selection chip -->
       <div class="dfd-selection-chip" id="selection-chip" hidden>
         <span id="selection-label"></span>
-        <button onclick="clearDiagramSelection()" title="Clear filter">× Clear</button>
+        <button id="btn-clear-selection" title="Clear filter">× Clear</button>
       </div>
 
       <!-- Threat cards -->
@@ -172,7 +172,7 @@
               <span class="ref-pill">{{ ref }}</span>
               {% endfor %}
             </div>
-            <button class="highlight-btn" onclick="highlightInDiagram('{{ t.element_id }}')">
+            <button class="highlight-btn" data-element-id="{{ t.element_id }}">
               Highlight in diagram →
             </button>
           </div>
@@ -183,7 +183,7 @@
         <div class="dfd-empty-state" id="filter-empty" hidden>
           <div class="empty-icon">◈</div>
           <div>No threats match these filters.</div>
-          <button class="btn-secondary" style="margin-top:0.75rem" onclick="clearAllFilters()">Clear filters</button>
+          <button class="btn-secondary" id="btn-clear-all-filters" style="margin-top:0.75rem">Clear filters</button>
         </div>
       </div>
 
@@ -665,5 +665,47 @@ document.querySelectorAll('.ts-rel').forEach(function(el) {
 
 // ── Init ──
 initDiagram();
+
+// Wire all buttons (replaces inline onclick attributes).
+(function() {
+  var exportBtn = document.getElementById('btn-export-menu');
+  if (exportBtn) exportBtn.addEventListener('click', toggleExportMenu);
+  var printBtn = document.getElementById('btn-print-pdf');
+  if (printBtn) printBtn.addEventListener('click', function() { window.print(); closeExportMenu(); });
+  document.querySelectorAll('.export-menu-close-on-click').forEach(function(a) {
+    a.addEventListener('click', closeExportMenu);
+  });
+  var reanalyzeBtn = document.getElementById('reanalyze-btn');
+  if (reanalyzeBtn) reanalyzeBtn.addEventListener('click', reanalyze);
+  var resetZoomBtn = document.getElementById('btn-reset-zoom');
+  if (resetZoomBtn) resetZoomBtn.addEventListener('click', resetZoom);
+  document.querySelectorAll('.zoom-btn[data-delta]').forEach(function(b) {
+    b.addEventListener('click', function() { zoom(parseFloat(b.dataset.delta)); });
+  });
+  var clearSelBtn = document.getElementById('btn-clear-selection');
+  if (clearSelBtn) clearSelBtn.addEventListener('click', clearDiagramSelection);
+  var clearFiltersBtn = document.getElementById('btn-clear-all-filters');
+  if (clearFiltersBtn) clearFiltersBtn.addEventListener('click', clearAllFilters);
+
+  // Severity filter pills (data-filter="sev" data-value="...")
+  var filterBar = document.getElementById('filter-bar');
+  if (filterBar) {
+    filterBar.addEventListener('click', function(e) {
+      var pill = e.target.closest('.filter-pill[data-filter]');
+      if (!pill) return;
+      if (pill.dataset.filter === 'sev') setSevFilter(pill.dataset.value);
+      else if (pill.dataset.filter === 'stride') setStrideFilter(pill.dataset.value);
+    });
+  }
+
+  // Highlight-in-diagram buttons on threat cards
+  var cardsContainer = document.getElementById('cards-container');
+  if (cardsContainer) {
+    cardsContainer.addEventListener('click', function(e) {
+      var btn = e.target.closest('.highlight-btn[data-element-id]');
+      if (btn) highlightInDiagram(btn.dataset.elementId);
+    });
+  }
+})();
 </script>
 {% endblock %}

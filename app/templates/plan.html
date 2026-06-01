@@ -7,7 +7,7 @@
     <h1>90-Day Plan</h1>
     <p class="lede dim">A week-by-week task list tailored to your specific company, generated from your intake answers and KB context.</p>
     <div style="display:flex; gap:0.75rem; margin-top:1rem">
-      <button class="btn-primary" id="gen-btn" onclick="generatePlan()">
+      <button class="btn-primary" id="gen-btn">
         {% if plan %}Regenerate plan{% else %}Generate plan →{% endif %}
       </button>
     </div>
@@ -34,7 +34,7 @@
         {% set task_idx = plan.items.index(task) %}
         <li class="plan-task {% if task.done %}plan-task-done{% endif %}">
           <input type="checkbox" {% if task.done %}checked{% endif %}
-                 onchange="updateTask({{ task_idx }}, this.checked)">
+                 class="plan-task-cb" data-idx="{{ task_idx }}">
           <div class="plan-task-body">
             <strong>{{ task.title }}</strong>
             <p class="dim">{{ task.description }}</p>
@@ -66,6 +66,11 @@ async function generatePlan() {
     alert(data.error || "Generation failed");
   }
 }
+
+document.getElementById("gen-btn").addEventListener("click", generatePlan);
+document.querySelectorAll(".plan-task-cb[data-idx]").forEach(function(cb) {
+  cb.addEventListener("change", function() { updateTask(parseInt(cb.dataset.idx), cb.checked); });
+});
 
 async function updateTask(idx, done) {
   await fetch("/api/plan/task/" + idx, {

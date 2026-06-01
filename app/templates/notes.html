@@ -8,7 +8,7 @@
   proposes entities, relationships, and facts to add to your KB —
   you confirm what's worth keeping.</p>
 
-  <form class="notes-form" onsubmit="return submitNotes(event)">
+  <form class="notes-form" id="notes-form">
     <textarea id="notes-body" rows="8"
       placeholder="Met with Alice. She said SCP exceptions go through her, ~3/week. Frustrated about lack of guardrails on dev accounts. Mentioned Raj on FinOps."></textarea>
     <button type="submit" class="btn-primary">Capture</button>
@@ -18,7 +18,7 @@
     <h2>Tank's proposed additions</h2>
     <p class="dim">Nothing is written to the KB until you confirm.</p>
     <div id="diff-body"></div>
-    <button class="btn-primary" onclick="commitDiff()">Commit selected</button>
+    <button class="btn-primary" id="btn-commit-diff">Commit selected</button>
   </article>
 
   <h2>Recent captures</h2>
@@ -112,5 +112,8 @@ function escapeHtml(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+document.getElementById("notes-form").addEventListener("submit", submitNotes);
+var _commitBtn = document.getElementById("btn-commit-diff");
+if (_commitBtn) _commitBtn.addEventListener("click", commitDiff);
 </script>
 {% endblock %}

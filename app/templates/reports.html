@@ -31,7 +31,7 @@
     <article class="report-kind-card">
       <header>
         <h2>{{ kind.replace("_", " ").title() }}</h2>
-        <button class="btn-primary" onclick="genReport('{{ kind }}')">Generate</button>
+        <button class="btn-primary gen-report-btn" data-kind="{{ kind }}">Generate</button>
       </header>
       <ul class="report-list">
         {% for r in by_kind[kind] %}
@@ -48,7 +48,7 @@
 </section>
 
 <script nonce="{{ request.state.csp_nonce }}">
-async function genReport(kind) {
+async function genReport(kind, btn) {
   let scope = {};
   if (kind === "threat_landscape") {
     const id = prompt("Service entity_id to analyze:");
@@ -59,7 +59,6 @@ async function genReport(kind) {
     if (!who) return;
     scope.team_or_person = who;
   }
-  const btn = event.target;
   btn.disabled = true;
   btn.textContent = "generating…";
   try {
@@ -77,5 +76,9 @@ async function genReport(kind) {
     btn.textContent = "Generate";
   }
 }
+
+document.querySelectorAll(".gen-report-btn").forEach(function(btn) {
+  btn.addEventListener("click", function() { genReport(btn.dataset.kind, btn); });
+});
 </script>
 {% endblock %}

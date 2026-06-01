@@ -24,10 +24,10 @@
 
   <div class="irr-actions">
     {% if not runbook.confirmed_by_user %}
-    <button class="btn" onclick="confirm()">confirm runbook</button>
+    <button class="btn" id="btn-confirm-runbook">confirm runbook</button>
     {% endif %}
-    <button class="btn-secondary" onclick="window.print()">print / export PDF</button>
-    <button class="btn-link text-danger" onclick="deleteRunbook()">delete</button>
+    <button class="btn-secondary" id="btn-print-runbook">print / export PDF</button>
+    <button class="btn-link text-danger" id="btn-delete-runbook">delete</button>
   </div>
 
   <div class="irr-body markdown-body" id="runbook-body"></div>
@@ -77,5 +77,11 @@ async function deleteRunbook() {
   await fetch("/api/ir-runbooks/{{ runbook.id }}", {method: "DELETE"});
   window.location.href = "/ir-runbooks";
 }
+var _cfBtn = document.getElementById("btn-confirm-runbook");
+if (_cfBtn) _cfBtn.addEventListener("click", confirm);
+var _prBtn = document.getElementById("btn-print-runbook");
+if (_prBtn) _prBtn.addEventListener("click", function() { window.print(); });
+var _dlBtn = document.getElementById("btn-delete-runbook");
+if (_dlBtn) _dlBtn.addEventListener("click", deleteRunbook);
 </script>
 {% endblock %}

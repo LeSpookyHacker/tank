@@ -12,7 +12,7 @@
 
   <details class="gen-form-wrap">
     <summary>+ generate runbook</summary>
-    <form id="gen-form" class="gen-form" onsubmit="return generateRunbook(event);">
+    <form id="gen-form" class="gen-form">
       <label>Threat scenario
         <textarea name="threat_scenario" rows="3" required
                   placeholder="e.g. Attacker has obtained a valid API key and is exfiltrating customer data via the /export endpoint"></textarea>
@@ -142,5 +142,6 @@ async function generateRunbook(e) {
   }
   return false;
 }
+document.getElementById("gen-form").addEventListener("submit", generateRunbook);
 </script>
 {% endblock %}

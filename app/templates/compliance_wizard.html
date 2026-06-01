@@ -7,7 +7,7 @@
     <h1>Compliance Framework Wizard</h1>
     <p class="intake-lede">8 questions to recommend the right compliance framework for your company. Takes about 5 minutes.</p>
     <div class="intake-welcome-actions">
-      <button class="btn-primary" onclick="startWizard()">Start →</button>
+      <button class="btn-primary" id="btn-start-wizard">Start →</button>
       <a href="/compliance" class="btn-secondary">Back to compliance</a>
     </div>
   </header>
@@ -19,8 +19,8 @@
     <div class="intake-progress-label" id="wizard-progress-label">Question 1 of {{ questions|length }}</div>
     <div class="intake-question-card" id="wizard-question-card"></div>
     <div class="intake-nav">
-      <button class="btn-secondary" id="wizard-back-btn" onclick="prevQ()" hidden>← Back</button>
-      <button class="btn-primary" id="wizard-next-btn" onclick="nextQ()">Next →</button>
+      <button class="btn-secondary" id="wizard-back-btn" hidden>← Back</button>
+      <button class="btn-primary" id="wizard-next-btn">Next →</button>
     </div>
   </div>
 
@@ -90,6 +90,10 @@ function nextQ() {
   else submitWizard();
 }
 function prevQ() { if (currentQ > 0) renderQ(currentQ - 1); }
+
+document.getElementById("btn-start-wizard").addEventListener("click", startWizard);
+document.getElementById("wizard-next-btn").addEventListener("click", nextQ);
+document.getElementById("wizard-back-btn").addEventListener("click", prevQ);
 
 async function submitWizard() {
   const btn = document.getElementById("wizard-next-btn");

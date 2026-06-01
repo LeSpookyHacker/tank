@@ -20,7 +20,7 @@
         <p class="dim" style="margin:0;font-size:0.9rem">{{ project.description }}</p>
         {% endif %}
       </div>
-      <button class="btn-secondary" onclick="toggleEdit()" style="flex-shrink:0" id="edit-btn">Edit</button>
+      <button class="btn-secondary" id="edit-btn" style="flex-shrink:0">Edit</button>
     </div>
   </div>
 
@@ -55,8 +55,8 @@
         style="width:100%;padding:0.5rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem;resize:vertical">{{ project.notes or '' }}</textarea>
     </div>
     <div style="display:flex;gap:0.5rem">
-      <button class="btn-primary" onclick="saveEdit()">Save</button>
-      <button class="btn-secondary" onclick="toggleEdit()">Cancel</button>
+      <button class="btn-primary" id="btn-save-edit">Save</button>
+      <button class="btn-secondary" id="btn-cancel-edit">Cancel</button>
     </div>
     <div class="ingest-status" id="edit-status" style="margin-top:0.5rem"></div>
   </div>
@@ -182,5 +182,8 @@ async function saveEdit() {
   status.className = "ingest-status ok";
   setTimeout(() => { status.textContent = ""; }, 2000);
 }
+document.getElementById("edit-btn").addEventListener("click", toggleEdit);
+document.getElementById("btn-save-edit").addEventListener("click", saveEdit);
+document.getElementById("btn-cancel-edit").addEventListener("click", toggleEdit);
 </script>
 {% endblock %}

@@ -50,7 +50,7 @@
                  value="{{ cat.known_gaps or '' }}" data-field="known_gaps">
         </td>
         <td>
-          <button class="btn-sm audit-save-btn" onclick="saveRow('{{ cat.capability_category }}', {{ loop.index0 }})">Save</button>
+          <button class="btn-sm audit-save-btn" data-category="{{ cat.capability_category }}" data-idx="{{ loop.index0 }}">Save</button>
           <span class="audit-saved-badge" id="saved-{{ loop.index0 }}" hidden>✓</span>
         </td>
       </tr>
@@ -60,6 +60,10 @@
 </div>
 
 <script nonce="{{ request.state.csp_nonce }}">
+document.querySelectorAll(".audit-save-btn[data-category]").forEach(function(btn) {
+  btn.addEventListener("click", function() { saveRow(btn.dataset.category, parseInt(btn.dataset.idx)); });
+});
+
 async function saveRow(category, idx) {
   const row = document.getElementById("row-" + idx);
   const tool = row.querySelector("[data-field=tool_name]").value.trim() || null;

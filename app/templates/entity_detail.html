@@ -55,22 +55,15 @@
   <div class="entity-actions">
     <a class="btn-secondary" href="/chat?conv=&scope={{ card.id }}">Ask Tank about this</a>
     {% if card.type == "Service" %}
-      <button class="btn-secondary"
-        onclick="genThreatModel('{{ card.id }}')">Generate threat model (v2)</button>
-      <button class="btn-secondary"
-        onclick="genThreatReport('{{ card.id }}')">Generate threat landscape (one-shot)</button>
-      <button class="btn-secondary" onclick="claimOwnership('{{ card.id }}')">
-        I own this
-      </button>
+      <button class="btn-secondary" id="btn-gen-tm" data-entity-id="{{ card.id }}">Generate threat model (v2)</button>
+      <button class="btn-secondary" id="btn-gen-tr" data-entity-id="{{ card.id }}">Generate threat landscape (one-shot)</button>
+      <button class="btn-secondary" id="btn-claim" data-entity-id="{{ card.id }}">I own this</button>
     {% endif %}
     {% if card.type == "IAMPolicy" %}
-      <button class="btn-secondary" onclick="explainIAM('{{ card.id }}')">
-        Explain this IAM policy
-      </button>
+      <button class="btn-secondary" id="btn-explain-iam" data-entity-id="{{ card.id }}">Explain this IAM policy</button>
     {% endif %}
     {% if card.type == "Person" %}
-      <button class="btn-secondary"
-        onclick="window.location='/meeting-prep?who={{ card.name }}'">Prep meeting with {{ card.name }}</button>
+      <button class="btn-secondary" id="btn-meeting-prep" data-href="/meeting-prep?who={{ card.name | urlencode }}">Prep meeting with {{ card.name }}</button>
     {% endif %}
   </div>
 </section>
@@ -110,5 +103,19 @@ async function explainIAM(id) {
     alert("Failed to explain.");
   }
 }
+
+// Wire action buttons (replaces inline onclick).
+(function() {
+  var tmBtn = document.getElementById("btn-gen-tm");
+  if (tmBtn) tmBtn.addEventListener("click", function() { genThreatModel(tmBtn.dataset.entityId); });
+  var trBtn = document.getElementById("btn-gen-tr");
+  if (trBtn) trBtn.addEventListener("click", function() { genThreatReport(trBtn.dataset.entityId); });
+  var claimBtn = document.getElementById("btn-claim");
+  if (claimBtn) claimBtn.addEventListener("click", function() { claimOwnership(claimBtn.dataset.entityId); });
+  var iamBtn = document.getElementById("btn-explain-iam");
+  if (iamBtn) iamBtn.addEventListener("click", function() { explainIAM(iamBtn.dataset.entityId); });
+  var meetingBtn = document.getElementById("btn-meeting-prep");
+  if (meetingBtn) meetingBtn.addEventListener("click", function() { window.location = meetingBtn.dataset.href; });
+})();
 </script>
 {% endblock %}

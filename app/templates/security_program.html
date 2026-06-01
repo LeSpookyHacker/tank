@@ -8,8 +8,8 @@
     <p class="dim">Aggregated metrics across all Tank subsystems. Updated weekly
       by the scheduler; manually refresh anytime.</p>
     <div class="sp-actions">
-      <button class="btn-secondary" onclick="takeSnapshot()">snapshot now</button>
-      <button class="btn" onclick="generateBrief()">generate executive brief</button>
+      <button class="btn-secondary" id="btn-take-snapshot">snapshot now</button>
+      <button class="btn" id="btn-generate-brief">generate executive brief</button>
     </div>
   </header>
 
@@ -321,5 +321,9 @@ async function generateBrief() {
     btn.disabled = false;
   }
 }
+var _snap = document.getElementById("btn-take-snapshot");
+if (_snap) _snap.addEventListener("click", takeSnapshot);
+var _brief = document.getElementById("btn-generate-brief");
+if (_brief) _brief.addEventListener("click", generateBrief);
 </script>
 {% endblock %}

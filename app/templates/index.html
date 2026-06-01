@@ -10,7 +10,7 @@
   <div class="setup-banner" id="banner-{{ banner.id }}">
     <span>{{ banner.text }}</span>
     <a href="{{ banner.link }}" class="setup-banner-link">{{ banner.link_label }}</a>
-    <button class="setup-banner-dismiss" onclick="dismissBanner('{{ banner.id }}')" title="Dismiss">✕</button>
+    <button class="setup-banner-dismiss" data-banner-id="{{ banner.id }}" title="Dismiss">✕</button>
   </div>
   {% endfor %}
 </div>
@@ -112,7 +112,7 @@
   <article class="today-pane">
     <h2>Today's digest
       <button class="btn-refresh" id="digest-refresh-btn"
-              onclick="refreshDigest()" title="Regenerate digest">↺</button>
+              title="Regenerate digest">↺</button>
     </h2>
     {% if nudges %}
       <ul class="nudge-list">
@@ -124,9 +124,9 @@
             </header>
             <p>{{ n.body }}</p>
             <footer class="nudge-actions">
-              <button onclick="nudgeAct('{{ n.id }}', 'act')">act</button>
-              <button onclick="nudgeAct('{{ n.id }}', 'snooze')">snooze</button>
-              <button onclick="nudgeAct('{{ n.id }}', 'dismiss')">dismiss</button>
+              <button class="nudge-act-btn" data-nudge-id="{{ n.id }}" data-action="act">act</button>
+              <button class="nudge-act-btn" data-nudge-id="{{ n.id }}" data-action="snooze">snooze</button>
+              <button class="nudge-act-btn" data-nudge-id="{{ n.id }}" data-action="dismiss">dismiss</button>
             </footer>
           </li>
         {% endfor %}
@@ -144,7 +144,7 @@
           <li>
             <span class="followup-source">{{ f.source_kind }}</span>
             <span class="followup-title">{{ f.title }}</span>
-            <button onclick="followupDone('{{ f.id }}')">done</button>
+            <button class="followup-done-btn" data-followup-id="{{ f.id }}">done</button>
           </li>
         {% endfor %}
       </ul>
@@ -193,6 +193,20 @@ function dismissBanner(id) {
   if (el) el.hidden = true;
   try { localStorage.setItem("tank-banner-dismissed-" + id, "1"); } catch(e) {}
 }
+
+// Wire buttons (replaces inline onclick attributes blocked by CSP).
+const _refreshBtn = document.getElementById("digest-refresh-btn");
+if (_refreshBtn) _refreshBtn.addEventListener("click", refreshDigest);
+document.querySelectorAll(".nudge-act-btn").forEach(b =>
+  b.addEventListener("click", () => nudgeAct(b.dataset.nudgeId, b.dataset.action))
+);
+document.querySelectorAll(".followup-done-btn").forEach(b =>
+  b.addEventListener("click", () => followupDone(b.dataset.followupId))
+);
+document.querySelectorAll(".setup-banner-dismiss[data-banner-id]").forEach(b =>
+  b.addEventListener("click", () => dismissBanner(b.dataset.bannerId))
+);
+
 (function() {
   // Auto-hide previously dismissed banners
   document.querySelectorAll(".setup-banner[id]").forEach(function(el) {
@@ -204,7 +218,7 @@ function dismissBanner(id) {
 
 {# ---- contextual hints popup ---- #}
 {% if hints %}
-<button class="hints-btn" id="hints-btn" onclick="toggleHints()" title="Tips &amp; hints" aria-label="Show hints">
+<button class="hints-btn" id="hints-btn" title="Tips &amp; hints" aria-label="Show hints">
   ?
   <span class="hints-dot" id="hints-dot"></span>
 </button>
@@ -212,7 +226,7 @@ function dismissBanner(id) {
 <div class="hints-panel" id="hints-panel" hidden>
   <h4>
     Tips for where you are now
-    <button class="hints-close" onclick="dismissHints()" aria-label="Close hints">✕</button>
+    <button class="hints-close" id="hints-close-btn" aria-label="Close hints">✕</button>
   </h4>
   <ul>
     {% for h in hints %}
@@ -253,6 +267,11 @@ function dismissBanner(id) {
     dot.style.display = "none";
     localStorage.setItem(HINTS_KEY, tipHash);
   };
+
+  const _hintsBtn = document.getElementById("hints-btn");
+  const _hintsClose = document.getElementById("hints-close-btn");
+  if (_hintsBtn) _hintsBtn.addEventListener("click", window.toggleHints);
+  if (_hintsClose) _hintsClose.addEventListener("click", window.dismissHints);
 })();
 </script>
 {% endif %}

@@ -37,16 +37,16 @@
       <div class="teams-section-header">
         <h2 class="section-title">Teams</h2>
         <div class="teams-controls">
-          <select class="sort-select" id="team-sort" onchange="sortTeams(this.value)">
+          <select class="sort-select" id="team-sort">
             <option value="activity">Last activity</option>
             <option value="name">Name</option>
             <option value="projects">Projects</option>
           </select>
           <label class="archived-toggle">
-            <input type="checkbox" id="show-archived-teams" onchange="toggleArchivedTeams(this.checked)">
+            <input type="checkbox" id="show-archived-teams">
             Show archived
           </label>
-          <button class="btn-primary" onclick="openNewTeamModal()">+ New Team</button>
+          <button class="btn-primary btn-open-new-team">+ New Team</button>
         </div>
       </div>
 
@@ -86,7 +86,7 @@
         <div class="empty-icon">🛡️</div>
         <div class="empty-title">No teams yet</div>
         <div class="empty-body">Create your first team to start organizing your security work.</div>
-        <button class="btn-primary" onclick="openNewTeamModal()">+ New Team</button>
+        <button class="btn-primary btn-open-new-team">+ New Team</button>
       </div>
       {% endif %}
     </section>
@@ -135,9 +135,9 @@
 <dialog class="modal" id="new-team-modal">
   <div class="modal-header">
     <span class="modal-title">New Team</span>
-    <button class="modal-close" onclick="closeNewTeamModal()" type="button">✕</button>
+    <button class="modal-close btn-close-new-team" type="button">✕</button>
   </div>
-  <form class="modal-body" id="new-team-form" onsubmit="return submitNewTeam(event)">
+  <form class="modal-body" id="new-team-form">
     <label class="form-label">Team name <span class="required">*</span></label>
     <input class="form-input" type="text" id="nt-name" placeholder="e.g. Platform Engineering" required>
 
@@ -148,7 +148,7 @@
     <div class="emoji-picker" id="nt-emoji-picker">
       {% set icons = ["🛡️","🖥️","🗄️","☁️","💻","🌐","🔐","🔑","📚","🌿","👥","🧠","📡","👁️","⚠️","📦","🔒","🧩","⚙️","📊"] %}
       {% for em in icons %}
-      <button type="button" class="emoji-btn" data-emoji="{{ em }}" onclick="selectEmoji('nt', this)">{{ em }}</button>
+      <button type="button" class="emoji-btn" data-emoji="{{ em }}">{{ em }}</button>
       {% endfor %}
     </div>
     <input type="hidden" id="nt-icon" value="🛡️">
@@ -158,13 +158,13 @@
       {% set colors = ["#6c5ce7","#00b894","#0984e3","#e17055","#fd79a8","#fdcb6e","#55efc4","#74b9ff","#a29bfe","#636e72","#2d3436","#e84393"] %}
       {% for c in colors %}
       <button type="button" class="color-swatch" data-color="{{ c }}" style="background:{{ c }}"
-              onclick="selectColor('nt', this)" title="{{ c }}"></button>
+              title="{{ c }}"></button>
       {% endfor %}
     </div>
     <input type="hidden" id="nt-color" value="#6c5ce7">
 
     <div class="modal-actions">
-      <button type="button" class="btn-secondary" onclick="closeNewTeamModal()">Cancel</button>
+      <button type="button" class="btn-secondary btn-close-new-team">Cancel</button>
       <button type="submit" class="btn-primary" id="nt-submit">Create Team</button>
     </div>
   </form>
@@ -286,6 +286,24 @@ function selectColor(prefix, btn) {
   btn.classList.add("selected");
   document.getElementById(prefix + "-color").value = btn.dataset.color;
 }
+
+// Wire all buttons/inputs (replaces inline onclick/onchange/onsubmit).
+document.querySelectorAll(".btn-open-new-team").forEach(b => b.addEventListener("click", openNewTeamModal));
+document.querySelectorAll(".btn-close-new-team").forEach(b => b.addEventListener("click", closeNewTeamModal));
+var _teamSort = document.getElementById("team-sort");
+if (_teamSort) _teamSort.addEventListener("change", function() { sortTeams(this.value); });
+var _archivedChk = document.getElementById("show-archived-teams");
+if (_archivedChk) _archivedChk.addEventListener("change", function() { toggleArchivedTeams(this.checked); });
+var _ntEmoji = document.getElementById("nt-emoji-picker");
+if (_ntEmoji) _ntEmoji.addEventListener("click", function(e) {
+  var btn = e.target.closest(".emoji-btn"); if (btn) selectEmoji("nt", btn);
+});
+var _ntColor = document.getElementById("nt-color-picker");
+if (_ntColor) _ntColor.addEventListener("click", function(e) {
+  var btn = e.target.closest(".color-swatch"); if (btn) selectColor("nt", btn);
+});
+var _ntForm = document.getElementById("new-team-form");
+if (_ntForm) _ntForm.addEventListener("submit", submitNewTeam);
 
 function submitNewTeam(e) {
   e.preventDefault();

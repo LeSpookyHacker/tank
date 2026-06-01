@@ -10,7 +10,7 @@
       checklist.</p>
   </header>
 
-  <form id="dr-form" onsubmit="return submitReview(event);">
+  <form id="dr-form">
     <label>Title
       <input name="title" required
              placeholder="mTLS between payments-api and identity-svc">
@@ -50,5 +50,6 @@ async function submitReview(e) {
   }
   return false;
 }
+document.getElementById('dr-form').addEventListener('submit', submitReview);
 </script>
 {% endblock %}

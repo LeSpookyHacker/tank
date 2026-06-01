@@ -27,7 +27,7 @@
 
   <details>
     <summary>Edit structured fields</summary>
-    <form id="edit-form" onsubmit="return saveFields(event);">
+    <form id="edit-form">
       <label>Summary
         <textarea name="summary" rows="3">{{ pm.fields.summary or '' }}</textarea>
       </label>
@@ -90,5 +90,6 @@ async function saveFields(e) {
   window.location.reload();
   return false;
 }
+document.getElementById('edit-form').addEventListener('submit', saveFields);
 </script>
 {% endblock %}

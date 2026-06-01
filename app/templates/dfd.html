@@ -13,16 +13,16 @@
 
     <!-- Mode selector tabs -->
     <div class="dfd-mode-tabs" role="tablist">
-      <button class="dfd-mode-tab active" role="tab" data-mode="mermaid" onclick="switchMode('mermaid')">
+      <button class="dfd-mode-tab active" role="tab" data-mode="mermaid">
         ◈ Paste Mermaid
       </button>
-      <button class="dfd-mode-tab" role="tab" data-mode="upload" onclick="switchMode('upload')">
+      <button class="dfd-mode-tab" role="tab" data-mode="upload">
         ↑ Upload File
       </button>
-      <button class="dfd-mode-tab" role="tab" data-mode="doc" onclick="switchMode('doc')">
+      <button class="dfd-mode-tab" role="tab" data-mode="doc">
         ◎ From Document
       </button>
-      <button class="dfd-mode-tab" role="tab" data-mode="desc" onclick="switchMode('desc')">
+      <button class="dfd-mode-tab" role="tab" data-mode="desc">
         ✎ From Description
       </button>
     </div>
@@ -32,11 +32,11 @@
       <div class="dfd-editor-wrap">
         <div class="dfd-editor-toolbar">
           <span class="dfd-editor-label">Mermaid DFD source</span>
-          <button class="dfd-link-btn" onclick="loadExample()">Load example ↗</button>
+          <button class="dfd-link-btn" id="btn-load-example">Load example ↗</button>
         </div>
         <textarea id="mermaid-input" class="dfd-editor"
                   placeholder="graph TD&#10;  User([User]) -->|HTTPS| API[API Gateway]&#10;  API -->|SQL| DB[(Database)]"
-                  oninput="onMermaidInput()" spellcheck="false"></textarea>
+                  spellcheck="false"></textarea>
         <div id="mermaid-preview-area" class="dfd-preview-area" hidden>
           <div class="dfd-preview-label">Live preview</div>
           <div id="mermaid-preview" class="dfd-preview-diagram"></div>
@@ -47,17 +47,14 @@
 
     <!-- Mode B: Upload File -->
     <div id="mode-upload" class="dfd-mode-panel" hidden>
-      <div class="dfd-dropzone" id="upload-dropzone"
-           ondragover="handleDragOver(event,'upload-dropzone')"
-           ondragleave="handleDragLeave(event,'upload-dropzone')"
-           ondrop="handleFileDrop(event,'upload-dropzone',handleUploadFile)">
+      <div class="dfd-dropzone" id="upload-dropzone">
         <div class="dfd-dropzone-icon">↑</div>
         <div class="dfd-dropzone-text">
           Drag &amp; drop a file, or <label class="dfd-link-btn" for="upload-file-input">browse</label>
         </div>
         <div class="dfd-dropzone-hint">Accepts: .mmd · .txt · .png · .jpg · .jpeg · .svg · .json</div>
         <input type="file" id="upload-file-input" accept=".mmd,.txt,.png,.jpg,.jpeg,.svg,.json"
-               style="display:none" onchange="handleUploadFileInput(event)">
+               style="display:none">
       </div>
       <div id="upload-preview" class="dfd-upload-preview" hidden></div>
       <div id="upload-image-notice" class="dfd-notice" hidden>
@@ -67,10 +64,7 @@
 
     <!-- Mode C: From Document -->
     <div id="mode-doc" class="dfd-mode-panel" hidden>
-      <div class="dfd-dropzone" id="doc-dropzone"
-           ondragover="handleDragOver(event,'doc-dropzone')"
-           ondragleave="handleDragLeave(event,'doc-dropzone')"
-           ondrop="handleFileDrop(event,'doc-dropzone',handleDocFile)">
+      <div class="dfd-dropzone" id="doc-dropzone">
         <div class="dfd-dropzone-icon">◎</div>
         <div class="dfd-dropzone-text">
           Upload an architecture document<br>
@@ -78,7 +72,7 @@
         </div>
         <div class="dfd-dropzone-hint">PDF · DOCX · TXT · MD</div>
         <input type="file" id="doc-file-input" accept=".pdf,.docx,.txt,.md"
-               style="display:none" onchange="handleDocFileInput(event)">
+               style="display:none">
       </div>
       <div id="doc-status" class="dfd-gen-status" hidden></div>
       <div class="dfd-notice" style="margin-top:0.75rem">
@@ -91,7 +85,7 @@
       <label class="dfd-editor-label">Describe your system in plain language</label>
       <textarea id="desc-input" class="dfd-editor" rows="8"
                 placeholder="A React frontend that talks to a Node.js REST API. The API authenticates via JWT and stores user data in PostgreSQL. There's a Redis cache layer and an S3 bucket for file uploads. All external traffic goes through an AWS ALB."></textarea>
-      <button class="btn-secondary" style="margin-top:0.75rem" onclick="generateFromDescription()">
+      <button class="btn-secondary" id="btn-gen-from-desc" style="margin-top:0.75rem">
         Generate Mermaid diagram →
       </button>
       <div id="desc-status" class="dfd-gen-status" hidden></div>
@@ -102,7 +96,7 @@
 
     <!-- Submit row -->
     <div class="dfd-submit-row">
-      <button id="analyze-btn" class="btn-primary" onclick="startAnalysis()" disabled>
+      <button id="analyze-btn" class="btn-primary" disabled>
         Run Threat Analysis
       </button>
       <span id="analyze-hint" class="dfd-analyze-hint dim"></span>
@@ -134,7 +128,7 @@
       </ol>
       <div id="progress-error" class="dfd-progress-error" hidden>
         <span id="progress-error-msg"></span>
-        <button class="btn-secondary" style="margin-top:0.75rem" onclick="resetToInput()">← Try again</button>
+        <button class="btn-secondary" id="btn-reset-to-input" style="margin-top:0.75rem">← Try again</button>
       </div>
     </div>
   </div>
@@ -548,5 +542,53 @@ function escHtml(str) {
 
 // Initialize submit state
 updateSubmitState();
+
+// Wire all buttons and inputs (replaces inline onclick/oninput/ondrag*/onchange).
+(function() {
+  // Mode tab delegation
+  var tabBar = document.querySelector('.dfd-mode-tabs');
+  if (tabBar) tabBar.addEventListener('click', function(e) {
+    var tab = e.target.closest('.dfd-mode-tab');
+    if (tab && tab.dataset.mode) switchMode(tab.dataset.mode);
+  });
+
+  // Mermaid textarea input
+  var mermaidTa = document.getElementById('mermaid-input');
+  if (mermaidTa) mermaidTa.addEventListener('input', onMermaidInput);
+
+  // Load example
+  var exBtn = document.getElementById('btn-load-example');
+  if (exBtn) exBtn.addEventListener('click', loadExample);
+
+  // Analyze / reset buttons
+  var analyzeBtn = document.getElementById('analyze-btn');
+  if (analyzeBtn) analyzeBtn.addEventListener('click', startAnalysis);
+  var resetBtn = document.getElementById('btn-reset-to-input');
+  if (resetBtn) resetBtn.addEventListener('click', resetToInput);
+
+  // Generate from description
+  var descBtn = document.getElementById('btn-gen-from-desc');
+  if (descBtn) descBtn.addEventListener('click', generateFromDescription);
+
+  // Upload dropzone drag + file input
+  var uploadDZ = document.getElementById('upload-dropzone');
+  if (uploadDZ) {
+    uploadDZ.addEventListener('dragover', function(e) { handleDragOver(e, 'upload-dropzone'); });
+    uploadDZ.addEventListener('dragleave', function(e) { handleDragLeave(e, 'upload-dropzone'); });
+    uploadDZ.addEventListener('drop', function(e) { handleFileDrop(e, 'upload-dropzone', handleUploadFile); });
+  }
+  var uploadInput = document.getElementById('upload-file-input');
+  if (uploadInput) uploadInput.addEventListener('change', function(e) { handleUploadFileInput(e); });
+
+  // Doc dropzone drag + file input
+  var docDZ = document.getElementById('doc-dropzone');
+  if (docDZ) {
+    docDZ.addEventListener('dragover', function(e) { handleDragOver(e, 'doc-dropzone'); });
+    docDZ.addEventListener('dragleave', function(e) { handleDragLeave(e, 'doc-dropzone'); });
+    docDZ.addEventListener('drop', function(e) { handleFileDrop(e, 'doc-dropzone', handleDocFile); });
+  }
+  var docInput = document.getElementById('doc-file-input');
+  if (docInput) docInput.addEventListener('change', function(e) { handleDocFileInput(e); });
+})();
 </script>
 {% endblock %}

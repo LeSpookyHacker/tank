@@ -10,7 +10,7 @@
       action items). You'll edit before publishing.</p>
   </header>
 
-  <form id="pm-form" onsubmit="return submitDraft(event);">
+  <form id="pm-form">
     <label>Title
       <input name="title" required
              placeholder="Payments outage — Vault sidecar OOM">
@@ -51,5 +51,6 @@ async function submitDraft(e) {
   else alert("draft failed");
   return false;
 }
+document.getElementById('pm-form').addEventListener('submit', submitDraft);
 </script>
 {% endblock %}

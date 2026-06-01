@@ -7,7 +7,7 @@
   <p class="lede">One-screen briefs: who they are, where you overlap,
   what you don't know yet, questions to ask, one thing to offer.</p>
 
-  <form class="prep-form" onsubmit="return prep(event)">
+  <form class="prep-form" id="prep-form">
     <label>Who you're meeting:
       <input id="who" type="text" placeholder="e.g. Alice Tanaka" required>
     </label>
@@ -84,5 +84,6 @@ function escapeHtml(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+document.getElementById("prep-form").addEventListener("submit", prep);
 </script>
 {% endblock %}

@@ -28,13 +28,13 @@
       </div>
     </div>
     <div class="project-header-actions">
-      <button class="btn-secondary btn-sm" onclick="openEditProjectModal()">Edit</button>
+      <button class="btn-secondary btn-sm" id="btn-edit-project">Edit</button>
     </div>
   </header>
 
   {# ── Project notes bar ── #}
   <div class="notes-bar" id="notes-bar">
-    <div class="notes-bar-preview" id="notes-preview" onclick="expandNotes()">
+    <div class="notes-bar-preview" id="notes-preview">
       {% if project.notes %}
       <span class="notes-preview-text" id="notes-first-line">{{ (project.notes | string)[:120] }}{% if (project.notes | string | length) > 120 %}…{% endif %}</span>
       <button class="notes-expand-btn" type="button">Expand</button>
@@ -48,7 +48,7 @@
                 placeholder="Document scope, service owner, known risks, compliance requirements. This context will be included in every Claude call within this project.">{{ project.notes or "" }}</textarea>
       <div class="notes-actions">
         <span class="notes-save-status" id="notes-save-status"></span>
-        <button class="btn-secondary btn-sm" type="button" onclick="collapseNotes()">Done</button>
+        <button class="btn-secondary btn-sm" id="btn-collapse-notes" type="button">Done</button>
       </div>
     </div>
   </div>
@@ -171,7 +171,7 @@
           <div class="ingest-path-row">
             <input class="form-input" type="text" id="ingest-path-input"
                    placeholder="Or enter a local file/folder path">
-            <button class="btn-secondary" onclick="ingestPath()">Ingest Path</button>
+            <button class="btn-secondary" id="btn-ingest-path-ws">Ingest Path</button>
           </div>
 
           <div class="ingest-status" id="ingest-status" hidden></div>
@@ -201,8 +201,8 @@
           <p class="ingest-section-desc">Submit a Data Flow Diagram for automated STRIDE analysis.</p>
 
           <div class="dfd-tab-bar">
-            <button class="dfd-tab-btn active" onclick="switchDfdTab('mermaid', this)">Mermaid</button>
-            <button class="dfd-tab-btn" onclick="switchDfdTab('image', this)">Image</button>
+            <button class="dfd-tab-btn active" data-tab="mermaid">Mermaid</button>
+            <button class="dfd-tab-btn" data-tab="image">Image</button>
           </div>
 
           <div id="dfd-tab-mermaid">
@@ -215,7 +215,7 @@ graph TD
             <label class="btn-secondary upload-btn" style="margin-top:0.5rem">
               Load .mmd file
               <input type="file" id="dfd-mmd-file" accept=".mmd,.txt" hidden
-                     onchange="loadMmdFile(this)">
+                     id="dfd-mmd-file-input">
             </label>
           </div>
           <div id="dfd-tab-image" hidden>
@@ -223,7 +223,7 @@ graph TD
                    accept="image/png,image/jpeg,image/webp">
           </div>
 
-          <button class="btn-primary" id="dfd-analyze-btn" onclick="analyzeDfd()" style="margin-top:1rem">
+          <button class="btn-primary" id="dfd-analyze-btn" style="margin-top:1rem">
             Analyze with STRIDE
           </button>
           <div class="dfd-status" id="dfd-status" hidden></div>
@@ -261,7 +261,7 @@ graph TD
     <section class="tab-threats">
       {% if all_threats %}
       <div class="threats-controls">
-        <select class="filter-select" id="threat-filter-stride" onchange="filterThreats()">
+        <select class="filter-select" id="threat-filter-stride">
           <option value="">All STRIDE</option>
           <option value="Spoofing">Spoofing</option>
           <option value="Tampering">Tampering</option>
@@ -270,14 +270,14 @@ graph TD
           <option value="Denial of Service">Denial of Service</option>
           <option value="Elevation of Privilege">Elevation of Privilege</option>
         </select>
-        <select class="filter-select" id="threat-filter-severity" onchange="filterThreats()">
+        <select class="filter-select" id="threat-filter-severity">
           <option value="">All Severity</option>
           <option value="Critical">Critical</option>
           <option value="High">High</option>
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
         </select>
-        <select class="filter-select" id="threat-filter-status" onchange="filterThreats()">
+        <select class="filter-select" id="threat-filter-status">
           <option value="">All Status</option>
           <option value="open">Open</option>
           <option value="mitigated">Mitigated</option>
@@ -313,8 +313,7 @@ graph TD
             <td>{{ t.description or "—" }}</td>
             <td>{{ t.mitigation or t.suggested_controls or "—" }}</td>
             <td>
-              <select class="threat-status-select" data-dfd="{{ t.dfd_id }}" data-idx="{{ loop.index0 }}"
-                      onchange="updateThreatStatus(this)">
+              <select class="threat-status-select" data-dfd="{{ t.dfd_id }}" data-idx="{{ loop.index0 }}">
                 <option value="open" {% if t.status == "open" %}selected{% endif %}>Open</option>
                 <option value="mitigated" {% if t.status == "mitigated" %}selected{% endif %}>Mitigated</option>
                 <option value="accepted" {% if t.status == "accepted" %}selected{% endif %}>Accepted</option>
@@ -360,7 +359,7 @@ graph TD
           </div>
         </div>
 
-        <form class="chat-composer" id="chat-composer" onsubmit="return chatSend(event)">
+        <form class="chat-composer" id="chat-composer">
           <textarea class="chat-input" id="chat-input" rows="3"
                     placeholder="Ask about this project…"></textarea>
           <button class="chat-send-btn" id="chat-send-btn" type="submit">↑ Send</button>
@@ -376,9 +375,9 @@ graph TD
 <dialog class="modal" id="edit-project-modal">
   <div class="modal-header">
     <span class="modal-title">Edit Project</span>
-    <button class="modal-close" onclick="document.getElementById('edit-project-modal').close()" type="button">✕</button>
+    <button class="modal-close" id="btn-close-edit-project" type="button">✕</button>
   </div>
-  <form class="modal-body" onsubmit="return submitEditProject(event)">
+  <form class="modal-body" id="edit-project-form">
     <label class="form-label">Name</label>
     <input class="form-input" type="text" id="ep-name" value="{{ project.name }}">
     <label class="form-label">Description</label>
@@ -404,7 +403,7 @@ graph TD
       </div>
     </div>
     <div class="modal-actions">
-      <button type="button" class="btn-secondary" onclick="document.getElementById('edit-project-modal').close()">Cancel</button>
+      <button type="button" class="btn-secondary" id="btn-cancel-edit-project">Cancel</button>
       <button type="submit" class="btn-primary">Save</button>
     </div>
   </form>
@@ -740,6 +739,54 @@ function submitEditProject(e) {
     recent.unshift(PROJECT_ID);
     localStorage.setItem("tank_recent_projects", JSON.stringify(recent.slice(0, 10)));
   } catch (e) {}
+})();
+
+// Wire all buttons, selects, and forms (replaces inline onclick/onchange/onsubmit).
+(function() {
+  var editBtn = document.getElementById("btn-edit-project");
+  if (editBtn) editBtn.addEventListener("click", openEditProjectModal);
+  var notesPreview = document.getElementById("notes-preview");
+  if (notesPreview) notesPreview.addEventListener("click", expandNotes);
+  var collapseBtn = document.getElementById("btn-collapse-notes");
+  if (collapseBtn) collapseBtn.addEventListener("click", collapseNotes);
+  var ingestPathBtn = document.getElementById("btn-ingest-path-ws");
+  if (ingestPathBtn) ingestPathBtn.addEventListener("click", ingestPath);
+  var analyzeBtn = document.getElementById("dfd-analyze-btn");
+  if (analyzeBtn) analyzeBtn.addEventListener("click", analyzeDfd);
+  var mmdFile = document.getElementById("dfd-mmd-file-input");
+  if (mmdFile) mmdFile.addEventListener("change", function() { loadMmdFile(this); });
+
+  // DFD tab buttons
+  var tabBar = document.querySelector(".dfd-tab-bar");
+  if (tabBar) tabBar.addEventListener("click", function(e) {
+    var btn = e.target.closest(".dfd-tab-btn[data-tab]");
+    if (btn) switchDfdTab(btn.dataset.tab, btn);
+  });
+
+  // Threat filters
+  ["threat-filter-stride","threat-filter-severity","threat-filter-status"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", filterThreats);
+  });
+
+  // Threat status selects (delegated)
+  var threatsTab = document.querySelector(".tab-threats");
+  if (threatsTab) threatsTab.addEventListener("change", function(e) {
+    var sel = e.target.closest(".threat-status-select");
+    if (sel) updateThreatStatus(sel);
+  });
+
+  // Chat form
+  var chatComposer = document.getElementById("chat-composer");
+  if (chatComposer) chatComposer.addEventListener("submit", chatSend);
+
+  // Edit project modal
+  var closeEditBtn = document.getElementById("btn-close-edit-project");
+  if (closeEditBtn) closeEditBtn.addEventListener("click", function() { document.getElementById("edit-project-modal").close(); });
+  var cancelEditBtn = document.getElementById("btn-cancel-edit-project");
+  if (cancelEditBtn) cancelEditBtn.addEventListener("click", function() { document.getElementById("edit-project-modal").close(); });
+  var editProjForm = document.getElementById("edit-project-form");
+  if (editProjForm) editProjForm.addEventListener("submit", submitEditProject);
 })();
 </script>
 {% endblock %}

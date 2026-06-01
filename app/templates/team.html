@@ -20,8 +20,8 @@
       {% endif %}
     </div>
     <div class="team-header-actions">
-      <button class="btn-secondary" onclick="openEditTeamModal()">Edit</button>
-      <button class="btn-primary" onclick="openNewProjectModal()">+ New Project</button>
+      <button class="btn-secondary" id="btn-edit-team">Edit</button>
+      <button class="btn-primary btn-open-new-proj">+ New Project</button>
     </div>
   </div>
 
@@ -29,7 +29,7 @@
   <div class="filter-sort-bar">
     <div class="filter-group">
       <label class="filter-label">Status</label>
-      <select class="filter-select" id="filter-status" onchange="applyFilters()">
+      <select class="filter-select" id="filter-status">
         <option value="">All</option>
         <option value="active">Active</option>
         <option value="in-review">In Review</option>
@@ -38,7 +38,7 @@
     </div>
     <div class="filter-group">
       <label class="filter-label">Risk</label>
-      <select class="filter-select" id="filter-risk" onchange="applyFilters()">
+      <select class="filter-select" id="filter-risk">
         <option value="">All</option>
         <option value="critical">Critical</option>
         <option value="high">High</option>
@@ -48,7 +48,7 @@
     </div>
     <div class="filter-group">
       <label class="filter-label">Sort</label>
-      <select class="filter-select" id="sort-by" onchange="applyFilters()">
+      <select class="filter-select" id="sort-by">
         <option value="activity">Last activity</option>
         <option value="name">Name</option>
         <option value="risk">Risk level</option>
@@ -56,7 +56,7 @@
       </select>
     </div>
     <label class="archived-toggle">
-      <input type="checkbox" id="show-archived" onchange="toggleArchived(this.checked)">
+      <input type="checkbox" id="show-archived">
       Show archived
     </label>
     <span class="filter-count" id="filter-count"></span>
@@ -99,12 +99,12 @@
         </div>
       </div>
       <div class="project-card-menu-wrapper">
-        <button class="project-card-menu-btn" onclick="toggleCardMenu(event, '{{ p.id }}')" title="Options">⋯</button>
+        <button class="project-card-menu-btn" data-project-id="{{ p.id }}" title="Options">⋯</button>
         <div class="project-card-menu" id="menu-{{ p.id }}" hidden>
           <a href="/teams/{{ team.id }}/projects/{{ p.id }}">Open</a>
-          <button onclick="editProject('{{ p.id }}')">Edit</button>
-          <button onclick="pinProject('{{ p.id }}', '{{ p.name }}')">Pin to Dashboard</button>
-          <button onclick="archiveProject('{{ p.id }}')">Archive</button>
+          <button class="proj-edit-btn" data-project-id="{{ p.id }}">Edit</button>
+          <button class="proj-pin-btn" data-project-id="{{ p.id }}" data-project-name="{{ p.name }}">Pin to Dashboard</button>
+          <button class="proj-archive-btn" data-project-id="{{ p.id }}">Archive</button>
         </div>
       </div>
     </div>
@@ -115,7 +115,7 @@
     <div class="empty-icon">📦</div>
     <div class="empty-title">No projects yet</div>
     <div class="empty-body">Create your first project to start tracking security work for this team.</div>
-    <button class="btn-primary" onclick="openNewProjectModal()">+ New Project</button>
+    <button class="btn-primary btn-open-new-proj">+ New Project</button>
   </div>
   {% endif %}
 
@@ -125,9 +125,9 @@
 <dialog class="modal" id="new-project-modal">
   <div class="modal-header">
     <span class="modal-title">New Project</span>
-    <button class="modal-close" onclick="closeNewProjectModal()" type="button">✕</button>
+    <button class="modal-close btn-close-new-proj" type="button">✕</button>
   </div>
-  <form class="modal-body" id="new-project-form" onsubmit="return submitNewProject(event)">
+  <form class="modal-body" id="new-project-form">
     <label class="form-label">Project name <span class="required">*</span></label>
     <input class="form-input" type="text" id="np-name" placeholder="e.g. Auth Service" required>
 
@@ -154,7 +154,7 @@
     <div class="emoji-picker" id="np-emoji-picker">
       {% set icons = ["📦","🔐","🖥️","🗄️","☁️","💻","🌐","🔑","📚","👥","🧠","⚠️","🔒","🧩","⚙️","📊","🚀","🌿","📡","👁️"] %}
       {% for em in icons %}
-      <button type="button" class="emoji-btn" data-emoji="{{ em }}" onclick="selectEmoji('np', this)">{{ em }}</button>
+      <button type="button" class="emoji-btn" data-emoji="{{ em }}">{{ em }}</button>
       {% endfor %}
     </div>
     <input type="hidden" id="np-icon" value="📦">
@@ -164,7 +164,7 @@
       {% set colors = ["#6366f1","#6c5ce7","#00b894","#0984e3","#e17055","#fd79a8","#fdcb6e","#55efc4","#74b9ff","#a29bfe","#636e72","#e84393"] %}
       {% for c in colors %}
       <button type="button" class="color-swatch" data-color="{{ c }}" style="background:{{ c }}"
-              onclick="selectColor('np', this)" title="{{ c }}"></button>
+              title="{{ c }}"></button>
       {% endfor %}
     </div>
     <input type="hidden" id="np-color" value="#6366f1">
@@ -174,7 +174,7 @@
               placeholder="Scope, service owner, known risks…"></textarea>
 
     <div class="modal-actions">
-      <button type="button" class="btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
+      <button type="button" class="btn-secondary btn-close-new-proj">Cancel</button>
       <button type="submit" class="btn-primary" id="np-submit">Create Project</button>
     </div>
   </form>
@@ -184,15 +184,15 @@
 <dialog class="modal" id="edit-team-modal">
   <div class="modal-header">
     <span class="modal-title">Edit Team</span>
-    <button class="modal-close" onclick="document.getElementById('edit-team-modal').close()" type="button">✕</button>
+    <button class="modal-close" id="btn-close-edit-team" type="button">✕</button>
   </div>
-  <form class="modal-body" onsubmit="return submitEditTeam(event)">
+  <form class="modal-body" id="edit-team-form">
     <label class="form-label">Team name</label>
     <input class="form-input" type="text" id="et-name" value="{{ team.name }}">
     <label class="form-label">Description</label>
     <input class="form-input" type="text" id="et-desc" value="{{ team.description or '' }}">
     <div class="modal-actions">
-      <button type="button" class="btn-secondary" onclick="document.getElementById('edit-team-modal').close()">Cancel</button>
+      <button type="button" class="btn-secondary" id="btn-cancel-edit-team">Cancel</button>
       <button type="submit" class="btn-primary">Save</button>
     </div>
   </form>
@@ -395,6 +395,51 @@ function trackRecent(projectId) {
     localStorage.setItem("tank_recent_projects", JSON.stringify(recent.slice(0, 10)));
   } catch (e) {}
 }
+// Wire all buttons and selects (replaces inline onclick/onchange/onsubmit).
+(function() {
+  document.getElementById("btn-edit-team").addEventListener("click", openEditTeamModal);
+  document.querySelectorAll(".btn-open-new-proj").forEach(function(b) { b.addEventListener("click", openNewProjectModal); });
+  document.querySelectorAll(".btn-close-new-proj").forEach(function(b) { b.addEventListener("click", closeNewProjectModal); });
+  document.getElementById("btn-close-edit-team").addEventListener("click", function() { document.getElementById("edit-team-modal").close(); });
+  document.getElementById("btn-cancel-edit-team").addEventListener("click", function() { document.getElementById("edit-team-modal").close(); });
+
+  var npForm = document.getElementById("new-project-form");
+  if (npForm) npForm.addEventListener("submit", submitNewProject);
+  var etForm = document.getElementById("edit-team-form");
+  if (etForm) etForm.addEventListener("submit", submitEditTeam);
+
+  ["filter-status","filter-risk","sort-by"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", applyFilters);
+  });
+  var archChk = document.getElementById("show-archived");
+  if (archChk) archChk.addEventListener("change", function() { toggleArchived(this.checked); });
+
+  var npEmoji = document.getElementById("np-emoji-picker");
+  if (npEmoji) npEmoji.addEventListener("click", function(e) {
+    var btn = e.target.closest(".emoji-btn"); if (btn) selectEmoji("np", btn);
+  });
+  var npColor = document.getElementById("np-color-picker");
+  if (npColor) npColor.addEventListener("click", function(e) {
+    var btn = e.target.closest(".color-swatch"); if (btn) selectColor("np", btn);
+  });
+
+  // Project card menu buttons (delegated)
+  var grid = document.getElementById("project-cards-grid");
+  if (grid) {
+    grid.addEventListener("click", function(e) {
+      var menuBtn = e.target.closest(".project-card-menu-btn[data-project-id]");
+      if (menuBtn) { toggleCardMenu(e, menuBtn.dataset.projectId); return; }
+      var editBtn = e.target.closest(".proj-edit-btn[data-project-id]");
+      if (editBtn) { editProject(editBtn.dataset.projectId); return; }
+      var pinBtn = e.target.closest(".proj-pin-btn[data-project-id]");
+      if (pinBtn) { pinProject(pinBtn.dataset.projectId, pinBtn.dataset.projectName); return; }
+      var archBtn = e.target.closest(".proj-archive-btn[data-project-id]");
+      if (archBtn) { archiveProject(archBtn.dataset.projectId); return; }
+    });
+  }
+})();
+
 // Track each project card click.
 document.querySelectorAll(".project-card-name").forEach(function (a) {
   a.addEventListener("click", function () {

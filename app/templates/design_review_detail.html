@@ -16,7 +16,7 @@
 
   <section class="checklist">
     <h2>Review checklist</h2>
-    <form id="checklist-form" onsubmit="return saveChecklist(event);">
+    <form id="checklist-form">
       {% for item in review.checklist %}
         <div class="check-row">
           <label>
@@ -52,7 +52,7 @@
 
   <section class="spawn-decision">
     <h2>Spawn a decision from this review</h2>
-    <form onsubmit="return spawnDecision(event);">
+    <form id="spawn-decision-form">
       <label>Title <input name="title" required></label>
       <label>Body
         <textarea name="body_md" rows="3" required></textarea>
@@ -119,5 +119,7 @@ async function spawnDecision(e) {
   window.location.reload();
   return false;
 }
+document.getElementById("checklist-form").addEventListener("submit", saveChecklist);
+document.getElementById("spawn-decision-form").addEventListener("submit", spawnDecision);
 </script>
 {% endblock %}

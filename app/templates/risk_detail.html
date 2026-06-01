@@ -80,10 +80,10 @@
       </div>
 
       <div class="actions">
-        <button class="btn" onclick="triggerAssess()">
+        <button class="btn" id="btn-assess">
           Re-assess with KB
         </button>
-        <button class="btn-secondary" onclick="closeRisk()">
+        <button class="btn-secondary" id="btn-close-risk">
           Close risk
         </button>
       </div>
@@ -163,5 +163,9 @@ async function closeRisk() {
   });
   window.location.href = "/risks";
 }
+var _assessBtn = document.getElementById("btn-assess");
+if (_assessBtn) _assessBtn.addEventListener("click", triggerAssess);
+var _closeBtn = document.getElementById("btn-close-risk");
+if (_closeBtn) _closeBtn.addEventListener("click", closeRisk);
 </script>
 {% endblock %}

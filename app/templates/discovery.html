@@ -9,13 +9,13 @@
   </header>
 
   <div class="wizard-steps">
-    <button class="wizard-step-btn active" id="step-btn-1" onclick="gotoStep(1)">1 GitHub</button>
+    <button class="wizard-step-btn active" id="step-btn-1" data-step="1">1 GitHub</button>
     <span class="wizard-step-sep">→</span>
-    <button class="wizard-step-btn" id="step-btn-2" onclick="gotoStep(2)">2 Teams</button>
+    <button class="wizard-step-btn" id="step-btn-2" data-step="2">2 Teams</button>
     <span class="wizard-step-sep">→</span>
-    <button class="wizard-step-btn" id="step-btn-3" onclick="gotoStep(3)">3 Services</button>
+    <button class="wizard-step-btn" id="step-btn-3" data-step="3">3 Services</button>
     <span class="wizard-step-sep">→</span>
-    <button class="wizard-step-btn" id="step-btn-4" onclick="gotoStep(4)">4 Summary</button>
+    <button class="wizard-step-btn" id="step-btn-4" data-step="4">4 Summary</button>
   </div>
 
   {# ── Step 1: GitHub org scan ── #}
@@ -27,18 +27,18 @@
       <input type="text" id="github-org" placeholder="e.g. acme-corp" class="intake-text-input" style="max-width:320px">
     </div>
     <p class="dim" style="font-size:0.8rem; margin-top:0.25rem">Token is read from <code>TANK_GITHUB_TOKEN</code> in your <code>.env</code> file — never sent to Anthropic.</p>
-    <button class="btn-primary" id="github-scan-btn" onclick="runGithubScan()">Scan org →</button>
+    <button class="btn-primary" id="github-scan-btn">Scan org →</button>
 
     <div id="github-results" hidden style="margin-top:1.5rem">
       <div class="github-results-header">
         <span id="github-results-count" class="dim"></span>
         <div style="display:flex; gap:0.5rem; align-items:center">
-          <button class="btn-sm" onclick="checkAll()">Check all</button>
-          <button class="btn-sm" onclick="uncheckAll()">Uncheck all</button>
+          <button class="btn-sm" id="btn-check-all">Check all</button>
+          <button class="btn-sm" id="btn-uncheck-all">Uncheck all</button>
         </div>
       </div>
       <div id="github-repo-list" class="repo-list"></div>
-      <button class="btn-primary" onclick="gotoStep(2)" style="margin-top:1rem">Next →</button>
+      <button class="btn-primary" id="btn-step1-next" data-step="2" style="margin-top:1rem">Next →</button>
     </div>
   </div>
 
@@ -46,7 +46,7 @@
   <div class="wizard-step-content" id="step-2" hidden>
     <h2>Step 2 — Team Directory Import</h2>
     <p class="dim">Upload a CSV with columns: <code>name</code>, <code>email</code>, <code>team</code>, <code>role</code>. Or skip this step.</p>
-    <input type="file" id="csv-file" accept=".csv" onchange="handleCsvUpload(this)">
+    <input type="file" id="csv-file" accept=".csv">
 
     <div id="csv-preview" hidden style="margin-top:1.5rem">
       <p id="csv-preview-count" class="dim"></p>
@@ -57,8 +57,8 @@
     </div>
 
     <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
-      <button class="btn-primary" onclick="gotoStep(3)">Next →</button>
-      <button class="btn-secondary" onclick="gotoStep(1)">← Back</button>
+      <button class="btn-primary" data-step="3">Next →</button>
+      <button class="btn-secondary" data-step="1">← Back</button>
     </div>
   </div>
 
@@ -68,11 +68,11 @@
     <p class="dim">Enter services you've discovered in conversation or investigation that aren't in a repository.</p>
 
     <div id="manual-services-list"></div>
-    <button class="btn-secondary" onclick="addServiceRow()" style="margin-top:0.5rem">+ Add another</button>
+    <button class="btn-secondary" id="btn-add-service" style="margin-top:0.5rem">+ Add another</button>
 
     <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
-      <button class="btn-primary" onclick="gotoStep(4)">Next →</button>
-      <button class="btn-secondary" onclick="gotoStep(2)">← Back</button>
+      <button class="btn-primary" data-step="4">Next →</button>
+      <button class="btn-secondary" data-step="2">← Back</button>
     </div>
   </div>
 
@@ -81,8 +81,8 @@
     <h2>Step 4 — Review &amp; Confirm</h2>
     <div id="summary-counts" style="margin-bottom:1.5rem"></div>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap">
-      <button class="btn-primary" id="confirm-btn" onclick="confirmAll()">Create entity stubs →</button>
-      <button class="btn-secondary" onclick="gotoStep(3)">← Back</button>
+      <button class="btn-primary" id="confirm-btn">Create entity stubs →</button>
+      <button class="btn-secondary" data-step="3">← Back</button>
       <a href="/" class="btn-secondary">Skip for now</a>
     </div>
     <div id="confirm-result" hidden style="margin-top:1.5rem"></div>
@@ -139,8 +139,7 @@ function renderRepoList(repos) {
   const list = document.getElementById("github-repo-list");
   list.innerHTML = repos.map((r, i) => `
     <div class="repo-row">
-      <input type="checkbox" id="repo-cb-${i}" ${r.pre_checked ? "checked" : ""}
-             onchange="githubRepos[${i}].pre_checked = this.checked">
+      <input type="checkbox" id="repo-cb-${i}" data-idx="${i}" ${r.pre_checked ? "checked" : ""}>
       <div class="repo-info">
         <strong>${escHtml(r.name)}</strong>
         ${r.description ? `<span class="dim"> — ${escHtml(r.description)}</span>` : ""}
@@ -192,8 +191,7 @@ function renderCsvPreview(rows) {
       `<tr>
         <td>${escHtml(r.name)}</td>
         <td class="dim">${escHtml(r.email)}</td>
-        <td><input type="text" class="csv-team-input" value="${escHtml(r.team)}"
-             onchange="csvRows[${i}].team = this.value"></td>
+        <td><input type="text" class="csv-team-input" data-idx="${i}" value="${escHtml(r.team)}"></td>
         <td class="dim">${escHtml(r.role)}</td>
       </tr>`
     ).join("") +
@@ -210,20 +208,16 @@ function addServiceRow() {
   div.innerHTML += `
     <div class="service-row" id="svc-row-${i}">
       <div class="service-row-fields">
-        <input type="text" placeholder="Service name *" class="intake-text-input"
-               onchange="manualServices[${i}].name = this.value">
-        <select class="service-type-sel" onchange="manualServices[${i}].type = this.value">
+        <input type="text" placeholder="Service name *" class="intake-text-input svc-field" data-idx="${i}" data-field="name">
+        <select class="service-type-sel svc-field" data-idx="${i}" data-field="type">
           ${["web app","API","mobile","data store","infrastructure","internal tool","third-party"]
             .map(t => `<option>${t}</option>`).join("")}
         </select>
-        <input type="text" placeholder="Owning team" class="intake-text-input"
-               onchange="manualServices[${i}].team = this.value">
-        <input type="text" placeholder="Tech stack" class="intake-text-input"
-               onchange="manualServices[${i}].stack = this.value">
-        <input type="text" placeholder="Notes" class="intake-text-input"
-               onchange="manualServices[${i}].notes = this.value">
+        <input type="text" placeholder="Owning team" class="intake-text-input svc-field" data-idx="${i}" data-field="team">
+        <input type="text" placeholder="Tech stack" class="intake-text-input svc-field" data-idx="${i}" data-field="stack">
+        <input type="text" placeholder="Notes" class="intake-text-input svc-field" data-idx="${i}" data-field="notes">
       </div>
-      <button onclick="removeService(${i})" class="btn-sm btn-danger">✕</button>
+      <button class="btn-sm btn-danger remove-svc-btn" data-idx="${i}">✕</button>
     </div>`;
 }
 
@@ -262,6 +256,61 @@ function updateSummary() {
     </ul>
     <p class="dim">Tank will create entity stubs for each item. Stubs are marked as unconfirmed until you ingest documents that verify them.</p>`;
 }
+
+// Wire all buttons and delegated listeners (replaces inline onclick/onchange).
+(function() {
+  // Wizard step tab buttons and data-step navigation buttons
+  document.querySelectorAll("[data-step]").forEach(function(btn) {
+    btn.addEventListener("click", function() { gotoStep(parseInt(btn.dataset.step)); });
+  });
+
+  // Step 1
+  var scanBtn = document.getElementById("github-scan-btn");
+  if (scanBtn) scanBtn.addEventListener("click", runGithubScan);
+  var checkAllBtn = document.getElementById("btn-check-all");
+  if (checkAllBtn) checkAllBtn.addEventListener("click", checkAll);
+  var uncheckAllBtn = document.getElementById("btn-uncheck-all");
+  if (uncheckAllBtn) uncheckAllBtn.addEventListener("click", uncheckAll);
+
+  // Step 2 CSV file input
+  var csvFile = document.getElementById("csv-file");
+  if (csvFile) csvFile.addEventListener("change", function() { handleCsvUpload(this); });
+
+  // Step 3 add service button
+  var addSvcBtn = document.getElementById("btn-add-service");
+  if (addSvcBtn) addSvcBtn.addEventListener("click", addServiceRow);
+
+  // Step 4 confirm
+  var confirmBtn = document.getElementById("confirm-btn");
+  if (confirmBtn) confirmBtn.addEventListener("click", confirmAll);
+
+  // Delegated: repo checkbox changes in github-repo-list
+  var repoList = document.getElementById("github-repo-list");
+  if (repoList) repoList.addEventListener("change", function(e) {
+    var cb = e.target.closest("input[type=checkbox][data-idx]");
+    if (cb) githubRepos[parseInt(cb.dataset.idx)].pre_checked = cb.checked;
+  });
+
+  // Delegated: manual service field changes and remove button in manual-services-list
+  var svcList = document.getElementById("manual-services-list");
+  if (svcList) {
+    svcList.addEventListener("change", function(e) {
+      var el = e.target.closest(".svc-field[data-idx][data-field]");
+      if (el) manualServices[parseInt(el.dataset.idx)][el.dataset.field] = el.value;
+    });
+    svcList.addEventListener("click", function(e) {
+      var btn = e.target.closest(".remove-svc-btn[data-idx]");
+      if (btn) removeService(parseInt(btn.dataset.idx));
+    });
+  }
+
+  // Delegated: csv team input changes
+  var csvTable = document.getElementById("csv-preview-table");
+  if (csvTable) csvTable.addEventListener("change", function(e) {
+    var inp = e.target.closest(".csv-team-input[data-idx]");
+    if (inp) csvRows[parseInt(inp.dataset.idx)].team = inp.value;
+  });
+})();
 
 async function confirmAll() {
   const repos = githubRepos

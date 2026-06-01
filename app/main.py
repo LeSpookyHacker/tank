@@ -98,7 +98,7 @@ app.add_middleware(_SecurityHeadersMiddleware)
 # The browser UI sends the key via the X-Tank-Key header (set in base.html).
 # Exempted: /healthz, /static/* (no sensitive data served there).
 _TANK_API_KEY = os.environ.get("TANK_API_KEY", "").strip()
-_BIND_HOST = os.environ.get("TANK_BIND_HOST", "127.0.0.1").strip()
+_BIND_HOST = os.environ.get("TANK_BIND_HOST", "").strip() or "127.0.0.1"
 
 if not _TANK_API_KEY and _BIND_HOST not in ("127.0.0.1", "::1", "localhost"):
     print(

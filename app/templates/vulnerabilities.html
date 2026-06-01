@@ -40,11 +40,11 @@
       <p class="vuln-services dim">Affects: {{ v.affected_service_ids | join(', ') }}</p>
       {% endif %}
       <div class="vuln-actions">
-        <button class="btn-sm btn-secondary" onclick="triageVuln('{{ v.id }}')">Triage</button>
-        <button class="btn-sm btn-secondary" onclick="assignVuln('{{ v.id }}')">Assign</button>
-        <button class="btn-sm btn-secondary" onclick="closeVuln('{{ v.id }}')">Close</button>
+        <button class="btn-sm btn-secondary vuln-action-btn" data-action="triage" data-vuln-id="{{ v.id }}">Triage</button>
+        <button class="btn-sm btn-secondary vuln-action-btn" data-action="assign" data-vuln-id="{{ v.id }}">Assign</button>
+        <button class="btn-sm btn-secondary vuln-action-btn" data-action="close" data-vuln-id="{{ v.id }}">Close</button>
         {% if v.severity in ["critical", "high"] %}
-        <button class="btn-sm btn-secondary" onclick="promoteVuln('{{ v.id }}')">→ Risk Register</button>
+        <button class="btn-sm btn-secondary vuln-action-btn" data-action="promote" data-vuln-id="{{ v.id }}">→ Risk Register</button>
         {% endif %}
       </div>
     </div>
@@ -53,10 +53,10 @@
   {% endif %}
 </div>
 
-<div class="modal-overlay" id="modal-overlay" hidden onclick="closeModal()">
-  <div class="modal" id="modal-content" onclick="event.stopPropagation()">
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal-content">
     <div id="modal-body"></div>
-    <button class="btn-secondary" onclick="closeModal()" style="margin-top:0.75rem">Cancel</button>
+    <button class="btn-secondary" id="modal-cancel-btn" style="margin-top:0.75rem">Cancel</button>
   </div>
 </div>
 
@@ -72,8 +72,9 @@ function triageVuln(id) {
       <option value="">Keep current</option>
       ${["critical","high","medium","low","informational"].map(s => `<option value="${s}">${s}</option>`).join("")}
     </select>
-    <button class="btn-primary" onclick="submitTriage()" style="margin-top:0.75rem">Confirm triage</button>`;
+    <button class="btn-primary" id="modal-action-btn" style="margin-top:0.75rem">Confirm triage</button>`;
   document.getElementById("modal-overlay").hidden = false;
+  document.getElementById("modal-action-btn").addEventListener("click", submitTriage);
 }
 
 async function submitTriage() {
@@ -94,8 +95,9 @@ function assignVuln(id) {
     <input type="text" id="assign-owner" class="intake-text-input" placeholder="Name or team">
     <label style="margin-top:0.75rem; display:block">Due date (optional)</label>
     <input type="date" id="assign-due" class="intake-text-input">
-    <button class="btn-primary" onclick="submitAssign()" style="margin-top:0.75rem">Assign</button>`;
+    <button class="btn-primary" id="modal-action-btn" style="margin-top:0.75rem">Assign</button>`;
   document.getElementById("modal-overlay").hidden = false;
+  document.getElementById("modal-action-btn").addEventListener("click", submitAssign);
 }
 
 async function submitAssign() {
@@ -128,11 +130,12 @@ function closeVuln(id) {
       <label style="margin-top:0.75rem; display:block">Rationale (for accepted risk)</label>
       <textarea id="close-rationale" class="intake-textarea" rows="2"></textarea>
     </div>
-    <button class="btn-primary" onclick="submitClose()" style="margin-top:0.75rem">Close vulnerability</button>
-    <script nonce="{{ request.state.csp_nonce }}">document.getElementById("close-reason").onchange = function() {
-      document.getElementById("rationale-wrap").hidden = this.value !== "accepted";
-    };<\/script>`;
+    <button class="btn-primary" id="modal-action-btn" style="margin-top:0.75rem">Close vulnerability</button>`;
   document.getElementById("modal-overlay").hidden = false;
+  document.getElementById("modal-action-btn").addEventListener("click", submitClose);
+  document.getElementById("close-reason").addEventListener("change", function() {
+    document.getElementById("rationale-wrap").hidden = this.value !== "accepted";
+  });
 }
 
 async function submitClose() {
@@ -156,5 +159,26 @@ async function promoteVuln(id) {
 function closeModal() {
   document.getElementById("modal-overlay").hidden = true;
 }
+
+// Wire buttons (replaces inline onclick).
+(function() {
+  var overlay = document.getElementById("modal-overlay");
+  var content = document.getElementById("modal-content");
+  var cancelBtn = document.getElementById("modal-cancel-btn");
+  if (overlay) overlay.addEventListener("click", closeModal);
+  if (content) content.addEventListener("click", function(e) { e.stopPropagation(); });
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+  document.querySelectorAll(".vuln-action-btn[data-action]").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var id = btn.dataset.vulnId;
+      var action = btn.dataset.action;
+      if (action === "triage") triageVuln(id);
+      else if (action === "assign") assignVuln(id);
+      else if (action === "close") closeVuln(id);
+      else if (action === "promote") promoteVuln(id);
+    });
+  });
+})();
 </script>
 {% endblock %}

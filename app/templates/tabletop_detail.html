@@ -17,7 +17,7 @@
 
   <details open>
     <summary>Capture lessons (after running)</summary>
-    <form onsubmit="return capture(event);">
+    <form id="capture-form">
       <label>Lessons (one bullet per line, starting with "- ")
         <textarea name="lessons" rows="6"
                   placeholder="- We didn't have an alert for X&#10;- Runbook step Y was wrong"></textarea>
@@ -33,7 +33,7 @@
     <summary>Generate IR runbook from this scenario</summary>
     <p class="dim">Produce a five-phase (detect / contain / eradicate / recover / comms) runbook
       grounded in your KB. Takes 20-60 seconds.</p>
-    <button class="btn" onclick="generateRunbook()">generate runbook</button>
+    <button class="btn" id="btn-gen-runbook">generate runbook</button>
     <p id="rb-status" class="dim small" hidden></p>
   </details>
 </section>
@@ -89,5 +89,8 @@ async function generateRunbook() {
     btn.textContent = "generate runbook";
   }
 }
+document.getElementById("capture-form").addEventListener("submit", capture);
+var _rbBtn = document.getElementById("btn-gen-runbook");
+if (_rbBtn) _rbBtn.addEventListener("click", generateRunbook);
 </script>
 {% endblock %}
