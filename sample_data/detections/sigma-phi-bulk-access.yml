@@ -1,0 +1,32 @@
+title: Bulk PHI Read From MongoDB notes/transcripts
+id: 6b1f2a30-medscribe-0001-phi-bulk-read
+status: experimental
+description: >
+  Detects a single actor (service account or user) reading an anomalously high
+  number of PHI documents from the MongoDB `notes` or `transcripts` collections
+  within a short window — possible mass-exfiltration of clinical records.
+references:
+  - https://attack.mitre.org/techniques/T1530/
+  - internal:T-006
+  - internal:T-008
+author: AppSec (MedScribe-R-Us)
+date: 2026/05/20
+tags:
+  - attack.collection
+  - attack.t1530
+  - phi
+logsource:
+  product: mongodb
+  service: atlas_audit
+detection:
+  selection:
+    atype: 'authCheck'
+    param.command: 'find'
+    param.ns|contains:
+      - '.notes'
+      - '.transcripts'
+  timeframe: 5m
+  condition: selection | count(param.ns) by users.user > 500
+falsepositives:
+  - Nightly analytics export jobs (allowlist the `analytics-export` SA)
+level: high

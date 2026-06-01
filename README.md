@@ -37,6 +37,21 @@ Open `http://localhost:8000`. You'll complete a brief setup, then Tank walks you
 
 ---
 
+## Try it with sample data
+
+Tank ships with a complete **synthetic** company so you can explore every feature without exposing real data. You're cast as the **first Application Security hire at MedScribe-R-Us**, a GCP-based healthcare-AI startup (PHI, HIPAA, Vertex AI, FHIR/Epic-Cerner). The scenario is modeled on the public case study at [LeSpookyHacker/medscribe-r-us-appsec](https://github.com/LeSpookyHacker/medscribe-r-us-appsec); everything in `sample_data/` is fictional, with deliberately planted secrets and internal hostnames so you can watch redaction work.
+
+```bash
+python -m scripts._gen_fixtures            # render PDF/DOCX/PNG from Markdown
+python -m scripts.load_fixtures            # ingest docs + 2 service repos (uses your API key)
+python -m scripts.seed_db                  # living artifacts: risks, vulns, threat models, plan…
+python -m scripts.verify_privacy --fixture-pack   # assert nothing leaked (exit 0 = pass)
+```
+
+See [sample_data/README.md](sample_data/README.md) for the full inventory.
+
+---
+
 ## Documentation
 
 | | |

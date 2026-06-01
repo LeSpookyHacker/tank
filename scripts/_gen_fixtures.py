@@ -6,9 +6,9 @@ the vision parser gets exercised). This script generates those binary
 artifacts from the markdown sources that live alongside them.
 
 Sources & outputs:
-  architecture/01-platform-overview.md  →  architecture/01-platform-overview.pdf
-  architecture/02-auth-flow.md          →  architecture/02-auth-flow.png  (text-art PNG)
-  policies/access-policy.md             →  policies/access-policy.docx
+  architecture/01-system-overview.md  →  architecture/01-system-overview.pdf
+  architecture/05-ai-pipeline-dfd.md  →  architecture/05-ai-pipeline-dfd.png  (text-art PNG)
+  policies/data-classification.md     →  policies/data-classification.docx
 
 Run with the tank venv activated:
     python -m scripts._gen_fixtures
@@ -201,7 +201,7 @@ def md_to_diagram_png(md_path: Path, png_path: Path) -> None:
         lines = text.splitlines()[:30]
 
     # Add a title and a small footer so the PNG has context.
-    title = "Helix Robotics — Customer-side OAuth2 + service auth"
+    title = "MedScribe-R-Us — AI summarization pipeline (de-id → Vertex AI → validate)"
     lines = [title, "=" * len(title), ""] + lines
 
     # Choose a monospace font; fall back to default if unavailable.
@@ -230,9 +230,9 @@ def md_to_diagram_png(md_path: Path, png_path: Path) -> None:
 # ---------------- driver ----------------
 
 JOBS = [
-    ("pdf",     "architecture/01-platform-overview.md", "architecture/01-platform-overview.pdf"),
-    ("png",     "architecture/02-auth-flow.md",         "architecture/02-auth-flow.png"),
-    ("docx",    "policies/access-policy.md",            "policies/access-policy.docx"),
+    ("pdf",     "architecture/01-system-overview.md",  "architecture/01-system-overview.pdf"),
+    ("png",     "architecture/05-ai-pipeline-dfd.md",  "architecture/05-ai-pipeline-dfd.png"),
+    ("docx",    "policies/data-classification.md",     "policies/data-classification.docx"),
 ]
 
 
@@ -247,12 +247,19 @@ def main(argv: list[str]) -> int:
         if dst.exists() and not force:
             print(f"SKIP {dst_rel}: already exists (use --force to regenerate)")
             continue
-        if kind == "pdf":
-            md_to_pdf(src, dst)
-        elif kind == "docx":
-            md_to_docx(src, dst)
-        elif kind == "png":
-            md_to_diagram_png(src, dst)
+        try:
+            if kind == "pdf":
+                md_to_pdf(src, dst)
+            elif kind == "docx":
+                md_to_docx(src, dst)
+            elif kind == "png":
+                md_to_diagram_png(src, dst)
+        except ImportError as exc:
+            # A binary generator's optional dep (pypdf / python-docx / Pillow)
+            # is missing. Skip that one artifact rather than aborting the rest.
+            print(f"SKIP {dst_rel}: {kind} generator unavailable ({exc}). "
+                  f"Install the missing dependency and re-run --force.",
+                  file=sys.stderr)
     return 0
 
 

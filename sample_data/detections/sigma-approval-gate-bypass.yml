@@ -1,0 +1,33 @@
+title: Clinician Approval Gate Bypass Attempt
+id: 6b1f2a30-medscribe-0003-approval-bypass
+status: experimental
+description: >
+  Detects an EMR Integration FHIR write where the source `notes` document was not
+  in `status=approved` with a non-null `approved_by` at write time — a direct
+  attempt to push an unapproved AI note to the EMR (T-009).
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+  - internal:T-009
+author: AppSec (MedScribe-R-Us)
+date: 2026/05/21
+tags:
+  - attack.impact
+  - attack.t1565.001
+  - phi
+logsource:
+  product: gcp
+  service: cloud_run_application
+  category: application
+detection:
+  selection:
+    service: 'emr-integration'
+    event: 'fhir_write_initiated'
+  filter:
+    note.status: 'approved'
+    note.approved_by|exists: true
+  condition: selection and not filter
+fields:
+  - appointment_id
+  - tenant_id
+  - actor
+level: critical

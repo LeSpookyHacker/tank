@@ -1,0 +1,47 @@
+{
+  "_comment": "Intended least-privilege IAM policy for project medscribe-prod. Each service account holds only the roles it needs.",
+  "project": "medscribe-prod",
+  "version": 3,
+  "bindings": [
+    {
+      "role": "roles/storage.objectCreator",
+      "members": ["serviceAccount:audio-ingest@medscribe-prod.iam.gserviceaccount.com"],
+      "condition": {
+        "title": "audio-bucket-only",
+        "expression": "resource.name.startsWith('projects/_/buckets/medscribe-phi-audio')"
+      }
+    },
+    {
+      "role": "roles/storage.objectViewer",
+      "members": ["serviceAccount:transcription@medscribe-prod.iam.gserviceaccount.com"],
+      "condition": {
+        "title": "audio-bucket-read-only",
+        "expression": "resource.name.startsWith('projects/_/buckets/medscribe-phi-audio')"
+      }
+    },
+    {
+      "role": "roles/aiplatform.user",
+      "members": ["serviceAccount:ai-summary@medscribe-prod.iam.gserviceaccount.com"]
+    },
+    {
+      "role": "roles/secretmanager.secretAccessor",
+      "members": ["serviceAccount:ai-summary@medscribe-prod.iam.gserviceaccount.com"],
+      "condition": {
+        "title": "vertex-secret-only",
+        "expression": "resource.name == 'projects/medscribe-prod/secrets/vertex-api-key'"
+      }
+    },
+    {
+      "role": "roles/secretmanager.secretAccessor",
+      "members": ["serviceAccount:emr-integration@medscribe-prod.iam.gserviceaccount.com"],
+      "condition": {
+        "title": "fhir-oauth-secret-only",
+        "expression": "resource.name == 'projects/medscribe-prod/secrets/fhir-oauth-client-secret'"
+      }
+    },
+    {
+      "role": "roles/datastore.viewer",
+      "members": ["serviceAccount:phi-scrub@medscribe-prod.iam.gserviceaccount.com"]
+    }
+  ]
+}

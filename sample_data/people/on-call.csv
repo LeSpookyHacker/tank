@@ -1,6 +1,7 @@
-rotation_name,service_coverage,primary_email,secondary_email,handoff_day,paging_window
-platform-on-call,identity-svc;orders-api;webhook-router;device-registry;EKS,alice.tanaka@helixrobotics.com,yui@helix.internal,Monday,24/7
-payments-on-call,payments-api;pii-vault,sam.liu@helixrobotics.com,marcus.chen@helixrobotics.com,Monday,24/7
-frontend-on-call,dashboard-web,lukas.bauer@helixrobotics.com,frontend-eng-1@helixrobotics.com,Monday,business-hours-pacific
-data-pipeline-watch,analytics-pipeline,vendor-snowflake-support,priya.shah@helixrobotics.com,n/a-vendor-managed,business-hours-pacific
-siem-watch,Datadog SIEM;security alerts (reactive SRE-run — no dedicated security on-call yet),alice.tanaka@helixrobotics.com,carlos.reyes@helixrobotics.com,Monday,business-hours-pacific
+rotation,week_of,primary,secondary,escalation
+platform-oncall,2026-06-01,Dana Okafor,Alex Kim,Aanya Krishnan
+platform-oncall,2026-06-08,Alex Kim,Dana Okafor,Aanya Krishnan
+pipeline-oncall,2026-06-01,Priya Raman,Sofia Castellano,Aanya Krishnan
+pipeline-oncall,2026-06-08,Hannah Osei,Priya Raman,Aanya Krishnan
+ai-platform-oncall,2026-06-01,Marcus Lee,Wei Chen,Aanya Krishnan
+security-oncall,2026-06-01,LeSpookyHacker,Dana Okafor,Aanya Krishnan

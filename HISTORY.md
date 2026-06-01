@@ -13,6 +13,36 @@ of work, in chronological order.
 
 ---
 
+## 2026-05-31 — Sample-data recast → MedScribe-R-Us
+
+The sample-data pack was fully replaced. It previously modeled a fictional B2B
+fintech ("Helix Robotics"); it now models **MedScribe-R-Us**, a GCP healthcare-AI
+startup (PHI, HIPAA, Vertex AI, FHIR/Epic-Cerner), with the user cast as its
+**first Application Security hire** on day one — mirroring the public case study
+at <https://github.com/LeSpookyHacker/medscribe-r-us-appsec>.
+
+- New `sample_data/`: architecture (system overview, PHI data-flow, IAM design,
+  network security, AI-pipeline DFD), 5 Sigma rules + custom Semgrep rules,
+  CMDB (10 services + GCP resources), IAM bindings (least-priv + an over-broad
+  finding), SOC2/HIPAA/NIST control matrices, people, policies, 4 runbooks,
+  3 postmortems, planted-secret seeds, 3 Mermaid DFDs, and two synthetic service
+  repos (`ai-summarization-svc` FastAPI, `clinician-portal` Next.js) for
+  code-facts ingest. Every parser is exercised (md/pdf/docx/csv/iam-json/
+  control-framework/sigma/image/repo). 38 files + 2 repos.
+- Rewrote `scripts/seed_db.py` for the Day-1 persona: org + app_state, 4 teams,
+  4 projects, 2 pre-cached DFDs, 7 risks, 7-vuln intake queue (mixed states),
+  4 decisions (one expiring), 12 glossary terms, 5 lessons, a tabletop, 2 IR
+  runbooks, a design review, 2 postmortems, stack-audit inventory, a 90-day plan,
+  a weekly-digest subscription, a journal entry, 3 follow-ups. Idempotent.
+- Refreshed `scripts/_gen_fixtures.py` (new sources; skips a binary cleanly if
+  its optional dep is absent) and `scripts/verify_privacy.py` (MedScribe planted
+  identifiers; `--fixture-pack` exits 0). Added Pillow to `requirements.txt`.
+- The STRIDE register (T-001…T-014) threads through fixtures + seeded artifacts.
+- Updated README, `sample_data/README.md`, and the docs that named the old
+  scenario. Older Helix entries below are kept as historical record.
+
+---
+
 ## 2026-05-27 — Adversarial security audit pass 2: 16 vulnerabilities fixed
 
 A full adversarial audit of the codebase (all files, all layers) was conducted

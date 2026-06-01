@@ -9,10 +9,10 @@ Run after a full ingest + a chat session. Exit code 0 = pass, 1 = fail.
 Usage:
     python -m scripts.verify_privacy [--db PATH] [--fixture-pack]
 
-`--fixture-pack` enables an extra check that the Helix Robotics planted
-identifiers (AKIAIOSFODNN7EXAMPLE, 999988887777, helixrobotics.com,
-helix.internal, xoxb-1234567890-ABCDEFGHIJ) NEVER appear in any
-redacted field.
+`--fixture-pack` enables an extra check that the MedScribe-R-Us planted
+identifiers (AKIAIOSFODNN7EXAMPLE, api.medscribe.internal, 10.20.30.40,
+the Slack/GitHub/Google API keys, and the @medscribe-r-us.fake email
+domain) NEVER appear in any redacted field.
 """
 from __future__ import annotations
 
@@ -23,20 +23,27 @@ import sys
 from pathlib import Path
 
 
-# These should NEVER appear in any *_redacted column.
-HELIX_FIXTURE_NEEDLES = [
+# These should NEVER appear in any *_redacted column. Every needle is a planted
+# MedScribe-R-Us identifier that one of the redaction rules is guaranteed to catch
+# (AWS-key / Slack / GitHub / Google-API-key patterns, internal hostnames under
+# .internal, RFC1918 IPs, and the corporate email domain). Each appears verbatim
+# in at least one file under sample_data/seeds/.
+MEDSCRIBE_FIXTURE_NEEDLES = [
+    # Secrets (rules.py AKIA pattern + secrets.py detect-secrets / extra patterns)
     "AKIAIOSFODNN7EXAMPLE",
     "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-    "999988887777",
-    "888877776666",
-    "helixrobotics.com",
-    "helix.internal",
-    "xoxb-1234567890-ABCDEFGHIJ",
-    "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
-    # Internal hostnames that should be redacted.
-    "payments.helix.internal",
-    "identity.helix.internal",
-    "vault.helix.internal",
+    "xoxb-7700000000-MedScribeFAKEtoken00",
+    "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+    "AIzaSyDmedscribeFAKEvertexkey0123456789",
+    # Internal hostnames (.internal → internal_hostname rule)
+    "api.medscribe.internal",
+    "mongo-prod.medscribe.internal",
+    "vertex-proxy.medscribe.internal",
+    "auth.medscribe.internal",
+    # Private IP (RFC1918)
+    "10.20.30.40",
+    # Corporate email domain (only ever appears inside email addresses)
+    "medscribe-r-us.fake",
 ]
 
 
@@ -79,7 +86,7 @@ def main(argv: list[str]) -> int:
                    default=os.environ.get("TANK_DB_PATH")
                            or str(Path.home() / ".tank" / "db.sqlite"))
     p.add_argument("--fixture-pack", action="store_true",
-                   help="check that Helix Robotics fixture identifiers "
+                   help="check that MedScribe-R-Us fixture identifiers "
                         "never appear in redacted fields")
     p.add_argument("--also", action="append", default=[],
                    help="additional needle to scan for (repeatable)")
@@ -92,7 +99,7 @@ def main(argv: list[str]) -> int:
 
     needles = list(args.also)
     if args.fixture_pack:
-        needles.extend(HELIX_FIXTURE_NEEDLES)
+        needles.extend(MEDSCRIBE_FIXTURE_NEEDLES)
     if not needles:
         print("error: nothing to scan for. Use --fixture-pack or --also <token>.",
               file=sys.stderr)

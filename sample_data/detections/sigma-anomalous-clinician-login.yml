@@ -1,0 +1,34 @@
+title: Anomalous Clinician Login (Geo / Device)
+id: 6b1f2a30-medscribe-0002-anomalous-login
+status: experimental
+description: >
+  Detects a clinician authentication from an unusual geography (>500 mi from last
+  login) or an unrecognized device fingerprint, indicating possible credential
+  compromise (T-001). Should trigger step-up TOTP, not just alert.
+references:
+  - https://attack.mitre.org/techniques/T1078/
+  - internal:T-001
+author: AppSec (MedScribe-R-Us)
+date: 2026/05/20
+tags:
+  - attack.initial_access
+  - attack.t1078
+  - identity
+logsource:
+  product: auth0
+  service: authentication
+detection:
+  selection:
+    type: 's'          # successful login
+    connection: 'health-system-sso'
+  anomaly:
+    risk.geo_velocity_mph|gt: 500
+  condition: selection and anomaly
+fields:
+  - user_id
+  - tenant_id
+  - ip
+  - user_agent
+falsepositives:
+  - Clinicians who travel between affiliated clinics on the same day
+level: high

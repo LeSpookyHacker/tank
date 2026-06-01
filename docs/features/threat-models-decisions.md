@@ -68,10 +68,10 @@ A queryable record of every deliberate security choice. Four kinds:
 
 | Kind | What it means | Example |
 | --- | --- | --- |
-| `design_choice` | A deliberate architectural choice | "Use mTLS between payments-api and identity-svc" |
-| `accepted_risk` | Known weakness, deferred | "Webhook replay window: 5 min — acceptable for now" |
-| `deferred_fix` | Recognized fix that's been postponed | "Rotate Stripe API keys quarterly — postponed to Q3" |
-| `security_invariant` | Stated rule the team won't break | "No service stores PCI data outside pii-vault" |
+| `design_choice` | A deliberate architectural choice | "Use mTLS between all internal Cloud Run services" |
+| `accepted_risk` | Known weakness, deferred | "Accept fail-closed ABAC availability cost" |
+| `deferred_fix` | Recognized fix that's been postponed | "Remediate the over-broad ci-deploy SA before broader IAM work" |
+| `security_invariant` | Stated rule the team won't break | "No un-scrubbed PHI may ever reach Vertex AI" |
 
 ### Lifecycle
 

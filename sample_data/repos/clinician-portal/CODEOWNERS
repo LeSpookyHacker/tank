@@ -1,0 +1,5 @@
+# clinician-portal ownership
+*                          @medscribe/frontend
+/src/lib/auth.ts           @medscribe/frontend @medscribe/appsec
+/src/pages/api/            @medscribe/frontend @medscribe/appsec
+/.github/                  @medscribe/platform

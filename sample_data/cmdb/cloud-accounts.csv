@@ -1,6 +1,0 @@
-account_id,account_name,purpose,primary_region,dr_region,owner_email,scp_ou
-999988887777,helix-prod,Customer-facing production,us-west-2,us-east-1,alice.tanaka@helixrobotics.com,Prod
-888877776666,helix-staging,Pre-prod and analytics staging,us-west-2,,yui@helix.internal,NonProd
-777766665555,helix-tooling,SSO landing + CI + central logs,us-west-2,,raj.patel@helixrobotics.com,Tooling
-666655554444,helix-security,Security tooling + log archive,us-west-2,,alice.tanaka@helixrobotics.com,Security
-555544443333,helix-sandbox,Engineer playgrounds,us-west-2,,priya.shah@helixrobotics.com,Sandbox

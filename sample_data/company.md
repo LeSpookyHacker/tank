@@ -1,94 +1,54 @@
-# Helix Robotics — company brief
+# MedScribe-R-Us — Company & Scenario Brief
 
-> Fictional. For Tank demo use only.
+> This is the orientation doc for the **first security hire** at MedScribe-R-Us.
+> The scenario is modeled on the public case study at
+> https://github.com/LeSpookyHacker/medscribe-r-us-appsec
+> (all names, data, and systems are fictional, for demo/testing only).
 
-## What we do
+## The company
 
-Helix Robotics provides payments and identity infrastructure specialized
-for the robotics OEM market. Think of us as "Stripe + Auth0, narrowed
-to industrial automation customers." OEMs integrate our SDKs into their
-device fleets and customer portals; we handle the messy parts —
-charging, identity federation, webhook fanout to their billing
-systems.
+MedScribe-R-Us is a Series A healthcare-AI startup (~70 people, ~40 in
+engineering). The platform turns patient–clinician conversations into
+AI-generated SOAP notes and writes them back to Epic/Cerner over FHIR R4. It
+runs entirely on GCP and operates as a HIPAA **Business Associate** for every
+customer health system.
 
-## Numbers
+- **Crown jewels:** Protected Health Information (PHI) — audio, transcripts,
+  clinical notes — and the per-tenant CMEK keys that protect it.
+- **Regulatory:** HIPAA/HITECH (primary), SOC 2 Type II (audit window opens
+  2026-09-01), HITRUST CSF (year 2), OWASP LLM Top 10, NIST CSF 2.0.
+- **Stack:** GCP Cloud Run, MongoDB Atlas, Vertex AI (Gemini), Google
+  Speech-to-Text, GCS, Cloud KMS, Secret Manager, Auth0, Datadog.
 
-- Founded 2021, HQ Austin, satellite offices in Seattle and Lisbon.
-- ~80 employees, ~55 engineering.
-- Series B closed Q3 2025 ($42M, led by Cascade Ventures).
-- Customers: ~120 robotics OEMs, mostly North America + EU.
-- Revenue: payments processing fees + per-seat identity SaaS.
+## Your role (the scenario)
 
-## Stack
+You are **LeSpookyHacker**, **Staff Application Security Engineer** — MedScribe's
+**first dedicated security hire**, reporting to the CTO (Aanya Krishnan). Today
+is **day one**. Security has so far been a part-time responsibility of the SRE
+team; there is no AppSec program, no threat modeling, no CI security gates, no
+vulnerability management, and no incident-response playbooks.
 
-- Cloud: AWS, primary region `us-west-2`. Prod account
-  `999988887777`, staging account `888877776666`.
-- Compute: EKS for stateful services; Lambda for webhook fanout.
-- Storage: RDS PostgreSQL, DynamoDB for device-registry, S3.
-- Data warehouse: Snowflake (vendor: Snowflake Inc.).
-- Secrets: HashiCorp Vault, self-hosted in-cluster.
-- SSO: Okta (employees), customer-side: OAuth2/OIDC via our own
-  identity-svc.
-- Payments downstream: Stripe.
-- Observability: Datadog, Sentry.
-- Source: GitHub Enterprise Cloud.
-- CI: GitHub Actions.
-- IaC: Terraform Cloud.
+Your loose first-90-days mandate:
+1. Build a knowledge graph of the platform (this tool).
+2. Stand up threat modeling for the AI pipeline + Tier-0 services.
+3. Validate the PHI scrubbing layer (the highest-impact control).
+4. Get SAST/SCA/secrets/container/DAST gates into CI.
+5. Begin SOC 2 / HIPAA evidence collection before the September audit window.
 
-## Internal domains
+## People you'll meet first
 
-- `*.helix.internal` — internal services (set `TANK_INTERNAL_TLD=helix.internal`).
-- `*.corp` — used by IT systems (HRIS, internal wiki, etc.).
-- `helix.io` — customer-facing.
-- `helixrobotics.com` — employee email + marketing.
+| Name | Role | Why |
+|---|---|---|
+| Aanya Krishnan | CTO | Your manager; owns the security mandate |
+| Dana Okafor | Staff SRE / Platform | Owns GCP, networking, IAM today |
+| Priya Raman | Pipeline Eng Lead | Owns ingestion/transcription/EMR-integration |
+| Marcus Lee | AI Platform Lead | Owns scrubbing + summarization + validation |
+| Tom Bryce | IT / HIPAA Privacy Officer | Owns BAAs, compliance, audit |
 
-## Security posture (as inherited)
+## Known top concerns (inherited)
 
-- SOC 2 Type I attestation from 2024 Q4. Type II audit window opens
-  September 2026 — first big external deadline.
-- No prior dedicated security hire. **You are the first.** Security has
-  been a side-duty the SRE team (Diana Okoro especially) absorbed
-  reactively — Datadog detections, incident firefighting, Vault ops — on
-  top of reliability work. Nobody has owned it strategically.
-- No formal AppSec program. No formal threat modeling. No central
-  vulnerability management. Snyk scans run on PRs but findings aren't
-  triaged.
-- IAM hygiene: Okta everywhere for employees; customer-facing OAuth
-  is in identity-svc; AWS access is via SSO into a single tooling
-  account, with cross-account assume-role into prod/staging. Some
-  long-lived IAM users still exist for legacy CI integrations (this
-  is on Raj's plate).
-- Vault is healthy but adoption is uneven — most services use it, two
-  don't (you'll find out which).
-
-## Your scope (loose, to be refined during onboarding)
-
-You report directly to Tom Brandt (CTO) as Helix's first "Security
-Engineer" — there's no security team to slot into yet. The written JD
-says "AppSec-flavored, but expect to touch cloud and detection." Tom and
-Priya Shah (Director of Eng, Platform — your closest engineering partner)
-have hinted at three first-quarter priorities, none yet committed:
-
-1. Stand up a real vulnerability-management workflow on top of Snyk.
-2. Audit IAM in the prod account, kill long-lived keys.
-3. Build out a threat model for the payments path.
-
-What's NOT in scope: GRC documentation (that's Tom's domain),
-customer-facing trust collateral, compliance audit prep beyond what
-overlaps with #1-3 above.
-
-## First 5 people you should meet
-
-(See `people/org-chart.md` for the full tree.)
-
-1. **Priya Shah** — Director of Engineering, Platform. Your closest
-   engineering partner (you report to Tom Brandt, the CTO).
-2. **Diana Okoro** — Senior SRE. Has carried security-adjacent
-   firefighting reactively; your best source on incident history. A
-   partner, not a security owner — that's now you.
-3. **Marcus Chen** — Staff Engineer, Identity team. Owns the
-   crown-jewel service (identity-svc).
-4. **Alice Tanaka** — SRE Lead. Holds keys to most of prod, gatekeeps
-   any prod changes you'll want to make.
-5. **Raj Patel** — FinOps lead. Already trying to clean up IAM; ally,
-   not adversary.
+- PHI scrubbing has no validation suite (T-007).
+- No prompt-injection testing on the LLM pipeline (T-014).
+- Over-broad CI/CD service account in prod (T-013, IAM-2026-014).
+- PHI potentially logged by services (T-006).
+- Approval-gate enforcement not verified end-to-end (T-009).

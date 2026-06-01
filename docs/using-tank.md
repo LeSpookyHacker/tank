@@ -212,8 +212,8 @@ Sidebar → Pipeline → DFD Analysis → "+ New analysis"
 | From description | Paste a plain-English description — Claude generates Mermaid for you |
 
 Click "Load example" on Tab A to get a reference DFD to start from.
-The sample data pack includes four ready-to-use `.mmd` files in
-`sample_data/dfd/` (payments-api, identity-svc, pii-vault, webhook-router).
+The sample data pack includes ready-to-use `.mmd` files in
+`sample_data/dfd/` (ai-pipeline, emr-integration, clinician-portal).
 
 **Stage 2 — SSE progress tracker.** Four steps: parsing diagram →
 identifying components → mapping attack surfaces → generating threat
@@ -432,12 +432,12 @@ Tank has 15 tools:
 You don't pick the tool — Sonnet does. Sample questions Tank handles
 well:
 
-- "What's the blast radius if payments-api gets owned?"
-- "Why did we decide to keep webhook signing optional?"
-- "Do we detect lateral movement from staging to prod?"
-- "What controls is identity-svc missing?"
-- "Has anything like the Vault sidecar outage happened before?"
-- "Who should I talk to about the deprecation of orders-api?"
+- "What's the blast radius if ai-summarization-svc gets owned?"
+- "Why did we accept the fail-closed ABAC availability cost?"
+- "Do we detect PHI bulk access from the pipeline?"
+- "What controls is emr-integration-svc missing?"
+- "Has anything like the PHI-in-logs near-miss happened before?"
+- "Who should I talk to about the PHI scrubbing validation harness?"
 
 Every answer carries citations (clickable to source chunks) and a
 provenance badge (source / inferred / claim).

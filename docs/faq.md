@@ -290,8 +290,8 @@ a small form that creates a note tagged `provenance='user'` and
 disputes the conflicting entity attr. Tank remembers the
 correction.
 
-For more invasive edits, just chat: *"actually, payments-api is
-owned by Sam, not Marcus."* The notes-to-KB diff extractor proposes
+For more invasive edits, just chat: *"actually, ai-summarization-svc is
+owned by Wei, not Marcus."* The notes-to-KB diff extractor proposes
 the change; you confirm; it commits with `provenance='user'`.
 
 ### What's the "lens" thing on the home page?

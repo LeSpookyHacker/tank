@@ -1,68 +1,33 @@
-# Reference — example leaked-credential patterns
+# Secret-Leak Examples (redaction test fixtures)
 
-> **Why this file exists**: it's a deliberate test bed for Tank's
-> `secret_token` redaction rule. The strings below should all be
-> caught by detect-secrets plugins or the entropy fallback, hashed
-> one-way in the redaction map, and **NEVER** sent to Claude in
-> cleartext. None of these are real credentials — they're the
-> AWS-published documentation example, an obvious-fake Slack token,
-> and an obvious-fake GitHub PAT.
+> These are **fake** credentials planted to prove Tank's redaction engine
+> catches secrets before anything is sent to Claude. Every value below must be
+> replaced by a `[SECRET_xxx]` placeholder in the redacted view.
 
-## AWS access key
+During the first-week review the new AppSec hire found these examples of secrets
+that had leaked into a config dump and a public gist. Treat as illustrative only.
 
-```
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-```
+## Cloud / vendor keys
 
-The `AKIAIOSFODNN7EXAMPLE` value is the AWS-published example access
-key ID; the matching secret is also the published example. Both
-are intentionally non-functional.
+- AWS access key id: `AKIAIOSFODNN7EXAMPLE`
+- aws_secret_access_key = `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`
+- Vertex AI / Google API key: `AIzaSyDmedscribeFAKEvertexkey0123456789`
+- Slack bot token (alerts webhook): `xoxb-7700000000-MedScribeFAKEtoken00`
+- GitHub PAT (CI mirror): `ghp_abcdefghijklmnopqrstuvwxyz0123456789`
 
-## Slack bot token
+## A JWT that was pasted into a ticket
 
-```
-SLACK_BOT_TOKEN=xoxb-1234567890-ABCDEFGHIJ
-```
+`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbGluaWNpYW4iLCJ0ZW5hbnQiOiJ0LTAwMSJ9.3hT2kPq9sVnWmAhTnDfR4sYbNZk9xQ2pL7vWcXyZabc`
 
-## GitHub personal access token (classic)
+## A GCP service-account private key (found in an old branch)
 
 ```
-GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDFAKEmedscribe
+b1Qn3xampleKeyMaterialNotRealb2Qn3xampleKeyMaterialNotRealc3Qn3xa
+mpleKeyMaterialNotReald4Qn3xampleKeyMaterialNotReale5Qn3xampleKey
+-----END PRIVATE KEY-----
 ```
 
-## Generic high-entropy string (should be caught by entropy fallback)
-
-```
-SECRET_VALUE=Z9aQpL2vR5tY8wXcM3nK7jH1bF6dG4sP0eU3iO9rT2yN5xV8
-```
-
-## Realistic-looking JWT
-
-```
-EXAMPLE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0Iiwic2NvcGUiOiJ0ZXN0In0.x4VbW_Z6cTbq_n8YQqXmPaKv0bRzZb6BqJj_NaP3K6w
-```
-
-## What Tank should do with this file on ingest
-
-1. Detect each of the above as `secret_token`.
-2. Replace each with `[SECRET_<n>]`.
-3. In `redaction_map`, store the SHA-256 hash of each original — NOT
-   the cleartext — in the `original_text` column.
-4. Verify by running:
-
-   ```sql
-   SELECT placeholder, original_text
-     FROM redaction_map
-     WHERE category = 'secret_token';
-   ```
-
-   Every `original_text` value should be a 64-character hex string
-   (a SHA-256 hash), not any of the strings above in cleartext.
-
-## What Tank should NOT do
-
-- Should NOT include any of these strings in any outbound API call.
-- Should NOT rehydrate `[SECRET_<n>]` back to cleartext in chat or
-  report output. The user must look up the original in this file
-  themselves if they need it.
+If any of the values above survive into a `*_redacted` column, the redaction
+engine has failed — stop using Tank for real data until it is fixed.
