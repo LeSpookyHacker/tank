@@ -246,8 +246,8 @@ sqlite3 ~/.tank/db.sqlite \
 ```
 
 You should see counts for `email`, `internal_hostname`,
-`aws_account_id`, `secret_token`, `aws_arn`. If any are missing, the
-ingest didn't complete.
+`secret_token`, `gcp_project`, `ipv4_private`. If any are missing,
+the ingest didn't complete.
 
 Then verify nothing leaked:
 

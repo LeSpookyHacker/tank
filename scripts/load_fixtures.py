@@ -1,4 +1,4 @@
-"""Bulk-load the Helix Robotics sample data pack into Tank.
+"""Bulk-load the MedScribe-R-Us sample data pack into Tank.
 
 Walks `sample_data/` and pushes each artifact through the ingestion
 pipeline with the right category. Idempotent: anything already in

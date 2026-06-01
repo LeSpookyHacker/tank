@@ -40,8 +40,13 @@
       }
     },
     {
-      "role": "roles/datastore.viewer",
-      "members": ["serviceAccount:phi-scrub@medscribe-prod.iam.gserviceaccount.com"]
+      "_comment": "phi-scrub reads MongoDB Atlas (mTLS + IP allowlist, not GCP IAM). The only GCP IAM this SA needs is Secret Manager access for any managed creds — listed above. No Datastore or other GCP-product role required.",
+      "role": "roles/secretmanager.secretAccessor",
+      "members": ["serviceAccount:phi-scrub@medscribe-prod.iam.gserviceaccount.com"],
+      "condition": {
+        "title": "mongo-conn-secret-only",
+        "expression": "resource.name == 'projects/medscribe-prod/secrets/mongo-connection-string'"
+      }
     }
   ]
 }

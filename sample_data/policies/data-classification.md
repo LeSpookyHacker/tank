@@ -16,7 +16,7 @@ MRNs, patient identifiers.
   break-glass with full audit.
 - **Logging:** content NEVER logged; identifiers logged hashed only.
 - **Retention:** per customer BAA, default 7 years; cryptographic erasure on delete.
-- **Cross-boundary:** never crosses to Vertex AI; only de-identified text does.
+- **Cross-boundary:** raw PHI never crosses to Vertex AI — only de-identified text does.
 
 ### Tier 2 — Confidential
 De-identified transcripts, aggregate analytics, internal architecture docs,
