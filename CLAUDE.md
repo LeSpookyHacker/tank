@@ -376,6 +376,28 @@ pattern — reuse `_build_scope_block()` idiom for KB injection.
 
 `reports_store.insert()` additionally takes `cache_read_in` / `cache_create_in` — pass them or the reports table will undercount cache savings.
 
+## Prompt-cache TTL helpers
+
+`app/claude/caching.py` exposes two cache-control constants:
+
+- `CACHE_5M` — default 5-minute ephemeral. Use for blocks that vary turn-to-turn (e.g. the KB hit set in `build_kb_block`, where the retrieved chunks depend on the query).
+- `CACHE_1H` — 1-hour extended ephemeral. Use for blocks stable across a working session: role/lens system prompt (`build_system_block`), KB entity scope (`build_scope_block`), per-report system prompts, threat-model prior-version blocks, `policy_base` rules. Pays back across digest-time bursts and multi-policy/multi-risk sessions.
+
+`build_scope_block(service_id=None)` is the canonical KB-scope helper used by reports, anniversaries, day-1 brief, plan generator, prioritization, meeting prep, policy generator, and compliance wizard. Lives in `app/claude/caching.py`; `app/claude/reports.py` keeps a thin `_build_scope_block` re-export for back-compat with existing imports.
+
+## Anthropic Message Batches (50% off, async)
+
+`app/claude/batches.py` wraps `client.messages.batches.create` for non-interactive scheduler fan-out. Submitted batches land in the `batch_jobs` table (`_migrate_batch_jobs` in `app/db.py`); the scheduler `_tick` calls `poll_inflight()` every ~60s and dispatches results to a kind-specific handler registered via `@batches.register("<kind>")`. The infrastructure is in place; consumer migrations are sequenced module-by-module:
+
+- `_fire_auto_briefs` — up to 5 same-shape Haiku calls per night.
+- `_run_due_subscriptions` — N report subscriptions per digest tick.
+- `_maybe_anniversary` — generic retro + security retro + philosophy at tenure milestones.
+- `attack_mapping.generate` — N+1 Sonnet call per Threat Model.
+
+Constraint: `messages.batches.create` does NOT accept `output_format=PydanticClass`. Modules that today use `messages.parse` must add a structured-output adapter (force-tool-call or JSON-in-text) on the batch path. The synchronous path stays in place for interactive (user-waiting) call sites. See the module docstring in `app/claude/batches.py` for the migration pattern.
+
+Token accounting for batch results uses `log_token_usage(f"batches.{kind}", model, usage)` inside the result loop — they show up as ordinary `api_calls` rows.
+
 ## DFD Threat Modeling
 
 Three-stage pipeline: Stage 1 (4-mode input) → Stage 2 (SSE progress) → Stage 3 (split-panel workspace). Key files:

@@ -680,8 +680,38 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_vulnerability_triage(conn)
     _migrate_decisions_founding(conn)
 
+    # Anthropic Message Batches API tracking (50% cost on background fan-out).
+    _migrate_batch_jobs(conn)
+
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _migrate_batch_jobs(conn: sqlite3.Connection) -> None:
+    """Track Anthropic Message Batches in-flight + post-mortem.
+
+    Used by `app.claude.batches`. One row per submitted batch; status
+    advances as the scheduler tick polls Anthropic. `payload_json` is
+    opaque context the kind-specific handler needs at result-processing
+    time (e.g. list of subscription IDs, list of meeting IDs).
+    """
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS batch_jobs ("
+        " id TEXT PRIMARY KEY,"
+        " anthropic_id TEXT NOT NULL,"
+        " kind TEXT NOT NULL,"
+        " status TEXT NOT NULL DEFAULT 'submitted',"
+        " request_count INTEGER NOT NULL DEFAULT 0,"
+        " created_at REAL NOT NULL,"
+        " completed_at REAL,"
+        " payload_json TEXT,"
+        " result_summary TEXT"
+        ")"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_batch_jobs_status "
+        "ON batch_jobs (status, created_at)"
+    )
 
 
 def _add_col_safe(conn: sqlite3.Connection, table: str, col_def: str) -> None:
