@@ -183,7 +183,7 @@ mermaid.initialize({
     primaryBorderColor: '#3d2e6b', lineColor: '#6c5ce7',
     fontFamily: 'Inter, sans-serif', fontSize: '14px',
   },
-  securityLevel: 'loose',
+  securityLevel: 'strict',
 });
 
 // ── Mode switching ──
@@ -244,7 +244,7 @@ async function renderPreview() {
     mermaidPreviewId++;
     var id = 'prev-' + mermaidPreviewId;
     var result = await mermaid.render(id, src);
-    preEl.innerHTML = result.svg;
+    preEl.innerHTML = DOMPurify.sanitize(result.svg, {USE_PROFILES: {svg: true, svgFilters: true}});
     errEl.hidden = true;
   } catch (e) {
     preEl.innerHTML = '';

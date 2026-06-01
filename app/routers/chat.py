@@ -8,7 +8,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.claude.chat import run_turn
@@ -30,7 +30,7 @@ class CreateConversation(BaseModel):
 
 
 class PostMessage(BaseModel):
-    content: str
+    content: str = Field(max_length=50_000)
 
 
 # ---------------- HTML ----------------

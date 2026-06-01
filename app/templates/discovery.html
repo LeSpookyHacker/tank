@@ -26,11 +26,7 @@
       <label>GitHub org name</label>
       <input type="text" id="github-org" placeholder="e.g. acme-corp" class="intake-text-input" style="max-width:320px">
     </div>
-    <div class="form-group">
-      <label>Personal access token (PAT)</label>
-      <input type="password" id="github-token" placeholder="ghp_…" class="intake-text-input">
-      <p class="dim" style="font-size:0.8rem; margin-top:0.25rem">Token stays on this machine — never sent to Anthropic.</p>
-    </div>
+    <p class="dim" style="font-size:0.8rem; margin-top:0.25rem">Token is read from <code>TANK_GITHUB_TOKEN</code> in your <code>.env</code> file — never sent to Anthropic.</p>
     <button class="btn-primary" id="github-scan-btn" onclick="runGithubScan()">Scan org →</button>
 
     <div id="github-results" hidden style="margin-top:1.5rem">
@@ -99,6 +95,12 @@ let githubRepos = [];
 let csvRows = [];
 let manualServices = [];
 
+function escHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function gotoStep(n) {
   for (let i = 1; i <= 4; i++) {
     document.getElementById("step-" + i).hidden = i !== n;
@@ -113,15 +115,14 @@ function gotoStep(n) {
 
 async function runGithubScan() {
   const org = document.getElementById("github-org").value.trim();
-  const token = document.getElementById("github-token").value.trim();
-  if (!org || !token) { alert("Enter org name and token"); return; }
+  if (!org) { alert("Enter org name"); return; }
   const btn = document.getElementById("github-scan-btn");
   btn.disabled = true; btn.textContent = "Scanning…";
   try {
     const res = await fetch("/api/discovery/github-scan", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({org, token}),
+      body: JSON.stringify({org}),
     });
     const data = await res.json();
     if (!res.ok) { alert(data.error || "Scan failed"); return; }
@@ -141,9 +142,9 @@ function renderRepoList(repos) {
       <input type="checkbox" id="repo-cb-${i}" ${r.pre_checked ? "checked" : ""}
              onchange="githubRepos[${i}].pre_checked = this.checked">
       <div class="repo-info">
-        <strong>${r.name}</strong>
-        ${r.description ? `<span class="dim"> — ${r.description}</span>` : ""}
-        <span class="repo-meta">${r.language} · ${r.visibility}${r.archived ? " · archived" : ""}</span>
+        <strong>${escHtml(r.name)}</strong>
+        ${r.description ? `<span class="dim"> — ${escHtml(r.description)}</span>` : ""}
+        <span class="repo-meta">${escHtml(r.language)} · ${escHtml(r.visibility)}${r.archived ? " · archived" : ""}</span>
       </div>
       <select class="repo-action-select" id="repo-action-${i}">
         <option value="ingest" ${r.suggested_action === "ingest" ? "selected" : ""}>Ingest</option>
@@ -189,11 +190,11 @@ function renderCsvPreview(rows) {
   table.innerHTML = `<tr>${heads.map(h => `<th>${h}</th>`).join("")}</tr>` +
     rows.slice(0, 20).map((r, i) =>
       `<tr>
-        <td>${r.name}</td>
-        <td class="dim">${r.email}</td>
-        <td><input type="text" class="csv-team-input" value="${r.team}"
+        <td>${escHtml(r.name)}</td>
+        <td class="dim">${escHtml(r.email)}</td>
+        <td><input type="text" class="csv-team-input" value="${escHtml(r.team)}"
              onchange="csvRows[${i}].team = this.value"></td>
-        <td class="dim">${r.role}</td>
+        <td class="dim">${escHtml(r.role)}</td>
       </tr>`
     ).join("") +
     (rows.length > 20 ? `<tr><td colspan="4" class="dim">…and ${rows.length - 20} more</td></tr>` : "");

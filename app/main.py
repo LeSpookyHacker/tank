@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets as _secrets
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -84,11 +85,22 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(_SecurityHeadersMiddleware)
 
 
-# ── Optional API-key gate (VULN-001) ──────────────────────────────────────────
-# Set TANK_API_KEY in .env to require the key on every request.
-# Exempted: /healthz, /static/* (no sensitive data served there).
+# ── API-key gate ──────────────────────────────────────────────────────────────
+# TANK_API_KEY is required when the server is not bound to localhost.
+# Set it in .env: TANK_API_KEY=$(openssl rand -hex 32)
 # The browser UI sends the key via the X-Tank-Key header (set in base.html).
+# Exempted: /healthz, /static/* (no sensitive data served there).
 _TANK_API_KEY = os.environ.get("TANK_API_KEY", "").strip()
+_BIND_HOST = os.environ.get("TANK_BIND_HOST", "127.0.0.1").strip()
+
+if not _TANK_API_KEY and _BIND_HOST not in ("127.0.0.1", "::1", "localhost"):
+    print(
+        "FATAL: TANK_API_KEY must be set when TANK_BIND_HOST is not 127.0.0.1.\n"
+        "  Generate one with: openssl rand -hex 32\n"
+        "  Then add TANK_API_KEY=<value> to your .env file.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 _AUTH_EXEMPT_PREFIXES = ("/healthz", "/static/")
 
