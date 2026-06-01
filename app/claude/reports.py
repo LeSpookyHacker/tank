@@ -424,13 +424,16 @@ def iam_audit() -> str:
                      content_md_redacted=md, usage={})
 
 
-def risk_register() -> str:
-    """Risk register report — ranked by residual score with coverage notes."""
+def _build_risk_register_user_task() -> str:
+    """Build the risk-register user-task block from the current DB state.
+
+    Shared by `risk_register()` (sync) and the batched path so both see
+    the same set of open risks at submission time.
+    """
     from app.storage import risks_store as rs
     from app.storage import entities_store
 
     risks = rs.list_all(status="open", limit=100)
-
     context_lines = ["## Current risk register entries"]
     for r in risks:
         owner_name = "unassigned"
@@ -443,14 +446,10 @@ def risk_register() -> str:
             f"- [{r['category']}] {redacted_title} | inherent={r['inherent_score']} "
             f"residual={r['residual_score']} treatment={r['treatment']} owner={owner_name}"
         )
+    return "\n".join(context_lines) + "\n\nProduce the risk register report."
 
-    parsed, usage = _run(
-        "report_risk_register", RiskRegisterReport,
-        user_task="\n".join(context_lines) + "\n\nProduce the risk register report.",
-    )
-    if parsed is None:
-        raise RuntimeError("risk_register generation returned no output")
 
+def _render_risk_register(parsed: RiskRegisterReport) -> str:
     lines = ["# Risk register", "", parsed.summary, ""]
     if parsed.top_risks:
         lines.append("## Critical risks (residual score ≥ 12)")
@@ -471,8 +470,18 @@ def risk_register() -> str:
         lines.append("## Control coverage notes")
         for n in parsed.control_coverage_notes:
             lines.append(f"- {n}")
+    return "\n".join(lines)
 
-    md = "\n".join(lines)
+
+def risk_register() -> str:
+    """Risk register report — ranked by residual score with coverage notes."""
+    parsed, usage = _run(
+        "report_risk_register", RiskRegisterReport,
+        user_task=_build_risk_register_user_task(),
+    )
+    if parsed is None:
+        raise RuntimeError("risk_register generation returned no output")
+    md = _render_risk_register(parsed)
     return _finalize(kind="risk_register", title="Risk register",
                      content_md_redacted=md, usage=usage)
 
@@ -624,3 +633,326 @@ REPORT_REGISTRY = {
     "initial_assessment":     initial_assessment,
     "program_roadmap":        program_roadmap,
 }
+
+
+# ─── Batched subscription path ────────────────────────────────────────
+#
+# The scheduler's `_run_due_subscriptions` collects every due subscription
+# whose kind is in `_BATCH_DISPATCH` and submits them as ONE Anthropic
+# Message Batch (50% off both input + output rates). The handler below
+# processes each result independently — same render + persistence shape
+# as the sync `_finalize` flow.
+#
+# Excluded:
+# - `attack_mapping` — has its own per-TM fan-out (see `app/claude/attack_mapping.py`).
+# - `iam_audit`      — does not call Claude.
+# Both fall through to the sync REPORT_REGISTRY path in the scheduler.
+
+
+def _make_storage_scope(kind: str, sub_scope: dict, parsed) -> dict | None:
+    """Mirror what the sync generators store in reports.scope_json."""
+    if kind == "threat_landscape":
+        return {"service_id": sub_scope.get("service_id")}
+    if kind == "oncall_handoff":
+        return {"service_id": sub_scope.get("service_id")}
+    if kind == "questions_for_team":
+        # Match sync questions_for(): store the redacted form.
+        who = sub_scope.get("team_or_person") or ""
+        return {"team_or_person": apply_redactions(who).redacted_text}
+    return None
+
+
+# A dispatch entry is the minimum each kind needs to (a) build a batch
+# request from a sub's scope and (b) finalize a result. Static fields
+# only; dynamic strings (titles built from parsed output, user-tasks
+# built from app state) are computed via the lambdas at the bottom.
+_BATCH_DISPATCH: dict[str, dict] = {
+    "threat_landscape": {
+        "output_format": ThreatLandscapeReport,
+        "prompt_name":   "report_threat_landscape",
+        "render_fn":     _render_threat,
+        "needs_service_id": True,
+        "make_user_task": lambda s: (
+            "Produce a STRIDE-style threat landscape for the primary "
+            "service. Use evidence chunk IDs you saw in scope."
+        ),
+        "make_title": lambda p, s: f"Threat landscape — {p.service_name}",
+    },
+    "cross_service_gaps": {
+        "output_format": CrossServiceGapsReport,
+        "prompt_name":   "report_cross_service_gaps",
+        "render_fn":     _render_gaps,
+        "needs_service_id": False,
+        "make_user_task": lambda s: "Produce a cross-service gaps report.",
+        "make_title":     lambda p, s: "Cross-service gaps & blind spots",
+    },
+    "plan_30_60_90": {
+        "output_format": PlanReport,
+        "prompt_name":   "report_30_60_90",
+        "render_fn":     _render_plan,
+        "needs_service_id": False,
+        "make_user_task": lambda s: (
+            "Produce a 30/60/90-day plan tailored to the user's scope."
+        ),
+        "make_title": lambda p, s: "30 / 60 / 90 day plan",
+    },
+    "stakeholder_map": {
+        "output_format": StakeholderMap,
+        "prompt_name":   "report_stakeholder_map",
+        "render_fn":     _render_stakeholder,
+        "needs_service_id": False,
+        "make_user_task": lambda s: "Produce a stakeholder map.",
+        "make_title":     lambda p, s: "Stakeholder map",
+    },
+    "questions_for_team": {
+        "output_format": QuestionList,
+        "prompt_name":   "report_questions_for_team",
+        "render_fn":     _render_questions,
+        "needs_service_id": False,
+        "make_user_task": lambda s: (
+            "Produce a ranked question list for interacting with: "
+            f"{apply_redactions(s.get('team_or_person') or '').redacted_text}"
+        ),
+        "make_title": lambda p, s: (
+            f"Questions for "
+            f"{apply_redactions(s.get('team_or_person') or '').redacted_text}"
+        ),
+    },
+    "control_matrix": {
+        "output_format": ControlMatrix,
+        "prompt_name":   "report_control_matrix",
+        "render_fn":     _render_matrix,
+        "needs_service_id": False,
+        "make_user_task": lambda s: (
+            "Produce a control coverage matrix across services in scope."
+        ),
+        "make_title": lambda p, s: "Control coverage matrix",
+    },
+    "weekly_security_digest": {
+        "output_format": WeeklySecurityDigest,
+        "prompt_name":   "report_weekly_security_digest",
+        "render_fn":     _render_weekly_digest,
+        "needs_service_id": False,
+        "make_user_task": lambda s: (
+            "Produce the weekly security digest summarizing this past "
+            "week's activity."
+        ),
+        "make_title": lambda p, s: p.week_label or "Weekly security digest",
+    },
+    "oncall_handoff": {
+        "output_format": OnCallHandoff,
+        "prompt_name":   "report_oncall_handoff",
+        "render_fn":     _render_oncall_handoff,
+        "needs_service_id": True,
+        "make_user_task": lambda s: (
+            "Produce a per-service on-call handoff brief for the engineer "
+            "about to take the pager."
+        ),
+        "make_title": lambda p, s: f"On-call handoff — {p.service_name}",
+    },
+    "risk_register": {
+        "output_format": RiskRegisterReport,
+        "prompt_name":   "report_risk_register",
+        "render_fn":     _render_risk_register,
+        "needs_service_id": False,
+        # Pull the live risk list at submission time (matches sync flow).
+        "make_user_task": lambda s: _build_risk_register_user_task(),
+        "make_title":     lambda p, s: "Risk register",
+    },
+    "state_of_security": {
+        "output_format": StateOfSecurityReport,
+        "prompt_name":   "report_state_of_security",
+        "render_fn":     _render_state_of_security,
+        "needs_service_id": False,
+        "make_user_task": lambda s: (
+            "Generate a monthly State of Security brief for the executive "
+            "audience. Use what you know about the org's risk register, "
+            "decisions, and program health."
+        ),
+        "make_title": lambda p, s: "State of Security",
+    },
+    "initial_assessment": {
+        "output_format": InitialAssessmentReport,
+        "prompt_name":   "report_initial_assessment",
+        "render_fn":     _render_initial_assessment,
+        "needs_service_id": False,
+        "make_user_task": lambda s: (
+            _initial_assessment_user_task()
+        ),
+        "make_title": lambda p, s: "Initial Assessment",
+    },
+    "program_roadmap": {
+        "output_format": ProgramRoadmapReport,
+        "prompt_name":   "report_program_roadmap",
+        "render_fn":     _render_program_roadmap,
+        "needs_service_id": False,
+        "make_user_task": lambda s: _program_roadmap_user_task(),
+        "make_title": lambda p, s: "Security Program Roadmap",
+    },
+}
+
+
+def _initial_assessment_user_task() -> str:
+    from app.role import tenure_day
+    tday = tenure_day()
+    return (
+        f"Generate a 30-day Initial Assessment (current tenure day: {tday}). "
+        "Frame every finding in business terms. Be honest about unknowns."
+    )
+
+
+def _program_roadmap_user_task() -> str:
+    from app.role import tenure_day
+    tday = tenure_day()
+    return (
+        f"Generate a 12-month Security Program Roadmap (current tenure "
+        f"day: {tday}). Show trajectory from Day 1 to now to 12 months out."
+    )
+
+
+def _build_sub_batch_request(sub: dict) -> dict | None:
+    """Turn one due subscription into one batch request dict.
+
+    Returns None for kinds not in `_BATCH_DISPATCH` (caller should
+    fall back to the sync REPORT_REGISTRY path) or for scope-bearing
+    kinds missing their required scope field.
+    """
+    from app.claude.batch_helpers import tool_params_for
+    kind = sub["kind"]
+    spec = _BATCH_DISPATCH.get(kind)
+    if spec is None:
+        return None
+    try:
+        scope = json.loads(sub.get("scope_json") or "{}")
+    except json.JSONDecodeError:
+        scope = {}
+
+    service_id = None
+    if spec["needs_service_id"]:
+        service_id = scope.get("service_id")
+        if not service_id:
+            return None  # required scope missing, skip
+    if kind == "questions_for_team" and not scope.get("team_or_person"):
+        return None
+
+    tools, tool_choice = tool_params_for(spec["output_format"])
+    user_task = spec["make_user_task"](scope)
+    return {
+        "custom_id": sub["id"],
+        "params": {
+            "model": MODEL,
+            "max_tokens": 8192,
+            "system": [{
+                "type": "text",
+                "text": load_prompt(spec["prompt_name"]),
+                "cache_control": CACHE_1H,
+            }],
+            "messages": [{
+                "role": "user",
+                "content": [
+                    build_scope_block(service_id=service_id),
+                    {"type": "text", "text": user_task},
+                ],
+            }],
+            "tools": tools,
+            "tool_choice": tool_choice,
+        },
+    }
+
+
+def schedule_batch_for_subs(subs: list[dict]) -> tuple[str | None, list[dict]]:
+    """Submit one batch covering every batch-eligible subscription.
+
+    Returns `(batch_row_id, leftover_subs)` — leftover_subs are subs the
+    scheduler should fall back to the sync REPORT_REGISTRY path for
+    (currently: `attack_mapping`, `iam_audit`, or any sub missing required
+    scope fields). The caller (`_run_due_subscriptions`) is responsible
+    for that fallback.
+    """
+    from app.claude import batches as batches_mod
+    requests = []
+    by_sub_id: dict[str, dict] = {}
+    leftover: list[dict] = []
+    for sub in subs:
+        req = _build_sub_batch_request(sub)
+        if req is None:
+            leftover.append(sub)
+            continue
+        requests.append(req)
+        try:
+            scope = json.loads(sub.get("scope_json") or "{}")
+        except json.JSONDecodeError:
+            scope = {}
+        by_sub_id[sub["id"]] = {
+            "kind": sub["kind"],
+            "scope": scope,
+            "role_mode": sub.get("role_mode"),
+        }
+    if not requests:
+        return None, leftover
+    batch_id = batches_mod.submit(
+        kind="report_subscription",
+        requests=requests,
+        payload={"by_sub_id": by_sub_id},
+    )
+    return batch_id, leftover
+
+
+def _handle_report_subscription(custom_id: str, msg, payload: dict) -> None:
+    """Per-result handler for batched report subscriptions."""
+    from app.claude.batch_helpers import extract_validated
+    from app.storage import subscriptions_store
+
+    info = (payload.get("by_sub_id") or {}).get(custom_id)
+    if info is None:
+        log.warning("report_subscription %s: no payload entry; skipping",
+                    custom_id)
+        return
+    kind = info["kind"]
+    spec = _BATCH_DISPATCH.get(kind)
+    if spec is None:
+        log.warning("report_subscription %s: kind=%s not in dispatch",
+                    custom_id, kind)
+        return
+    parsed = extract_validated(msg, spec["output_format"])
+    if parsed is None:
+        log.warning("report_subscription %s kind=%s: no structured output",
+                    custom_id, kind)
+        return
+
+    md_redacted = spec["render_fn"](parsed)
+    mapping = load_rehydration_map()
+    md = rehydrate(md_redacted, mapping)
+
+    usage = getattr(msg, "usage", None)
+    state = get_state()
+    role_mode = info.get("role_mode") or state.role_mode.value
+
+    report_id = reports_store.insert(
+        kind=kind,
+        title=spec["make_title"](parsed, info.get("scope") or {}),
+        content_md=md,
+        content_md_redacted=md_redacted,
+        role_mode=role_mode,
+        model=getattr(msg, "model", MODEL),
+        scope=_make_storage_scope(kind, info.get("scope") or {}, parsed),
+        tokens_in=getattr(usage, "input_tokens", None) if usage else None,
+        tokens_out=getattr(usage, "output_tokens", None) if usage else None,
+        cache_read_in=getattr(usage, "cache_read_input_tokens", None) if usage else None,
+        cache_create_in=getattr(usage, "cache_creation_input_tokens", None) if usage else None,
+    )
+    subscriptions_store.mark_run(custom_id, report_id)
+    publish("reports.global", "subscription_run",
+            {"subscription_id": custom_id, "report_id": report_id,
+             "kind": kind})
+
+
+# Register handler at import time. Done at module scope (not inside a
+# function) so the registration happens whenever reports.py is imported,
+# which the scheduler does eagerly.
+def _register_batch_handler() -> None:
+    from app.claude import batches as batches_mod
+    batches_mod.register("report_subscription")(_handle_report_subscription)
+
+
+_register_batch_handler()

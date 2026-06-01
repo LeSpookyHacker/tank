@@ -682,6 +682,8 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
     # Anthropic Message Batches API tracking (50% cost on background fan-out).
     _migrate_batch_jobs(conn)
+    _migrate_meeting_briefs(conn)
+    _migrate_attack_mapping_scratch(conn)
 
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -711,6 +713,54 @@ def _migrate_batch_jobs(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_batch_jobs_status "
         "ON batch_jobs (status, created_at)"
+    )
+
+
+def _migrate_meeting_briefs(conn: sqlite3.Connection) -> None:
+    """Persist nightly auto-generated meeting-prep briefs.
+
+    The interactive `POST /api/meeting-prep` route still returns its
+    dict directly; this table is for the scheduler-driven batch path
+    (`_fire_auto_briefs`), where the result would otherwise be discarded.
+    `brief_json` holds the rehydrated structured brief (citations,
+    questions, etc.).
+    """
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS meeting_briefs ("
+        " id TEXT PRIMARY KEY,"
+        " meeting_id TEXT NOT NULL,"
+        " brief_json TEXT NOT NULL,"
+        " created_at REAL NOT NULL"
+        ")"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_meeting_briefs_meeting "
+        "ON meeting_briefs (meeting_id, created_at DESC)"
+    )
+
+
+def _migrate_attack_mapping_scratch(conn: sqlite3.Connection) -> None:
+    """Per-TM partial results for a batched attack_mapping fan-out.
+
+    Each per-result handler appends one row keyed by `batch_job_id`;
+    the finalizer reads the full set, post-processes (detection lookup,
+    coverage_summary, top_gaps), persists one combined report, then
+    deletes the scratch rows. Short-lived data — rows live for at most
+    one batch lifetime (typically minutes).
+    """
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS attack_mapping_scratch ("
+        " batch_job_id TEXT NOT NULL,"
+        " custom_id TEXT NOT NULL,"
+        " service_entity_id TEXT NOT NULL,"
+        " rows_json TEXT NOT NULL,"
+        " created_at REAL NOT NULL,"
+        " PRIMARY KEY (batch_job_id, custom_id)"
+        ")"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_attack_mapping_scratch_batch "
+        "ON attack_mapping_scratch (batch_job_id)"
     )
 
 
