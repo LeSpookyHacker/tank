@@ -1,0 +1,5 @@
+# ai-summarization-svc ownership
+*                       @medscribe/ai-platform
+/src/*/phi_scrub.py     @medscribe/ai-platform @medscribe/appsec
+/src/*/vertex_client.py @medscribe/ai-platform
+/.github/               @medscribe/platform

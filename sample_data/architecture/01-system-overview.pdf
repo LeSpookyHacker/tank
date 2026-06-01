@@ -1,0 +1,289 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 2
+/Kids [ 4 0 R 6 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+4 0 obj
+<<
+/Type /Page
+/MediaBox [ 0.0 0.0 612 792 ]
+/Resources <<
+/Font <<
+/F1 <<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Courier
+>>
+>>
+>>
+/Contents 5 0 R
+/Parent 2 0 R
+>>
+endobj
+5 0 obj
+<<
+/Length 3722
+>>
+stream
+BT
+/F1 9 Tf
+54 738 Td
+(# System Overview ? MedScribe-R-Us Platform) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(> Internal architecture reference. Source of truth for threat modeling,) Tj
+0 -12 Td
+(> secure design, and security testing across the AppSec program.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(## 1. What MedScribe-R-Us is) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(MedScribe-R-Us is a multi-tenant SaaS platform on Google Cloud Platform \(GCP\)) Tj
+0 -12 Td
+(that turns patient?clinician conversations into AI-generated SOAP notes and) Tj
+0 -12 Td
+(writes them back to the customer's EMR \(Epic, Cerner\) over FHIR R4. MedScribe) Tj
+0 -12 Td
+(operates as a HIPAA **Business Associate** for each customer health system.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Value proposition: cut clinician charting time from ~2 hours/day to under 20) Tj
+0 -12 Td
+(minutes. Every AI note requires explicit clinician approval before it reaches) Tj
+0 -12 Td
+(the EMR ? a hard product and compliance requirement.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(## 2. Core services \(all GCP Cloud Run\)) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(| Service | Runtime | Responsibility |) Tj
+0 -12 Td
+(|---|---|---|) Tj
+0 -12 Td
+(| API Gateway | Cloud Run | Auth enforcement, rate limiting, routing, Cloud Armor WAF |) Tj
+0 -12 Td
+(| Audio Ingestion Service | Cloud Run \(Python FastAPI\) | Receive audio, validate, write) Tj
+0 -12 Td
+(to GCS |) Tj
+0 -12 Td
+(| Transcription Service | Cloud Run \(Python FastAPI\) | Call Speech-to-Text, store raw) Tj
+0 -12 Td
+(transcript |) Tj
+0 -12 Td
+(| PHI Scrubbing Layer | Cloud Run \(Python\) | De-identify transcript before LLM) Tj
+0 -12 Td
+(submission |) Tj
+0 -12 Td
+(| AI Summarization Engine | Cloud Run \(Python FastAPI\) | Build prompts, call Vertex AI) Tj
+0 -12 Td
+(\(Gemini\), parse output |) Tj
+0 -12 Td
+(| Output Validation Service | Cloud Run \(Python\) | Detect hallucinated facts, policy) Tj
+0 -12 Td
+(violations |) Tj
+0 -12 Td
+(| EMR Integration Service | Cloud Run \(Python FastAPI\) | FHIR R4 write-back to) Tj
+0 -12 Td
+(Epic/Cerner \(SMART on FHIR\) |) Tj
+0 -12 Td
+(| Clinician Portal | Cloud Run \(Next.js 15\) | Review / approve / edit AI notes |) Tj
+0 -12 Td
+(| Admin Portal | Cloud Run \(Next.js 15\) | Clinic-admin + MedScribe platform-admin) Tj
+0 -12 Td
+(functions |) Tj
+0 -12 Td
+(| Notification Service | Cloud Run \(Python\) | Async webhooks, email, in-app) Tj
+0 -12 Td
+(notifications |) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(All inter-service traffic stays on a private VPC. The API Gateway) Tj
+0 -12 Td
+(\(`api.medscribe.internal`\) is the only internet ingress.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(## 3. The conversation pipeline) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(1. **Record** ? clinician streams audio over WebSocket \(TLS 1.3\) to Audio) Tj
+0 -12 Td
+(   Ingestion; segments are AES-256 encrypted to GCS \(`medscribe-phi-audio-{tenant}`\)) Tj
+0 -12 Td
+(   with per-tenant CMEK in Cloud KMS.) Tj
+0 -12 Td
+(2. **Transcribe** ? Transcription Service calls Google Speech-to-Text \(HIPAA) Tj
+0 -12 Td
+(   BAA\) and stores the verbatim transcript in MongoDB Atlas \(encrypted at rest\).) Tj
+0 -12 Td
+(3. **Scrub** ? PHI Scrubbing Layer de-identifies the transcript \(NER + regex,) Tj
+0 -12 Td
+(   HIPAA Safe Harbor\). The token map \(token ? real value\) is stored separately) Tj
+0 -12 Td
+(   and never leaves the platform.) Tj
+0 -12 Td
+(4. **Summarize** ? AI Summarization Engine sends the **de-identified** transcript) Tj
+0 -12 Td
+(   to Vertex AI \(Gemini\) through `vertex-proxy.medscribe.internal` over a VPC) Tj
+0 -12 Td
+(   Service Controls perimeter. Output is treated as untrusted.) Tj
+0 -12 Td
+(5. **Validate** ? Output Validation checks SOAP schema, hallucinations) Tj
+0 -12 Td
+(   \(SNOMED CT / RxNorm\), PHI re-injection correctness, policy flags.) Tj
+0 -12 Td
+ET
+endstream
+endobj
+6 0 obj
+<<
+/Type /Page
+/MediaBox [ 0.0 0.0 612 792 ]
+/Resources <<
+/Font <<
+/F1 <<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Courier
+>>
+>>
+>>
+/Contents 7 0 R
+/Parent 2 0 R
+>>
+endobj
+7 0 obj
+<<
+/Length 2358
+>>
+stream
+BT
+/F1 9 Tf
+54 738 Td
+(6. **Approve** ? the draft surfaces in the Clinician Portal. No note reaches the) Tj
+0 -12 Td
+(   EMR without explicit clinician approval.) Tj
+0 -12 Td
+(7. **Write back** ? EMR Integration builds a FHIR R4 DocumentReference and writes) Tj
+0 -12 Td
+(   it to the customer's Epic/Cerner endpoint via SMART on FHIR OAuth 2.0.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(## 4. External integrations & trust boundaries) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(| Integration | Protocol | Auth | Data shared |) Tj
+0 -12 Td
+(|---|---|---|---|) Tj
+0 -12 Td
+(| Epic / Cerner EMR | FHIR R4 / HTTPS | SMART on FHIR OAuth 2.0 | Approved notes \(PHI\) |) Tj
+0 -12 Td
+(| Google Speech-to-Text | gRPC \(GCP\) | Service account | Raw audio \(PHI\) |) Tj
+0 -12 Td
+(| Vertex AI \(Gemini\) | REST \(GCP\) | Service account | De-identified transcript only |) Tj
+0 -12 Td
+(| MongoDB Atlas | TLS, private endpoint | mTLS + IP allowlist | All platform data \(PHI\)) Tj
+0 -12 Td
+(|) Tj
+0 -12 Td
+(| Datadog | HTTPS agent | API key \(Secret Manager\) | Logs / metrics \(no PHI\) |) Tj
+0 -12 Td
+(| Auth0 | OIDC / OAuth 2.0 | Tenant client creds | Patient / admin identity |) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(## 5. Deployment) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- One GCP project per environment: `medscribe-prod`, `medscribe-staging`,) Tj
+0 -12 Td
+(`medscribe-dev`.) Tj
+0 -12 Td
+(- Regions: `us-central1` \(primary\), `us-east1` \(DR\).) Tj
+0 -12 Td
+(- Secrets in GCP Secret Manager; Workload Identity for service-to-service auth.) Tj
+0 -12 Td
+(- Artifact Registry with vulnerability scanning; CI/CD GitHub Actions ? Cloud Build ?) Tj
+0 -12 Td
+(Cloud Run.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(## 6. Security posture at program inception \(pre-AppSec hire\)) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(| Property | State | Risk |) Tj
+0 -12 Td
+(|---|---|---|) Tj
+0 -12 Td
+(| Threat modeling | None | High |) Tj
+0 -12 Td
+(| SAST / DAST / SCA | Not in CI/CD | High |) Tj
+0 -12 Td
+(| Secrets detection | Not enforced | High |) Tj
+0 -12 Td
+(| Container scanning | Not integrated | High |) Tj
+0 -12 Td
+(| PHI scrubbing validation | Ad hoc | Critical |) Tj
+0 -12 Td
+(| LLM prompt-injection testing | None | Critical |) Tj
+0 -12 Td
+(| Incident response playbook | None | High |) Tj
+0 -12 Td
+(| Vulnerability SLAs | Undefined | High |) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(These gaps are the backlog for the first security hire.) Tj
+0 -12 Td
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000119 00000 n 
+0000000168 00000 n 
+0000000347 00000 n 
+0000004121 00000 n 
+0000004300 00000 n 
+trailer
+<<
+/Size 8
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+6710
+%%EOF

@@ -1,11 +1,11 @@
-service_name,owner_email,owner_team,hostname,env,criticality,tier,language,data_classification,vault_adopted,on_call_rotation,last_audit
-identity-svc,marcus.chen@helixrobotics.com,Identity,auth.helix.io,prod,critical,0,Go,confidential,yes,platform-on-call,2026-01-12
-identity-svc,marcus.chen@helixrobotics.com,Identity,auth-staging.helix.internal,staging,critical,0,Go,confidential,yes,platform-on-call,2026-01-12
-payments-api,sam.liu@helixrobotics.com,Payments,payments.helix.io,prod,critical,0,Python,confidential,yes,payments-on-call,2026-02-28
-payments-api,sam.liu@helixrobotics.com,Payments,payments-staging.helix.internal,staging,critical,0,Python,confidential,yes,payments-on-call,2026-02-28
-dashboard-web,lukas.bauer@helixrobotics.com,Frontend,app.helix.io,prod,critical,0,TypeScript,internal,yes,frontend-on-call,2026-03-05
-orders-api,yui@helix.internal,Platform,orders.helix.internal,prod,high,1,Python,confidential,yes,platform-on-call,2026-01-30
-webhook-router,yui@helix.internal,Platform,webhooks.helix.internal,prod,high,1,Go,internal,yes,platform-on-call,
-device-registry,yui@helix.internal,Platform,devices.helix.internal,prod,high,1,Python,confidential,yes,platform-on-call,2026-02-14
-pii-vault,,Security,pii.helix.internal,prod,critical,2,Python,confidential,yes,platform-on-call,2025-11-20
-analytics-pipeline,vendor@snowflake.com,Data,n/a-snowflake,prod,medium,2,SQL+dbt,confidential,no,no-rotation,
+service,runtime,team,owner,criticality,data_tier,internet_facing,service_account,repo,threat_model
+api-gateway,Cloud Run,Platform,Dana Okafor,tier-0,none,yes,gateway@medscribe-prod.iam,medscribe/api-gateway,yes
+audio-ingestion,Cloud Run (Python),Pipeline,Priya Raman,tier-0,phi,no,audio-ingest@medscribe-prod.iam,medscribe/audio-ingestion,partial
+transcription-svc,Cloud Run (Python),Pipeline,Priya Raman,tier-0,phi,no,transcription@medscribe-prod.iam,medscribe/transcription-svc,no
+phi-scrub-svc,Cloud Run (Python),AI Platform,Marcus Lee,tier-0,phi,no,phi-scrub@medscribe-prod.iam,medscribe/phi-scrub-svc,partial
+ai-summarization-svc,Cloud Run (Python),AI Platform,Marcus Lee,tier-0,phi,no,ai-summary@medscribe-prod.iam,medscribe/ai-summarization-svc,no
+output-validation-svc,Cloud Run (Python),AI Platform,Marcus Lee,tier-0,phi,no,output-val@medscribe-prod.iam,medscribe/output-validation-svc,no
+emr-integration-svc,Cloud Run (Python),Pipeline,Sofia Castellano,tier-0,phi,no,emr-integration@medscribe-prod.iam,medscribe/emr-integration-svc,no
+clinician-portal,Cloud Run (Next.js),Frontend,Jordan Vale,tier-0,phi,yes,portal@medscribe-prod.iam,medscribe/clinician-portal,no
+admin-portal,Cloud Run (Next.js),Frontend,Jordan Vale,tier-1,phi,yes,admin-portal@medscribe-prod.iam,medscribe/admin-portal,no
+notification-svc,Cloud Run (Python),Platform,Dana Okafor,tier-2,none,no,notify@medscribe-prod.iam,medscribe/notification-svc,no

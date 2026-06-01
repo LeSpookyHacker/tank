@@ -51,7 +51,7 @@ python -m pytest -k "secret" -v
 
 ## Testing sample data
 
-To test all features end-to-end without real employer data, load the synthetic "Helix Robotics" fixture set:
+To test all features end-to-end without real employer data, load the synthetic "MedScribe-R-Us" fixture set:
 
 ```bash
 source .venv/bin/activate

@@ -210,9 +210,10 @@ python -m pytest -q
 
 ## Ingesting the sample data
 
-Tank ships with synthetic "Helix Robotics" sample data in `sample_data/`
-so you can test all features without exposing real data. Two scripts are
-required for full coverage:
+Tank ships with synthetic **MedScribe-R-Us** sample data in `sample_data/`
+(a GCP healthcare-AI startup, with you cast as its first AppSec hire; modeled on
+<https://github.com/LeSpookyHacker/medscribe-r-us-appsec>) so you can test all
+features without exposing real data. Two scripts are required for full coverage:
 
 **Step 1 — file ingest** (exercises all parser types, ~$5-10 in API spend):
 
@@ -229,11 +230,13 @@ python -m scripts.load_fixtures             # actual ingest
 python -m scripts.seed_db
 ```
 
-This creates: org name "Helix Robotics", 3 teams, 4 projects, 2 pre-cached
-DFD analyses with 18 STRIDE threats, 4 decisions (2 expiring soon to trigger
-nudges), 10 unconfirmed glossary terms, 5 lessons, 1 tabletop scenario,
-3 journal entries, and 3 follow-ups. Safe to re-run — each section checks
-for existing records before inserting.
+This creates: org name "MedScribe-R-Us" + the Day-1 first-hire persona, 4 teams,
+4 projects, 2 pre-cached DFD analyses, the risk register (7 risks), the
+vulnerability intake queue (7 vulns across triage states), 4 decisions (one
+expiring soon to trigger a nudge), 12 unconfirmed glossary terms, 5 lessons,
+1 tabletop, 2 IR runbooks, a design review, 2 postmortems, the stack-audit
+inventory, a 90-day plan, a weekly-digest subscription, a journal entry, and
+3 follow-ups. Safe to re-run — each section checks for existing records first.
 
 **Step 3 — verify the ingest:**
 
@@ -257,8 +260,9 @@ python -m scripts.verify_privacy --fixture-pack
 
 Upload any `.mmd` file from `sample_data/dfd/` via the sidebar →
 Pipeline → DFD Analysis → Stage 1 "Upload file" tab. Because `seed_db.py`
-pre-cached the payments-api and identity-svc analyses, those will load
-instantly in Stage 3 with no API call (⚡ cache badge shown).
+pre-cached the ai-pipeline and emr-integration analyses, those will load
+instantly in Stage 3 with no API call (⚡ cache badge shown). The
+clinician-portal diagram is left un-analyzed so you can test a live run.
 
 ---
 

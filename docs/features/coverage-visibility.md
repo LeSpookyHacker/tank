@@ -32,8 +32,8 @@ extracts:
 `GET /api/detections/coverage` returns the matrix of Service ×
 Technique × covering Detection names. Surfaces:
 
-- "We detect lateral movement for payments-api ✓"
-- "We don't detect credential access for identity-svc ✗"
+- "We detect bulk PHI access for the AI pipeline ✓"
+- "We don't detect approval-gate bypass for emr-integration-svc ✗"
 
 > ⬜ **Screenshot placeholder**: detection coverage page showing
 > covered vs uncovered techniques.
@@ -56,9 +56,9 @@ matrix:
 
 | Service | Tactic | Technique | Exposure | Detections covering |
 | --- | --- | --- | --- | --- |
-| payments-api | credential-access | T1078 Valid Accounts | high | (none — gap) |
-| identity-svc | initial-access | T1190 Public-Facing App | medium | "Auth0 anomaly", … |
-| webhook-router | lateral-movement | T1021 Remote Services | low | … |
+| ai-summarization-svc | exfiltration | T1530 Data from Cloud Storage | high | "PHI bulk access", … |
+| emr-integration-svc | impact | T1565.001 Stored Data Manipulation | high | "approval-gate bypass" |
+| clinician-portal | initial-access | T1078 Valid Accounts | medium | "anomalous clinician login" |
 
 `top_gaps` lists the high/medium-exposure mappings with **no
 covering detection**. Run monthly. Subscribe to it on a 28-day

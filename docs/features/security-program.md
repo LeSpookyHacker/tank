@@ -114,13 +114,13 @@ Tank:
 ```json
 {
   "cve_id": null,
-  "title": "SSRF via redirect in payments-api",
+  "title": "PHI logged in transcription-svc exception handler",
   "description": "...",
-  "cvss_score": 7.2,
+  "cvss_score": 7.5,
   "severity": "high",
-  "source": "disclosure",
-  "affected_service_names": ["payments-api"],
-  "external_ref": "HXR-1234"
+  "source": "manual",
+  "affected_service_names": ["transcription-svc"],
+  "external_ref": "T-006"
 }
 ```
 
@@ -242,8 +242,8 @@ visible on the Today dashboard.
 
 `find_ir_runbooks(service_name?, service_id?, limit?)` — use in chat:
 
-- *"What's the runbook for a credential stuffing attack on identity-svc?"*
-- *"Do we have a runbook for payments-api?"*
+- *"What's the runbook for a PHI breach?"*
+- *"Do we have a runbook for an LLM prompt-injection incident?"*
 - *"List all confirmed runbooks."*
 
 ### Confirming a runbook

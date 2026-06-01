@@ -1,0 +1,33 @@
+title: PHI Pattern Detected in Vertex AI Output
+id: 6b1f2a30-medscribe-0005-vertex-phi-output
+status: experimental
+description: >
+  Defense-in-depth for T-007. The Output Validation Service scans the LLM
+  response for PHI patterns that match the current session's token map. A hit
+  means the scrubber leaked a real identifier into the prompt and the model
+  echoed it — a reportable de-identification failure.
+references:
+  - internal:T-007
+  - https://owasp.org/www-project-top-10-for-large-language-model-applications/
+author: AppSec (MedScribe-R-Us)
+date: 2026/05/22
+tags:
+  - attack.exfiltration
+  - phi
+  - llm
+logsource:
+  product: gcp
+  service: cloud_run_application
+  category: application
+detection:
+  selection:
+    service: 'output-val'
+    event: 'phi_pattern_in_llm_output'
+  condition: selection
+fields:
+  - session_id
+  - pattern_class
+  - token_map_match
+falsepositives:
+  - Clinical terms that coincidentally match a name regex (tune the matcher)
+level: critical

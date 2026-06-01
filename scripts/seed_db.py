@@ -1,26 +1,23 @@
-"""Seed Tank's database with Helix Robotics sample records.
+"""Seed Tank's database with MedScribe-R-Us sample records.
 
 Complements `load_fixtures.py` (which ingests files through the pipeline) by
-directly inserting records for living-artifact features that are normally created
-through Tank's UI:
+directly inserting the living-artifact records that are normally created through
+Tank's UI, so a fresh clone can demo every feature immediately.
 
-  - Organization name update ("My Organization" → "Helix Robotics")
-  - 3 teams (Platform Security, AppSec, Threat Intelligence)
-  - 4 projects across teams
-  - 2 pre-analyzed DFD records (payments-api, identity-svc) with full threat JSON
-  - 4 decisions (security invariant, design choice, accepted risk, deferred fix)
-  - 10 glossary terms (unconfirmed — lets you test the confirmation UX)
-  - 5 lessons learned (with tags)
-  - 1 tabletop scenario (analytics pipeline ransomware)
-  - 3 journal entries (week 1/2/3 onboarding)
-  - 3 follow-ups with due dates
+Scenario: you are **LeSpookyHacker**, the **first Application Security hire** at
+MedScribe-R-Us (a GCP healthcare-AI company). It is day one — tenure starts
+today, so Tank's lens is `map` (orientation mode). The derived artifacts below
+are seeded as ready-made examples so every feature page is populated.
 
-All inserts are idempotent: records are skipped if an equivalent already exists
-(matched by title for decisions/lessons, by term for glossary, etc.).
+Seeds: org + persona (app_state), teams, projects, 2 pre-analyzed DFDs, the risk
+register, the vulnerability intake queue (varied triage states), decisions,
+glossary, lessons, a tabletop, IR runbooks, a design review, postmortem
+artifacts, the stack-audit inventory, a 90-day plan, a report subscription, a
+journal entry, and follow-ups. All inserts are idempotent.
 
 Usage:
     python -m scripts.seed_db              # seed everything
-    python -m scripts.seed_db --dry-run   # print what would be inserted
+    python -m scripts.seed_db --dry-run    # print what would be inserted
 """
 from __future__ import annotations
 
@@ -36,6 +33,10 @@ sys.path.insert(0, str(ROOT))
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+def _now() -> float:
+    return time.time()
+
+
 def _days_from_now(days: int) -> float:
     return time.time() + days * 86400
 
@@ -44,1296 +45,759 @@ def _days_ago(days: int) -> float:
     return time.time() - days * 86400
 
 
-# ── org ──────────────────────────────────────────────────────────────────────
+# ── org + persona ────────────────────────────────────────────────────────────
 
 def seed_org(dry_run: bool) -> None:
     from app.storage.organizations_store import get_org, update_org
     org = get_org()
-    if org and org.get("name") in ("My Organization", ""):
+    if not org or org.get("name") in ("My Organization", "", None):
         if not dry_run:
             update_org(
-                name="Helix Robotics",
-                description="B2B SaaS — payments and identity infrastructure for robotics OEMs",
-                industry="FinTech / Industrial IoT",
+                name="MedScribe-R-Us",
+                description="Healthcare-AI SaaS — turns patient–clinician audio "
+                            "into AI SOAP notes written back to Epic/Cerner. "
+                            "HIPAA Business Associate, runs on GCP.",
+                industry="Healthcare AI / Clinical Documentation",
             )
-        print("  [org] Updated org name → Helix Robotics")
+        print("  [org] Updated org name → MedScribe-R-Us")
     else:
-        name = (org or {}).get("name", "<no org>")
-        print(f"  [org] Already set ({name!r}) — skipped")
+        print(f"  [org] Already set ({org.get('name')!r}) — skipped")
+
+
+def seed_app_state(dry_run: bool) -> None:
+    """Set Day-1 tenure + org profile on app_state (lens stays 'map').
+
+    Only writes columns that exist on app_state (see app/db.py). The company
+    *name* lives on the org table (set in seed_org); the persona's name/role
+    surface via the org + the imported team-directory Person entities.
+    """
+    from app.db import LOCK, get_conn
+    conn = get_conn()
+    # Ensure the single app_state row exists (other NOT NULL cols have defaults).
+    with LOCK:
+        conn.execute(
+            "INSERT OR IGNORE INTO app_state (id, updated_at) VALUES (1, ?)",
+            (_now(),))
+    row = conn.execute(
+        "SELECT tenure_started_at FROM app_state WHERE id = 1").fetchone()
+    if row and row["tenure_started_at"]:
+        print("  [persona] app_state already set — skipped")
+        return
+    compliance = json.dumps(["HIPAA / HITECH", "SOC 2 Type II", "HITRUST CSF",
+                             "OWASP LLM Top 10", "NIST CSF 2.0"])
+    if not dry_run:
+        with LOCK:
+            conn.execute(
+                "UPDATE app_state SET "
+                "industry=?, customer_type=?, approx_team_size=?, "
+                "compliance_targets=?, internal_tld=?, kb_bootstrap_stage=?, "
+                "tenure_started_at=?, onboarded=1, intake_completed=1, "
+                "updated_at=? WHERE id=1",
+                ("Healthcare AI / Clinical Documentation",
+                 "Health systems (B2B, HIPAA covered entities)",
+                 "1 (first security hire)", compliance, "medscribe.internal",
+                 "ingested", _now(), _now()),
+            )
+    print("  [persona] First AppSec hire @ MedScribe-R-Us — day 1 (lens=map)")
 
 
 # ── teams ────────────────────────────────────────────────────────────────────
 
 TEAMS = [
-    {
-        "name": "Platform Security",
-        "description": "Owns cross-service security controls, identity hardening, cloud security, and pii-vault.",
-        "color": "#7c3aed",
-        "icon": "🔐",
-    },
-    {
-        "name": "AppSec",
-        "description": "Design reviews, postmortems, threat modeling, and secure SDLC for Helix product engineering.",
-        "color": "#2563eb",
-        "icon": "🛡️",
-    },
-    {
-        "name": "Threat Intelligence",
-        "description": "Detection engineering, incident response, and ATT&CK mapping. Net-new function the first security hire is standing up (previously handled reactively by SRE).",
-        "color": "#dc2626",
-        "icon": "🔍",
-    },
+    {"name": "AppSec", "color": "#7c3aed", "icon": "🛡️",
+     "description": "Application security program: threat modeling, secure SDLC, "
+                    "vuln management, detection engineering. The new function "
+                    "LeSpookyHacker is standing up."},
+    {"name": "Platform & SRE", "color": "#2563eb", "icon": "☁️",
+     "description": "Owns GCP, networking, IAM, Cloud Run, and reliability."},
+    {"name": "AI Platform", "color": "#dc2626", "icon": "🤖",
+     "description": "Owns the PHI scrubbing layer, summarization, and output "
+                    "validation — the Vertex AI pipeline."},
+    {"name": "Compliance", "color": "#059669", "icon": "📋",
+     "description": "HIPAA Privacy Officer + SOC 2 / HITRUST readiness."},
 ]
 
 
 def seed_teams(dry_run: bool) -> dict[str, str]:
-    """Returns {team_name: team_id}."""
     from app.storage.teams_store import insert_team, list_teams
     existing = {t["name"]: t["id"] for t in list_teams(include_archived=True)}
     id_map: dict[str, str] = dict(existing)
-
     for t in TEAMS:
         if t["name"] in existing:
             print(f"  [team] '{t['name']}' already exists — skipped")
             continue
         if not dry_run:
-            tid = insert_team(
-                name=t["name"],
-                description=t["description"],
-                color=t["color"],
-                icon=t["icon"],
-            )
-            id_map[t["name"]] = tid
+            id_map[t["name"]] = insert_team(
+                name=t["name"], description=t["description"],
+                color=t["color"], icon=t["icon"])
         print(f"  [team] Created '{t['name']}'")
-
     return id_map
 
 
-# ── projects ──────────────────────────────────────────────────────────────────
+# ── projects ─────────────────────────────────────────────────────────────────
 
 def _projects_def(team_ids: dict[str, str]) -> list[dict]:
-    ps = team_ids.get("Platform Security", "")
-    ap = team_ids.get("AppSec", "")
+    appsec = team_ids.get("AppSec", "")
+    ai = team_ids.get("AI Platform", "")
+    comp = team_ids.get("Compliance", "")
     return [
-        {
-            "name": "Auth Hardening Q2 2026",
-            "description": "Harden identity-svc and pii-vault authentication",
-            "emoji": "🔑",
-            "color": "#7c3aed",
-            "team_id": ps,
-            "risk_level": "high",
-            "status": "active",
-            "notes": (
-                "Scope: identity-svc JWT hardening (HELIX-2110), RDS IAM auth migration "
-                "(HELIX-2108), and JWKS emergency revocation runbook. "
-                "Also covers pii-vault break-glass alerting (HELIX-2095)."
-            ),
-        },
-        {
-            "name": "PII Data Program",
-            "description": "Audit and harden pii-vault access, data flows, and compliance",
-            "emoji": "🏦",
-            "color": "#dc2626",
-            "team_id": ps,
-            "risk_level": "critical",
-            "status": "active",
-            "notes": (
-                "Priority: CMK deletion protection (HELIX-2111), rate limiting on pii-vault "
-                "GET /pii/* endpoints, and automated break-glass alerting (HELIX-2095). "
-                "Also tracking analytics cross-account IAM findings HELIX-2098/2099/2100."
-            ),
-        },
-        {
-            "name": "Threat Model Coverage",
-            "description": "Build and maintain STRIDE threat models for all Tier-0 services",
-            "emoji": "🎯",
-            "color": "#2563eb",
-            "team_id": ap,
-            "risk_level": "medium",
-            "status": "active",
-            "notes": (
-                "Goal: threat model every Tier-0 service (identity-svc, payments-api, "
-                "dashboard-web, pii-vault) and run STRIDE on DFDs. Track drift monthly."
-            ),
-        },
-        {
-            "name": "SOC 2 Evidence Sprint",
-            "description": "Evidence collection for 2024-Q1 SOC 2 Type II audit",
-            "emoji": "📋",
-            "color": "#059669",
-            "team_id": ps,
-            "risk_level": "medium",
-            "status": "archived",
-            "notes": (
-                "Completed 2024-Q2. Evidence submitted to auditor. "
-                "Report received 2024-08-15 (clean opinion). "
-                "Next audit: 2025-Q1 — begin evidence collection 2024-Q4."
-            ),
-        },
+        {"name": "AI Pipeline Threat Model", "emoji": "🎯", "color": "#dc2626",
+         "team_id": ai, "risk_level": "critical", "status": "active",
+         "description": "Threat-model the de-id → summarize → validate pipeline",
+         "notes": "STRIDE on the AI pipeline DFD. Priorities: PHI scrubbing "
+                  "validation (T-007), cross-patient token leak (T-008), "
+                  "indirect prompt injection via prior EMR notes (T-014)."},
+        {"name": "PHI-in-Logs & Secrets Cleanup", "emoji": "🔒", "color": "#7c3aed",
+         "team_id": appsec, "risk_level": "high", "status": "active",
+         "description": "Stop PHI/secret leakage across services",
+         "notes": "Ship the phi-in-logs SAST rule (T-006); remediate the "
+                  "over-broad ci-deploy service account (T-013, IAM-2026-014); "
+                  "structured logging everywhere."},
+        {"name": "CI/CD Security Gates", "emoji": "⚙️", "color": "#2563eb",
+         "team_id": appsec, "risk_level": "high", "status": "active",
+         "notes": "Stand up SAST → secrets → SCA → container → DAST gates in CI "
+                  "for all Tier-0 service repos. None enforced today."},
+        {"name": "SOC 2 / HIPAA Readiness", "emoji": "📋", "color": "#059669",
+         "team_id": comp, "risk_level": "medium", "status": "active",
+         "description": "Evidence collection before the Sep 2026 SOC 2 window",
+         "notes": "Map controls (SOC 2 / HIPAA / NIST CSF), close gaps, collect "
+                  "evidence. Audit window opens 2026-09-01."},
     ]
 
 
 def seed_projects(team_ids: dict[str, str], dry_run: bool) -> None:
     from app.storage.projects_store import create_project, list_projects
-    existing_names = {p["name"] for p in list_projects(include_archived=True)}
-
+    existing = {p["name"] for p in list_projects(include_archived=True)}
     for p in _projects_def(team_ids):
-        if p["name"] in existing_names:
+        if p["name"] in existing:
             print(f"  [project] '{p['name']}' already exists — skipped")
             continue
         if not dry_run:
             create_project(
-                name=p["name"],
-                description=p["description"],
-                emoji=p["emoji"],
-                color=p["color"],
+                name=p["name"], description=p.get("description", ""),
+                emoji=p["emoji"], color=p["color"],
                 team_id=p.get("team_id") or None,
-                risk_level=p["risk_level"],
-                status=p["status"],
-                notes=p["notes"],
-            )
-        print(f"  [project] Created '{p['name']}' (risk={p['risk_level']}, status={p['status']})")
+                risk_level=p["risk_level"], status=p["status"],
+                notes=p["notes"])
+        print(f"  [project] Created '{p['name']}'")
 
 
-# ── DFD analyses ──────────────────────────────────────────────────────────────
+# ── DFD analyses (pre-cached STRIDE) ─────────────────────────────────────────
 
-PAYMENTS_API_MMD = """\
-flowchart TD
-  subgraph internet["Internet (Untrusted)"]
-    Browser([End User / OEM Portal Browser])
-    Stripe([Stripe API External Vendor])
-  end
-  subgraph vpc["VPC — prod account 999988887777"]
-    ALB[ALB / WAF]
-    API[payments-api Python FastAPI Tier-0]
-    PiiV[pii-vault mTLS only]
-    DB[(payments-prod-pg RDS PostgreSQL)]
-    Redis[(Redis Session cache No auth)]
-    Vault[HashiCorp Vault]
-  end
-  Browser -->|HTTPS| ALB
-  ALB -->|HTTP/2 + JWT Bearer| API
-  API -->|mTLS + Vault bearer token| PiiV
-  API -->|TLS + dynamic creds| DB
-  API -->|HTTPS + API key| Stripe
-  API -->|Vault Agent IRSA| Vault
-  Vault -->|Dynamic creds TTL 1h| API
-  API -->|TLS VPC-private no auth| Redis
-  PiiV -->|IAM auth Vault db role| DB
-  PiiV -->|AppRole auth| Vault\
-"""
+AI_PIPELINE_MMD = (ROOT / "sample_data/dfd/ai-pipeline-dfd.mmd").read_text() \
+    if (ROOT / "sample_data/dfd/ai-pipeline-dfd.mmd").exists() else "flowchart TD\n  ai-pipeline"
 
-PAYMENTS_API_THREATS = [
-    {
-        "threat_id": "T001",
-        "element_id": "ALB",
-        "element_label": "ALB / WAF",
-        "stride_category": "Spoofing",
-        "severity": "High",
-        "cvss_estimate": 7.5,
-        "title": "JWT Bearer token replay from stolen client token",
-        "description": (
-            "The ALB forwards JWT Bearer tokens issued by identity-svc to payments-api without "
-            "additional validation. A stolen access token (e.g., from XSS on app.helix.io) "
-            "can be replayed against payments-api for the token's full 15-minute TTL."
-        ),
-        "mitigation": (
-            "Implement token binding or sender-constrained tokens (DPoP) to tie access tokens "
-            "to a specific client certificate or key. As a short-term mitigation, reduce the "
-            "access token TTL to 5 minutes and monitor for concurrent sessions from disparate IPs."
-        ),
-        "references": ["CWE-384", "OWASP A07:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T002",
-        "element_id": "API",
-        "element_label": "payments-api",
-        "stride_category": "Tampering",
-        "severity": "Medium",
-        "cvss_estimate": 5.9,
-        "title": "SQL injection via Vault dynamic credential username",
-        "description": (
-            "Vault dynamic database credentials use a generated username of the form "
-            "'v-payments-<random>'. If the ORM constructs queries using this username in "
-            "a non-parameterized context (e.g., a debug log or audit trail query), "
-            "a compromised Vault could inject SQL. Low likelihood given current ORM usage "
-            "but worth validating."
-        ),
-        "mitigation": (
-            "Audit all PostgreSQL queries in payments-api for parameterized query usage. "
-            "Ensure no query uses the connected username as a dynamic input. "
-            "Add a lint rule (sqlfluff or bandit) to CI to catch string-concatenated queries."
-        ),
-        "references": ["CWE-89", "OWASP A03:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T003",
-        "element_id": "API",
-        "element_label": "payments-api",
-        "stride_category": "Information Disclosure",
-        "severity": "Critical",
-        "cvss_estimate": 9.1,
-        "title": "Stripe restricted API key exposure via environment variable or log leak",
-        "description": (
-            "The Stripe restricted API key is stored in Vault but injected into the "
-            "payments-api process environment via Vault Agent. A process crash with heap dump, "
-            "a verbose exception log including the environ dict, or a debug endpoint that "
-            "serializes environment variables would expose the key. Stripe keys have no "
-            "built-in IP restriction on Helix's account."
-        ),
-        "mitigation": (
-            "Switch Vault Agent to file-based secret injection (tmpfs volume) rather than "
-            "environment variable injection. Configure Stripe to restrict key usage to "
-            "Helix's Elastic IP range. Enable Stripe's IP allowlist for restricted keys. "
-            "Ensure prod builds have exception detail logging disabled."
-        ),
-        "references": ["CWE-312", "OWASP A02:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T004",
-        "element_id": "Redis",
-        "element_label": "Redis / ElastiCache",
-        "stride_category": "Spoofing",
-        "severity": "High",
-        "cvss_estimate": 7.4,
-        "title": "Session token hijack via unauthenticated Redis access",
-        "description": (
-            "Redis is VPC-private with security groups restricting access to payments-api "
-            "and identity-svc pods. However, Redis runs without authentication. "
-            "Any internal actor or process with VPC access (e.g., a compromised pod in "
-            "the same namespace, or a Lambda function in the VPC) can read or overwrite "
-            "session tokens without credentials."
-        ),
-        "mitigation": (
-            "Enable Redis AUTH (password) or migrate to ElastiCache with in-transit "
-            "encryption and IAM-based auth (Redis 7.x + ElastiCache RBAC). "
-            "At minimum, network-segment Redis to allow only payments-api and identity-svc "
-            "SGs — no wildcard VPC access."
-        ),
-        "references": ["CWE-306", "OWASP A07:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T005",
-        "element_id": "PiiV",
-        "element_label": "pii-vault",
-        "stride_category": "Denial of Service",
-        "severity": "High",
-        "cvss_estimate": 7.1,
-        "title": "mTLS certificate rotation failure causes pii-vault outage",
-        "description": (
-            "pii-vault validates the payments-api mTLS client certificate at the application "
-            "layer. If the 30-day cert rotation via Vault PKI fails silently (Vault Agent "
-            "restart loop, PKI policy expiry, etc.), payments-api will begin presenting an "
-            "expired cert. pii-vault will reject all requests with 403, causing payments-api "
-            "to fail all billing-address lookups and blocking the checkout flow."
-        ),
-        "mitigation": (
-            "Add a cert-expiry alert: Datadog monitor on 'days until expiry' of the "
-            "payments-api mTLS cert (extractable from Vault metadata). Alert at 7 days. "
-            "Add a runbook entry to the service-restart runbook for mTLS cert rotation. "
-            "Test cert rotation in staging on a 25-day schedule (before the 30-day boundary)."
-        ),
-        "references": ["CWE-295", "OWASP A02:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T006",
-        "element_id": "PiiV",
-        "element_label": "pii-vault",
-        "stride_category": "Information Disclosure",
-        "severity": "Critical",
-        "cvss_estimate": 9.3,
-        "title": "Bulk PII export via compromised payments-api process",
-        "description": (
-            "payments-api is the sole authorized caller of pii-vault. There is no rate "
-            "limiting on pii-vault's GET /pii/{customer_id} endpoint. A compromised "
-            "payments-api process (or a developer with access to its credentials) could "
-            "bulk-export all customer billing addresses by iterating customer IDs. "
-            "The export would be indistinguishable from normal traffic in current logs."
-        ),
-        "mitigation": (
-            "Implement rate limiting on pii-vault: max 10 requests/min per Vault token. "
-            "Add anomaly detection: alert when pii-vault receives >50 GET requests in "
-            "5 minutes from the same client cert. Log all reads to a dedicated audit table "
-            "with customer_id and requestor identity."
-        ),
-        "references": ["CWE-770", "OWASP A01:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T007",
-        "element_id": "Vault",
-        "element_label": "HashiCorp Vault",
-        "stride_category": "Elevation of Privilege",
-        "severity": "Critical",
-        "cvss_estimate": 9.8,
-        "title": "Vault token exfiltration via compromised payments-api container",
-        "description": (
-            "payments-api's Vault Agent sidecar stores the Vault token in a tmpfs volume "
-            "accessible to the main container. A container escape (CVE in payments-api's "
-            "Python dependencies, or a mis-configured pod security policy) could allow "
-            "reading the Vault token from /vault/token. With this token, an attacker has "
-            "full payments-api Vault policy: database creds, Stripe API key, PKI cert issuance."
-        ),
-        "mitigation": (
-            "Enable Kubernetes Pod Security Standards (Restricted profile) for the payments-api "
-            "namespace. Add seccomp and AppArmor profiles to limit syscalls available to the "
-            "container. Implement Vault response-wrapping tokens (use-limit=1) for the most "
-            "sensitive secrets. Rotate Vault tokens every 1 hour (reduce lease TTL)."
-        ),
-        "references": ["CWE-269", "OWASP A05:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T008",
-        "element_id": "DB",
-        "element_label": "payments-prod-pg (RDS PostgreSQL)",
-        "stride_category": "Repudiation",
-        "severity": "Medium",
-        "cvss_estimate": 4.3,
-        "title": "Missing RDS audit logging for payments-api DB writes",
-        "description": (
-            "RDS PostgreSQL for payments-api does not have pgaudit enabled. All write "
-            "operations (INSERT/UPDATE/DELETE) are unlogged from a compliance standpoint. "
-            "If a data modification incident occurs, forensics cannot determine which "
-            "application session made the change. Vault dynamic credentials are per-process "
-            "but not per-request."
-        ),
-        "mitigation": (
-            "Enable pgaudit on payments-prod-pg: LOG_LEVEL=log, "
-            "pgaudit.log='write,ddl'. Ship pgaudit logs to CloudWatch → Datadog. "
-            "Add a Datadog alert for unexpected DDL (table drop, schema modification) "
-            "outside a maintenance window."
-        ),
-        "references": ["CWE-778", "OWASP A09:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T009",
-        "element_id": "API",
-        "element_label": "payments-api",
-        "stride_category": "Denial of Service",
-        "severity": "Medium",
-        "cvss_estimate": 5.3,
-        "title": "Stripe API rate limit exhaustion via payment flood",
-        "description": (
-            "payments-api calls Stripe on every payment attempt. An attacker with a valid "
-            "account can trigger thousands of payment attempts (all rejected due to invalid "
-            "card data) within Stripe's rate limit window, potentially causing Stripe to "
-            "temporarily rate-limit Helix's API key. Real customer payments would fail "
-            "during the rate-limit window."
-        ),
-        "mitigation": (
-            "Implement per-account payment attempt rate limiting at payments-api: "
-            "max 5 failed attempts per 15 minutes per customer_id. Add CAPTCHA on "
-            "the payment form after 3 consecutive failures. Monitor Stripe API response "
-            "codes 429 in Datadog and alert on spikes."
-        ),
-        "references": ["CWE-400", "OWASP A04:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T010",
-        "element_id": "ALB",
-        "element_label": "ALB / WAF",
-        "stride_category": "Tampering",
-        "severity": "Low",
-        "cvss_estimate": 3.1,
-        "title": "HTTP request smuggling via ALB to payments-api",
-        "description": (
-            "The ALB uses HTTP/2 for the browser→ALB leg and downgrades to HTTP/1.1 "
-            "internally. If payments-api's Uvicorn version does not correctly handle "
-            "conflicting Content-Length and Transfer-Encoding headers, HTTP request "
-            "smuggling may allow an attacker to inject requests to other users' sessions "
-            "being processed concurrently."
-        ),
-        "mitigation": (
-            "Keep Uvicorn and FastAPI updated to versions that include HTTP desync fixes. "
-            "Enable ALB access logging and periodically scan for malformed request headers. "
-            "Run PortSwigger's HTTP request smuggling scanner against the payments-api "
-            "endpoint in staging."
-        ),
-        "references": ["CWE-444", "OWASP A08:2021"],
-        "status": "open",
-    },
+EMR_MMD = (ROOT / "sample_data/dfd/emr-integration-dfd.mmd").read_text() \
+    if (ROOT / "sample_data/dfd/emr-integration-dfd.mmd").exists() else "flowchart TD\n  emr-integration"
+
+AI_PIPELINE_THREATS = [
+    {"threat_id": "T007", "element_id": "PS", "element_label": "phi-scrub-svc",
+     "stride_category": "Information Disclosure", "severity": "Critical",
+     "cvss_estimate": 9.1,
+     "title": "PHI scrubbing false-negative leaks real PHI to Vertex AI",
+     "description": "The NER/regex scrubber misses unusual name/date formats; "
+                    "unmasked PHI is sent to Vertex AI in the prompt.",
+     "mitigation": "Layered NER + regex; labeled-corpus validation suite; scan "
+                   "LLM output for PHI patterns from the token map.",
+     "references": ["HIPAA 164.514(b)", "OWASP LLM06"], "status": "open"},
+    {"threat_id": "T008", "element_id": "OV", "element_label": "output-validation-svc",
+     "stride_category": "Information Disclosure", "severity": "Critical",
+     "cvss_estimate": 9.3,
+     "title": "Cross-patient PHI leak via wrong token map on re-injection",
+     "description": "A wrong session's token map re-injects Patient A's PHI into "
+                    "Patient B's note.",
+     "mitigation": "HMAC session binding (appointment+patient+tenant) validated "
+                   "before any substitution; concurrency test coverage.",
+     "references": ["CWE-668"], "status": "open"},
+    {"threat_id": "T014", "element_id": "AISUM", "element_label": "ai-summarization-svc",
+     "stride_category": "Tampering", "severity": "Critical", "cvss_estimate": 8.7,
+     "title": "Indirect prompt injection via prior EMR notes",
+     "description": "A malicious prior note from the EMR carries an injection "
+                    "payload into the LLM context.",
+     "mitigation": "Delimit prior notes as untrusted data; output anomaly "
+                   "detection; sanitize prompt-control characters.",
+     "references": ["OWASP LLM01"], "status": "open"},
+    {"threat_id": "T006", "element_id": "AISUM", "element_label": "ai-summarization-svc",
+     "stride_category": "Information Disclosure", "severity": "High",
+     "cvss_estimate": 7.5,
+     "title": "PHI written to application logs",
+     "description": "Exception handler logs the request body (transcript) to "
+                    "Datadog, which has no PHI BAA.",
+     "mitigation": "phi-in-logs SAST rule (blocking); redacting log formatter; "
+                   "Datadog PHI scrubbing rules.",
+     "references": ["CWE-532"], "status": "open"},
 ]
 
-IDENTITY_SVC_MMD = """\
-flowchart TD
-  subgraph internet["Internet (Untrusted)"]
-    Browser([End User / Browser OAuth2 Client])
-    Device([OEM Device M2M client_credentials])
-    Okta([Okta IdP SSO Federation])
-  end
-  subgraph vpc["VPC — prod"]
-    ALB[ALB / WAF VPN for admin]
-    IdSvc[identity-svc Go OIDC Provider Tier-0]
-    Admin[Admin Dashboard /admin/* MFA-gated]
-    DB[(identity-prod-pg RDS PostgreSQL Password auth HELIX-2108)]
-    Redis[(Redis Session + rate-limit No auth VPC-private)]
-    Vault[HashiCorp Vault JWT signing Dynamic creds Audit log]
-  end
-  Browser -->|HTTPS auth code PKCE| ALB
-  Device -->|HTTPS client_credentials| ALB
-  ALB -->|HTTPS| IdSvc
-  ALB -->|HTTPS VPN CIDR only| Admin
-  IdSvc -->|Vault Agent IRSA JWT signing Rotate creds| Vault
-  IdSvc -->|TLS dynamic password NOT IAM auth| DB
-  IdSvc -->|TLS no auth VPC-private Session rate-limit| Redis
-  IdSvc -->|HTTPS OIDC federation SSO redirect| Okta
-  Admin -->|TLS dynamic password same RDS| DB
-  Vault -->|Dynamic creds TTL 8h| IdSvc
-  Vault -->|RS256 signing key never leaves Vault| IdSvc\
-"""
-
-IDENTITY_SVC_THREATS = [
-    {
-        "threat_id": "T001",
-        "element_id": "IdSvc",
-        "element_label": "identity-svc",
-        "stride_category": "Spoofing",
-        "severity": "High",
-        "cvss_estimate": 7.8,
-        "title": "OIDC refresh token replay via stolen long-lived token",
-        "description": (
-            "Refresh tokens have a 7-day TTL and are not device-bound. A stolen refresh "
-            "token (e.g., from a mobile device compromise, phishing, or XSS) allows an "
-            "attacker to silently obtain new access tokens for 7 days without triggering "
-            "any additional MFA challenge. No concurrent session detection exists."
-        ),
-        "mitigation": (
-            "Implement refresh token rotation (each use issues a new refresh token and "
-            "invalidates the previous). Add device fingerprinting or origin IP binding "
-            "to refresh tokens. Alert on refresh token use from a new device/IP. "
-            "Reduce refresh token TTL to 24 hours for high-privilege scopes."
-        ),
-        "references": ["CWE-384", "OWASP A07:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T002",
-        "element_id": "Vault",
-        "element_label": "HashiCorp Vault",
-        "stride_category": "Elevation of Privilege",
-        "severity": "Critical",
-        "cvss_estimate": 9.8,
-        "title": "JWT signing key compromise allows forgery of all Helix tokens",
-        "description": (
-            "The RS256 JWT signing key is managed by Vault's PKI engine and never written "
-            "to disk. However, if Vault itself is compromised (e.g., via a stolen IRSA "
-            "token), the attacker can obtain the signing key and forge JWTs for any "
-            "Helix user or service. All downstream services (payments-api, pii-vault, etc.) "
-            "trust JWTs signed by identity-svc unconditionally."
-        ),
-        "mitigation": (
-            "Implement Vault Sentinel policies to require dual approval for key extraction. "
-            "Enable Vault's transit engine audit log and alert on any key export events. "
-            "Add a JWKS emergency revocation path: when a signing key is compromised, "
-            "immediately remove it from JWKS and force all consumers to re-fetch (HELIX-2110). "
-            "Consider HSM-backed Vault for the signing key."
-        ),
-        "references": ["CWE-347", "OWASP A02:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T003",
-        "element_id": "DB",
-        "element_label": "identity-prod-pg (RDS PostgreSQL)",
-        "stride_category": "Elevation of Privilege",
-        "severity": "High",
-        "cvss_estimate": 7.4,
-        "title": "RDS password authentication fallback exposes credentials",
-        "description": (
-            "identity-svc uses password authentication for RDS via Vault dynamic secrets. "
-            "The fallback cached password (24-hour TTL) is stored in Vault Agent's local "
-            "file cache. If Vault is unreachable for >24 hours, the stale cached password "
-            "provides continued DB access but cannot be rotated. A cache file exfiltration "
-            "(container escape or node compromise) exposes a valid DB credential. "
-            "IAM auth was not implemented at provisioning time (HELIX-2108)."
-        ),
-        "mitigation": (
-            "Migrate identity-prod-pg to RDS IAM authentication (HELIX-2108). "
-            "Schedule migration during the Q2 2026 maintenance window. "
-            "As interim mitigation, reduce Vault Agent cache TTL to 1 hour and add a "
-            "Datadog alert when Vault is unreachable for >5 minutes."
-        ),
-        "references": ["CWE-522", "OWASP A02:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T004",
-        "element_id": "Redis",
-        "element_label": "Redis / ElastiCache",
-        "stride_category": "Tampering",
-        "severity": "High",
-        "cvss_estimate": 7.1,
-        "title": "Session cache poisoning via unauthenticated Redis write",
-        "description": (
-            "Redis is VPC-private but unauthenticated. Any process in the VPC with "
-            "network connectivity can write arbitrary keys to Redis. An attacker who has "
-            "compromised any VPC-connected process could write a crafted session token "
-            "entry to impersonate any user, or delete existing sessions causing a "
-            "service-wide logout (DoS)."
-        ),
-        "mitigation": (
-            "Enable Redis AUTH with a Vault-managed password, or migrate to ElastiCache "
-            "with IAM auth (Redis 7.x RBAC). Network-restrict Redis to only identity-svc "
-            "and payments-api security groups (no wildcard VPC CIDR)."
-        ),
-        "references": ["CWE-306", "OWASP A07:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T005",
-        "element_id": "Admin",
-        "element_label": "Admin Dashboard",
-        "stride_category": "Spoofing",
-        "severity": "Medium",
-        "cvss_estimate": 6.3,
-        "title": "CSRF on admin OAuth2 client management endpoints",
-        "description": (
-            "The /admin/clients endpoint allows creating and updating OAuth2 clients "
-            "(client secrets, redirect URIs). If CSRF protection is missing or bypassable "
-            "(e.g., SameSite=Lax without an explicit CSRF token), a malicious page could "
-            "trick an authenticated admin into registering an attacker-controlled redirect_uri "
-            "for an existing client, enabling an OAuth2 authorization code theft attack."
-        ),
-        "mitigation": (
-            "Add a CSRF token to all admin mutation endpoints (POST/PUT/DELETE). "
-            "Verify SameSite=Strict on the admin session cookie. "
-            "Add CSP header: default-src 'self' to prevent exfiltration via injected resources. "
-            "Run OWASP ZAP against /admin/* as part of CI."
-        ),
-        "references": ["CWE-352", "OWASP A01:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T006",
-        "element_id": "IdSvc",
-        "element_label": "identity-svc",
-        "stride_category": "Information Disclosure",
-        "severity": "Medium",
-        "cvss_estimate": 5.4,
-        "title": "JWKS cache staleness exposes 5-minute token forgery window",
-        "description": (
-            "Consumer services cache the JWKS endpoint response for 5 minutes. If a signing "
-            "key is compromised and revoked, forged tokens will be accepted by consumers for "
-            "up to 5 minutes after revocation. No emergency revocation mechanism exists "
-            "to force consumers to refresh the JWKS immediately (HELIX-2110)."
-        ),
-        "mitigation": (
-            "Implement a JWKS cache-bust endpoint that consumers can be notified to call "
-            "(via an internal pub/sub event). Alternatively, push JWKS rotation events "
-            "to a Kafka/SQS topic that consumer services subscribe to. "
-            "Reduce JWKS cache TTL to 60 seconds as an interim measure."
-        ),
-        "references": ["CWE-347", "OWASP A02:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T007",
-        "element_id": "IdSvc",
-        "element_label": "identity-svc",
-        "stride_category": "Denial of Service",
-        "severity": "Medium",
-        "cvss_estimate": 6.2,
-        "title": "Rate limit exhaustion via enumeration of /oauth2/introspect",
-        "description": (
-            "The /oauth2/introspect endpoint has no rate limiting (consumers hit it on "
-            "every request). A DoS attack targeting this endpoint could cause all "
-            "downstream service authentication to fail (payments-api, pii-vault, etc.) "
-            "without rate limiting at the ALB. The WAF has a global rate limit but not "
-            "endpoint-specific limits."
-        ),
-        "mitigation": (
-            "Add endpoint-level rate limiting to /oauth2/introspect: 100 req/min per "
-            "calling service IP. Implement a short-lived introspection cache at consumer "
-            "services (30-second TTL with JWT signature pre-verification to avoid "
-            "trusting the cache blindly). Add WAF rate rule for this endpoint specifically."
-        ),
-        "references": ["CWE-400", "OWASP A04:2021"],
-        "status": "open",
-    },
-    {
-        "threat_id": "T008",
-        "element_id": "Okta",
-        "element_label": "Okta IdP",
-        "stride_category": "Spoofing",
-        "severity": "High",
-        "cvss_estimate": 7.6,
-        "title": "OIDC federation open redirect via malformed state parameter",
-        "description": (
-            "The authorization code flow uses a 'state' parameter to prevent CSRF and "
-            "to carry the post-login redirect URL. If identity-svc does not validate that "
-            "the 'state' redirect target is in an allowlist of Helix-owned domains, an "
-            "attacker can craft an authorization URL that redirects the user's browser "
-            "to an attacker-controlled site after Okta authentication, leaking the "
-            "authorization code in the referrer or via redirect."
-        ),
-        "mitigation": (
-            "Validate the redirect_uri in the state parameter against an allowlist of "
-            "registered URIs for the client. Never use the state parameter as a raw "
-            "redirect target. Ensure redirect_uri registration in OAuth2 clients uses "
-            "exact-match comparison, not prefix matching."
-        ),
-        "references": ["CWE-601", "OWASP A01:2021"],
-        "status": "open",
-    },
+EMR_THREATS = [
+    {"threat_id": "T009", "element_id": "EMRI", "element_label": "emr-integration-svc",
+     "stride_category": "Elevation of Privilege", "severity": "Critical",
+     "cvss_estimate": 9.0,
+     "title": "Clinician approval-gate bypass",
+     "description": "If approval is trusted from the request payload, an "
+                    "unapproved AI note can be written to the EMR.",
+     "mitigation": "Validate status==approved AND approved_by!=null by reading "
+                   "MongoDB directly; never trust the payload.",
+     "references": ["CWE-639"], "status": "open"},
+    {"threat_id": "T010", "element_id": "EMRI", "element_label": "emr-integration-svc",
+     "stride_category": "Spoofing", "severity": "Critical", "cvss_estimate": 8.6,
+     "title": "FHIR write-back to the wrong patient",
+     "description": "Appointment→patient binding not validated against the SMART "
+                    "token's encounter scope could write PHI to the wrong record.",
+     "mitigation": "Request encounter-scoped SMART token; validate patient claim "
+                   "against the appointment binding; validate FHIR response subject.",
+     "references": ["CWE-639"], "status": "open"},
+    {"threat_id": "T013", "element_id": "SM", "element_label": "Secret Manager",
+     "stride_category": "Elevation of Privilege", "severity": "Critical",
+     "cvss_estimate": 9.6,
+     "title": "Over-broad service account → total secret compromise",
+     "description": "The ci-deploy SA holds Editor + secretmanager.admin "
+                    "(IAM-2026-014); one CI compromise yields all PHI secrets.",
+     "mitigation": "Per-secret accessor conditions; remove admin/editor from "
+                   "ci-deploy; Workload Identity least privilege.",
+     "references": ["CWE-269"], "status": "open"},
 ]
 
 
-def _dfd_exists(title_substr: str) -> bool:
-    from app.db import get_conn
-    row = get_conn().execute(
-        "SELECT id FROM dfd_analyses WHERE mermaid_src LIKE ?",
-        (f"%{title_substr}%",),
-    ).fetchone()
-    return row is not None
+def _seed_one_dfd(name: str, mmd: str, threats: list[dict], dry_run: bool) -> None:
+    # Idempotency keyed on the exact diagram hash (the table's UNIQUE column),
+    # not a substring of the mermaid source — the diagrams reference each
+    # other's service names, so substring matching gives false positives.
+    import hashlib
+    from app.storage.dfd_store import insert, get_by_hash
+    digest = hashlib.sha256(mmd.encode()).hexdigest()
+    if get_by_hash(digest):
+        print(f"  [dfd] {name} already exists — skipped")
+        return
+    analysis = {
+        "summary": f"Pre-analyzed STRIDE threat model for {name}.",
+        "threats": threats,
+        "annotated_mermaid": mmd,
+    }
+    if not dry_run:
+        insert(diagram_hash=digest, mermaid_src=mmd, analysis_json=analysis,
+               input_format="mermaid", cached=True)
+    print(f"  [dfd] Seeded {name} ({len(threats)} threats)")
 
 
 def seed_dfds(dry_run: bool) -> None:
-    from app.storage.dfd_store import insert
+    _seed_one_dfd("ai-pipeline", AI_PIPELINE_MMD, AI_PIPELINE_THREATS, dry_run)
+    _seed_one_dfd("emr-integration", EMR_MMD, EMR_THREATS, dry_run)
 
-    # payments-api
-    if _dfd_exists("payments-api"):
-        print("  [dfd] payments-api analysis already exists — skipped")
-    else:
-        analysis = {
-            "elements": [
-                {"element_id": "Browser", "element_label": "End User Browser", "type": "ExternalEntity"},
-                {"element_id": "Stripe", "element_label": "Stripe API", "type": "ExternalEntity"},
-                {"element_id": "ALB", "element_label": "ALB / WAF", "type": "Process"},
-                {"element_id": "API", "element_label": "payments-api", "type": "Process"},
-                {"element_id": "PiiV", "element_label": "pii-vault", "type": "Process"},
-                {"element_id": "DB", "element_label": "payments-prod-pg", "type": "DataStore"},
-                {"element_id": "Redis", "element_label": "Redis Session Cache", "type": "DataStore"},
-                {"element_id": "Vault", "element_label": "HashiCorp Vault", "type": "Process"},
-            ],
-            "threats": PAYMENTS_API_THREATS,
-            "annotated_mermaid": PAYMENTS_API_MMD,
-        }
+
+# ── risk register ────────────────────────────────────────────────────────────
+
+RISKS = [
+    {"title": "PHI scrubbing gap exposes identifiers to Vertex AI",
+     "description": "The de-identification layer has no validation suite; a "
+                    "false-negative sends real PHI to a third-party LLM (T-007).",
+     "category": "data_breach", "il": 4, "ii": 5, "rl": 3, "ri": 5,
+     "treatment": "mitigate",
+     "rationale": "Build a labeled-corpus validation suite + output PHI scan."},
+    {"title": "Indirect prompt injection via prior EMR notes",
+     "description": "Untrusted prior-note content reaches the LLM context (T-014).",
+     "category": "ai_model_abuse", "il": 3, "ii": 4, "rl": 2, "ri": 4,
+     "treatment": "mitigate",
+     "rationale": "Delimit prior notes; output anomaly detection."},
+    {"title": "Over-broad CI/CD service account in prod",
+     "description": "ci-deploy SA holds Editor + Secret Manager admin "
+                    "(IAM-2026-014, T-013).",
+     "category": "access_control", "il": 3, "ii": 5, "rl": 2, "ri": 5,
+     "treatment": "mitigate",
+     "rationale": "Scope to per-secret accessor; remove admin/editor."},
+    {"title": "PHI leaking into application logs",
+     "description": "Services log request bodies; Datadog has no PHI BAA (T-006).",
+     "category": "data_breach", "il": 4, "ii": 4, "rl": 2, "ri": 4,
+     "treatment": "mitigate",
+     "rationale": "Blocking phi-in-logs SAST rule + redacting log formatter."},
+    {"title": "Clinician approval gate bypass writes unapproved notes to EMR",
+     "description": "Approval enforced client-side could push AI content to the "
+                    "EMR without review (T-009).",
+     "category": "application", "il": 2, "ii": 5, "rl": 1, "ri": 5,
+     "treatment": "mitigate",
+     "rationale": "Server-side approval validation from MongoDB (fix shipped)."},
+    {"title": "Cross-tenant PHI access via admin authorization flaw",
+     "description": "tenant_id trusted from request enables horizontal priv-esc "
+                    "across health systems (T-011).",
+     "category": "access_control", "il": 3, "ii": 5, "rl": 2, "ri": 5,
+     "treatment": "mitigate",
+     "rationale": "Enforce tenant_id from verified JWT claim; DAST isolation tests."},
+    {"title": "No CI security gates (SAST/SCA/secrets/container/DAST)",
+     "description": "Vulnerabilities ship undetected; SOC 2 CC7.1 gap.",
+     "category": "supply_chain", "il": 4, "ii": 3, "rl": 2, "ri": 3,
+     "treatment": "mitigate",
+     "rationale": "Stand up gates per the secure-SDLC policy."},
+]
+
+
+def seed_risks(dry_run: bool) -> None:
+    from app.storage.risks_store import create, list_all
+    existing = {r["title"] for r in list_all(limit=200)}
+    for r in RISKS:
+        if r["title"] in existing:
+            print(f"  [risk] '{r['title'][:40]}…' exists — skipped")
+            continue
         if not dry_run:
-            did = insert(
-                diagram_hash="seed-payments-api-dfd-v1",
-                mermaid_src=PAYMENTS_API_MMD,
-                analysis_json=analysis,
-                tokens_in=4200,
-                tokens_out=3100,
-                input_format="mermaid",
-                cached=False,
-            )
-            print(f"  [dfd] Created payments-api analysis  id={did}")
-        else:
-            print("  [dfd] Would create payments-api analysis (10 threats)")
-
-    # identity-svc
-    if _dfd_exists("identity-svc"):
-        print("  [dfd] identity-svc analysis already exists — skipped")
-    else:
-        analysis = {
-            "elements": [
-                {"element_id": "Browser", "element_label": "End User Browser", "type": "ExternalEntity"},
-                {"element_id": "Device", "element_label": "OEM Device M2M", "type": "ExternalEntity"},
-                {"element_id": "Okta", "element_label": "Okta IdP", "type": "ExternalEntity"},
-                {"element_id": "ALB", "element_label": "ALB / WAF", "type": "Process"},
-                {"element_id": "IdSvc", "element_label": "identity-svc", "type": "Process"},
-                {"element_id": "Admin", "element_label": "Admin Dashboard", "type": "Process"},
-                {"element_id": "DB", "element_label": "identity-prod-pg", "type": "DataStore"},
-                {"element_id": "Redis", "element_label": "Redis ElastiCache", "type": "DataStore"},
-                {"element_id": "Vault", "element_label": "HashiCorp Vault", "type": "Process"},
-            ],
-            "threats": IDENTITY_SVC_THREATS,
-            "annotated_mermaid": IDENTITY_SVC_MMD,
-        }
-        if not dry_run:
-            did = insert(
-                diagram_hash="seed-identity-svc-dfd-v1",
-                mermaid_src=IDENTITY_SVC_MMD,
-                analysis_json=analysis,
-                tokens_in=3800,
-                tokens_out=2900,
-                input_format="mermaid",
-                cached=False,
-            )
-            print(f"  [dfd] Created identity-svc analysis  id={did}")
-        else:
-            print("  [dfd] Would create identity-svc analysis (8 threats)")
+            create(title=r["title"], description=r["description"],
+                   category=r["category"],
+                   inherent_likelihood=r["il"], inherent_impact=r["ii"],
+                   residual_likelihood=r["rl"], residual_impact=r["ri"],
+                   treatment=r["treatment"], treatment_rationale=r["rationale"],
+                   review_at=int(_days_from_now(30)))
+        print(f"  [risk] Created '{r['title'][:48]}…'")
 
 
-# ── decisions ─────────────────────────────────────────────────────────────────
+# ── vulnerability intake queue ───────────────────────────────────────────────
+
+VULNS = [
+    {"title": "PHI logged in transcription-svc exception handler",
+     "description": "Request body (transcript) logged to Datadog (T-006).",
+     "severity": "high", "source": "manual", "state": "triaged"},
+    {"title": "Approval-gate bypass in emr-integration-svc",
+     "description": "FHIR write trusted an `approved` flag from the payload (T-009). "
+                    "Fixed in staging; verifying in prod.",
+     "severity": "critical", "source": "disclosure", "state": "assigned"},
+    {"title": "Indirect prompt injection via prior EMR notes",
+     "description": "ai-summarization-svc concatenates prior notes without "
+                    "delimiting (T-014).",
+     "severity": "high", "source": "manual", "state": "open"},
+    {"title": "Over-broad ci-deploy service account (IAM-2026-014)",
+     "description": "Editor + secretmanager.admin on prod (T-013).",
+     "severity": "critical", "source": "scanner", "state": "triaged"},
+    {"title": "FastAPI dependency CVE in ai-summarization-svc",
+     "description": "Transitive dependency advisory flagged by Dependabot.",
+     "severity": "medium", "source": "github_dependabot", "state": "open",
+     "cve": "CVE-2024-24762"},
+    {"title": "clinician-portal missing security headers (CSP/HSTS)",
+     "description": "No CSP/HSTS/X-Frame-Options; relying on Cloud Armor only.",
+     "severity": "low", "source": "scanner", "state": "closed"},
+    {"title": "tenant_id read from x-tenant-id header in clinician-portal",
+     "description": "Horizontal privilege escalation risk (T-011).",
+     "severity": "high", "source": "scanner", "state": "assigned"},
+]
+
+
+def seed_vulns(dry_run: bool) -> None:
+    from app.storage.vulnerabilities_store import (
+        create, triage, assign, close)
+    from app.db import get_conn
+    # Check against ALL statuses, not just list_open() — otherwise vulns we
+    # move to triaged/assigned/closed below would be re-created on a rerun.
+    existing = {r["title"] for r in
+                get_conn().execute("SELECT title FROM vulnerabilities").fetchall()}
+    for v in VULNS:
+        if v["title"] in existing:
+            print(f"  [vuln] '{v['title'][:40]}…' exists — skipped")
+            continue
+        if dry_run:
+            print(f"  [vuln] Would create '{v['title'][:44]}…' ({v['state']})")
+            continue
+        vid = create(title=v["title"], description=v["description"],
+                     severity=v["severity"], source=v["source"],
+                     cve_id=v.get("cve"))
+        st = v["state"]
+        if st in ("triaged", "assigned", "closed"):
+            triage(vid, severity=v["severity"], notes="Triaged during first-week review.")
+        if st == "assigned":
+            assign(vid, assigned_to="LeSpookyHacker", due_at=int(_days_from_now(14)))
+        if st == "closed":
+            close(vid, reason="wont_fix",
+                  accepted_rationale="Low risk; headers added at the edge via Cloud Armor.")
+        print(f"  [vuln] Created '{v['title'][:44]}…' ({st})")
+
+
+# ── decisions log ────────────────────────────────────────────────────────────
 
 DECISIONS = [
-    {
-        "title": "All JWT signing must use RS256 with Vault-managed keys",
-        "kind": "security_invariant",
-        "expires_at": None,
-        "body_md": (
-            "## Decision\n\n"
-            "All JWT tokens issued by Helix services (identity-svc, device-registry) "
-            "MUST use RS256 (asymmetric) signing with private keys managed exclusively "
-            "by HashiCorp Vault's PKI secrets engine.\n\n"
-            "## Rationale\n\n"
-            "Symmetric algorithms (HS256) require sharing the secret between issuer and "
-            "all validators — any validator compromise exposes the signing key. RS256 "
-            "allows public-key distribution via JWKS without exposing signing capability. "
-            "Vault key management ensures key rotation, audit logging, and no plaintext "
-            "key at rest.\n\n"
-            "## Enforcement\n\n"
-            "- Code review checklist includes JWT signing algorithm check.\n"
-            "- CI lint rule: reject any `HS256` string in service code.\n"
-            "- Vault ACL prevents any service from extracting the private key directly."
-        ),
-        "rationale": "RS256 + Vault eliminates symmetric key sharing risk and enables key rotation without redeployment.",
-    },
-    {
-        "title": "Use mTLS for the payments-api → pii-vault channel",
-        "kind": "design_choice",
-        "expires_at": None,
-        "body_md": (
-            "## Decision\n\n"
-            "The channel between payments-api and pii-vault uses mutual TLS (mTLS) with "
-            "client certificates issued by Helix's internal CA (Vault PKI engine). "
-            "A Vault bearer token is required as a second factor.\n\n"
-            "## Alternatives considered\n\n"
-            "- **API key**: Simpler, but a static key with no rotation schedule. "
-            "Ruled out after SEC-POL-003 (secrets-management policy) was formalized.\n"
-            "- **Service mesh (Istio)**: Provides mTLS automatically but adds operational "
-            "complexity for a team of 2 security engineers. Deferred to post-Series-B.\n\n"
-            "## Rationale\n\n"
-            "mTLS gives cryptographic proof of caller identity at the TLS layer. "
-            "Combined with the Vault bearer token, pii-vault has two independent signals "
-            "to validate the caller. Short cert TTL (30 days) limits the blast radius "
-            "of a compromised cert."
-        ),
-        "rationale": "mTLS + Vault token provides defense-in-depth for the highest-risk service-to-service channel.",
-    },
-    {
-        "title": "Accept SSRF risk in webhook-router pending HELIX-1822 fix",
-        "kind": "accepted_risk",
-        "expires_at": _days_from_now(67),  # ~2026-08-01
-        "body_md": (
-            "## Risk accepted\n\n"
-            "webhook-router makes outbound HTTP calls to customer-provided webhook URLs "
-            "without denying private IP ranges or the EC2 IMDS endpoint (169.254.169.254). "
-            "This creates an SSRF surface where a malicious OEM customer could exfiltrate "
-            "the EKS node's IAM role credentials.\n\n"
-            "## Risk acceptance rationale\n\n"
-            "The webhook feature is contractually committed to 3 OEM customers. Blocking "
-            "private IPs requires updating the webhook delivery code and testing against "
-            "customer endpoints. Engineering team estimates 2-week effort but the current "
-            "sprint is allocated to the Auth Hardening project.\n\n"
-            "## Compensating controls\n\n"
-            "- IMDSv2 is enforced on all EKS nodes (hop limit = 1), which means a "
-            "container-level SSRF cannot directly reach IMDS without a hop increase.\n"
-            "- Sigma rule `helix-ec2-metadata-ssrf.yml` alerts on IMDS access patterns.\n"
-            "- The node IAM role for ng-general has limited permissions (no `s3:*` on sensitive buckets).\n\n"
-            "## Expiry\n\n"
-            "This acceptance expires 2026-08-01. HELIX-1822 must be resolved by then or "
-            "this decision must be reaffirmed with updated compensating controls."
-        ),
-        "rationale": "IMDSv2 hop limit + Sigma detection provide partial mitigation while HELIX-1822 is scheduled.",
-    },
-    {
-        "title": "Defer RDS IAM auth migration for identity-prod-pg (HELIX-2108)",
-        "kind": "deferred_fix",
-        "expires_at": _days_from_now(36),  # ~2026-07-01
-        "body_md": (
-            "## Deferred fix\n\n"
-            "identity-prod-pg currently uses password authentication via Vault dynamic "
-            "secrets, not RDS IAM authentication. Migrating to IAM auth requires a "
-            "maintenance window and changes to both the application code and the Vault "
-            "database secrets engine configuration.\n\n"
-            "## Why deferred\n\n"
-            "The migration was scoped for Q1 2026 but was postponed due to the Auth "
-            "Hardening project taking priority for the identity team. The dynamic secrets "
-            "approach provides rotation and short TTLs (mitigating most of the risk), "
-            "but the fallback cached credential remains a concern.\n\n"
-            "## Deadline\n\n"
-            "Must be completed by 2026-07-01 or escalated to the CTO for additional "
-            "resource allocation. Tracked in HELIX-2108."
-        ),
-        "rationale": "Vault dynamic secrets provide acceptable interim risk; IAM auth migration requires a maintenance window scheduled for Q2 2026.",
-    },
+    {"title": "No un-scrubbed PHI may ever reach Vertex AI",
+     "kind": "security_invariant", "expires": None,
+     "body": "Only HIPAA Safe-Harbor de-identified text crosses the VPC Service "
+             "Controls perimeter to Vertex AI. Enforced by the PHI Scrubbing "
+             "Layer + an output PHI scan. Non-negotiable.",
+     "rationale": "Sending PHI to a third-party LLM without de-id is a breach."},
+    {"title": "Clinician approval is enforced server-side from MongoDB only",
+     "kind": "security_invariant", "expires": None,
+     "body": "EMR Integration validates approval state by reading MongoDB; the "
+             "request payload's approval flag is ignored.",
+     "rationale": "Safety-critical gate; never trust the client (T-009)."},
+    {"title": "Accept fail-closed ABAC availability cost",
+     "kind": "accepted_risk", "expires": None,
+     "body": "If the ABAC care-team service is unavailable, access is denied "
+             "(clinicians see an error) rather than fail-open.",
+     "rationale": "Unauthorized PHI access is worse than a brief outage."},
+    {"title": "Defer RDS-style IAM migration; remediate ci-deploy SA first",
+     "kind": "deferred_fix", "expires_days": 21,
+     "body": "Prioritize removing Editor/secretmanager.admin from the ci-deploy "
+             "SA (IAM-2026-014) before broader IAM hardening.",
+     "rationale": "ci-deploy is the highest blast-radius finding (T-013)."},
 ]
 
 
 def seed_decisions(dry_run: bool) -> None:
     from app.storage.decisions_store import create, list_filtered
-    existing_titles = {d["title"] for d in list_filtered(status=None, limit=500)}
-
-    for dec in DECISIONS:
-        if dec["title"] in existing_titles:
-            print(f"  [decision] '{dec['title'][:60]}...' already exists — skipped")
+    existing = {d["title"] for d in list_filtered(limit=200)}
+    for d in DECISIONS:
+        if d["title"] in existing:
+            print(f"  [decision] '{d['title'][:40]}…' exists — skipped")
             continue
+        expires = None
+        if d.get("expires_days"):
+            expires = int(_days_from_now(d["expires_days"]))
         if not dry_run:
-            create(
-                title=dec["title"],
-                body_md=dec["body_md"],
-                kind=dec["kind"],
-                expires_at=dec.get("expires_at"),
-                rationale=dec.get("rationale"),
-            )
-        expiry = ""
-        if dec.get("expires_at"):
-            from datetime import datetime
-            expiry = f" (expires {datetime.fromtimestamp(dec['expires_at']).strftime('%Y-%m-%d')})"
-        print(f"  [decision] Created '{dec['kind']}' — {dec['title'][:55]}{expiry}")
+            create(title=d["title"], body_md=d["body"],
+                   body_md_redacted=d["body"], kind=d["kind"],
+                   rationale=d["rationale"], expires_at=expires)
+        print(f"  [decision] Created '{d['title'][:44]}…' ({d['kind']})")
 
 
-# ── glossary ──────────────────────────────────────────────────────────────────
+# ── glossary ─────────────────────────────────────────────────────────────────
 
-GLOSSARY_TERMS = [
-    {
-        "term": "PAN",
-        "definition": "Payment Account Number — the full card number (e.g., 16-digit Visa/MC number). Helix never stores PANs; they are tokenized by Stripe before reaching any Helix service.",
-        "aliases": ["Primary Account Number", "card number"],
-    },
-    {
-        "term": "CMK",
-        "definition": "Customer-Managed Key — an AWS KMS key where the key material policy is controlled by Helix (not AWS). pii-prod-pg uses a CMK (alias/helix-pii-prod). Required for SOC 2 CC6.1 evidence.",
-        "aliases": ["customer managed key", "KMS CMK"],
-    },
-    {
-        "term": "mTLS",
-        "definition": "Mutual TLS — both sides of a TLS connection present certificates. Used for payments-api → pii-vault authentication. Provides cryptographic proof of caller identity at the transport layer.",
-        "aliases": ["mutual TLS", "client certificates", "client cert auth"],
-    },
-    {
-        "term": "SSRF",
-        "definition": "Server-Side Request Forgery — an attacker causes the server to make HTTP requests to an attacker-chosen URL (e.g., EC2 IMDS at 169.254.169.254). Open risk in webhook-router (HELIX-1822).",
-        "aliases": ["server side request forgery"],
-    },
-    {
-        "term": "dbt",
-        "definition": "Data Build Tool — SQL transformation framework used by Helix's analytics-pipeline. dbt models run in Snowflake against data extracted from RDS replicas. PII masking is applied in the dbt layer (known weakness: HELIX-2031).",
-        "aliases": ["data build tool", "dbt Core"],
-    },
-    {
-        "term": "Snowpipe",
-        "definition": "Snowflake's auto-ingest mechanism. Helix uses Snowpipe to load data from S3 staging buckets (helix-prod-analytics-staging) into the HELIX_PROD warehouse. Triggered by S3 event notifications.",
-        "aliases": ["Snowflake Snowpipe", "auto-ingest"],
-    },
-    {
-        "term": "OEM",
-        "definition": "Original Equipment Manufacturer — Helix's customers, who embed Helix's payment and identity APIs into their robotics products. Helix has ~12 OEM customers as of Series B.",
-        "aliases": ["original equipment manufacturer", "OEM customer"],
-    },
-    {
-        "term": "device cert",
-        "definition": "mTLS client certificate issued to each OEM customer device for authentication to Helix's API. Issued by Vault PKI. 90-day TTL. Private key lives on device; Helix stores only the public cert chain. See INC-2025-0047 (device cert exposure incident).",
-        "aliases": ["device certificate", "device mTLS cert", "client cert"],
-    },
-    {
-        "term": "VRT",
-        "definition": "Vulnerability Review Team — weekly meeting (Tuesdays 14:00 PST) where security, SRE, and engineering leads review open Dependabot and Inspector findings. Decisions on remediation priority are recorded in Jira.",
-        "aliases": ["Vulnerability Review Team", "vuln review"],
-    },
-    {
-        "term": "break-glass",
-        "definition": "Emergency access procedure for highly restricted systems (pii-vault, Vault root tokens). Requires two-person approval in Vault. All break-glass access is audit-logged. Used during P0 incidents. Known gap: no automated alert when break-glass is used (HELIX-2095).",
-        "aliases": ["break glass", "emergency access", "break-glass access"],
-    },
+GLOSSARY = [
+    ("PHI", "Protected Health Information — individually identifiable health data under HIPAA."),
+    ("SOAP note", "Subjective/Objective/Assessment/Plan — the structured clinical note format MedScribe generates."),
+    ("FHIR", "Fast Healthcare Interoperability Resources — the HL7 R4 API standard used to write notes back to Epic/Cerner."),
+    ("SMART on FHIR", "OAuth 2.0 profile for FHIR; scopes tokens to a specific patient/encounter."),
+    ("BAA", "Business Associate Agreement — the HIPAA contract between MedScribe and each customer health system."),
+    ("CMEK", "Customer-Managed Encryption Key — per-tenant key in Cloud KMS protecting audio in GCS."),
+    ("token map", "The session-scoped mapping from de-identification tokens back to real PHI values; never leaves the platform."),
+    ("ABAC", "Attribute-Based Access Control — enforces HIPAA 'minimum necessary' via care-team relationships."),
+    ("de-identification", "Removing PHI per HIPAA Safe Harbor before LLM processing."),
+    ("prompt injection", "Manipulating an LLM via crafted input; here, indirect injection via prior EMR notes (T-014)."),
+    ("Workload Identity", "GCP service-to-service auth with no key files on disk."),
+    ("VPC Service Controls", "GCP perimeter that prevents data exfiltration outside an allowed boundary."),
 ]
 
 
 def seed_glossary(dry_run: bool) -> None:
-    from app.storage.glossary_store import upsert
-    for t in GLOSSARY_TERMS:
+    from app.storage.glossary_store import upsert, list_pending, list_confirmed
+    existing = {t["term"].lower() for t in (list_pending(200) + list_confirmed(200))}
+    for term, definition in GLOSSARY:
+        if term.lower() in existing:
+            print(f"  [glossary] '{term}' exists — skipped")
+            continue
         if not dry_run:
-            upsert(
-                term=t["term"],
-                definition=t["definition"],
-                aliases=t.get("aliases", []),
-                confirmed=False,
-            )
-        print(f"  [glossary] '{t['term']}' (unconfirmed)")
+            upsert(term=term, definition=definition, confirmed=False)
+        print(f"  [glossary] Proposed '{term}'")
 
 
-# ── lessons ───────────────────────────────────────────────────────────────────
+# ── lessons ──────────────────────────────────────────────────────────────────
 
 LESSONS = [
-    {
-        "title": "Always verify dbt PII masking in staging before promoting to prod",
-        "body_md": (
-            "## Lesson\n\n"
-            "dbt models that mask PII (billing addresses, device serials) can fail silently: "
-            "a model error may materialize the table without applying the masking macro, "
-            "and downstream consumers see cleartext. dbt tests that check for masking "
-            "must be part of the CI gate, not an optional post-deploy step.\n\n"
-            "## Source\n\n"
-            "Identified during 2026-02 payments outage postmortem review of HELIX-2031 "
-            "(analytics-pipeline Snowflake static creds + no masking verification).\n\n"
-            "## Action pattern\n\n"
-            "Add `dbt test --select tag:pii_masking` to the CI pipeline and block promotion "
-            "if any masking test fails."
-        ),
-        "source_kind": "postmortem",
-        "source_id": "inc-2026-02-payments",
-        "tags": ["dbt", "pii", "analytics", "ci-cd", "postmortem"],
-    },
-    {
-        "title": "Rotate all Vault tokens org-wide when any service credentials are compromised",
-        "body_md": (
-            "## Lesson\n\n"
-            "When a service's Vault token is compromised, rotating only that service's token "
-            "is insufficient — the attacker may have used the token to read other services' "
-            "credentials from Vault (if the policy was overly broad). The safe response is to "
-            "rotate all AppRole secret_ids and re-issue all Vault tokens, then audit the "
-            "Vault access log for the window of compromise.\n\n"
-            "## Source\n\n"
-            "2026-04 credential leak close call — the affected service had a broader Vault "
-            "policy than necessary, which would have allowed reading other services' dynamic "
-            "DB creds if the token had been used maliciously.\n\n"
-            "## Action pattern\n\n"
-            "Define a Vault 'nuclear option' runbook: revoke all tokens, rotate all AppRole "
-            "secret_ids, then re-deploy all services in dependency order. Test in staging annually."
-        ),
-        "source_kind": "postmortem",
-        "source_id": "inc-2026-04-credential-leak",
-        "tags": ["vault", "incident-response", "credentials", "postmortem"],
-    },
-    {
-        "title": "S3 pre-signed URL TTL must be enforced at the bucket policy layer, not only in application code",
-        "body_md": (
-            "## Lesson\n\n"
-            "Application-layer TTL for S3 pre-signed URLs can be misconfigured (as in "
-            "INC-2025-0047) or bypassed. The S3 bucket policy condition "
-            "`s3:signatureAge` provides an infrastructure-layer TTL cap that cannot be "
-            "overridden by the calling application. Apply this condition to all buckets "
-            "that serve sensitive data.\n\n"
-            "## Implementation\n\n"
-            "```json\n"
-            '{"Condition": {"NumericGreaterThan": {"s3:signatureAge": 600}}}\n'
-            "```\n"
-            "(600 seconds = 10 minutes — the bucket policy will reject any pre-signed URL "
-            "older than this, regardless of what TTL the application specified.)\n\n"
-            "## Source\n\n"
-            "INC-2025-0047 (device cert exposure via 7-day pre-signed URL TTL)."
-        ),
-        "source_kind": "postmortem",
-        "source_id": "inc-2025-0047-device-cert",
-        "tags": ["s3", "pre-signed-url", "aws", "pii", "postmortem", "incident-response"],
-    },
-    {
-        "title": "CODEOWNERS and CMDB service ownership must always be in sync — one is authoritative",
-        "body_md": (
-            "## Lesson\n\n"
-            "Helix discovered during the 2026-02 payments outage that CODEOWNERS listed "
-            "Marcus Chen as the payments-api owner, while the CMDB (services.csv) listed "
-            "Sam Liu. When the incident was declared, initial paging went to Marcus, who "
-            "had not touched the service in 6 months. 8 minutes were lost before the "
-            "correct on-call (Sam) was reached.\n\n"
-            "## Decision\n\n"
-            "services.csv is the authoritative source for runtime ownership. CODEOWNERS "
-            "is authoritative for code review. They are allowed to diverge, but any "
-            "divergence must be documented with a rationale. A weekly CI check compares "
-            "the two and opens a Jira ticket if they diverge without explanation.\n\n"
-            "## Source\n\n"
-            "Post-incident review of 2026-02 payments outage."
-        ),
-        "source_kind": "user",
-        "source_id": "helix-lessons-onboarding-1",
-        "tags": ["ownership", "incident-response", "cmdb", "oncall", "process"],
-    },
-    {
-        "title": "GDPR 72-hour notification clock starts from when PII was potentially accessible, not from confirmed exfiltration",
-        "body_md": (
-            "## Lesson\n\n"
-            "During INC-2025-0047 (device cert exposure), Legal clarified that the GDPR "
-            "Article 33 72-hour notification window begins when the organization becomes "
-            "aware that a breach *may have occurred* — not when exfiltration is confirmed. "
-            "Waiting for forensic certainty before notifying can put Helix in breach of "
-            "the notification obligation.\n\n"
-            "## Practical implication\n\n"
-            "If PII was potentially accessible for an extended window (e.g., an open S3 "
-            "bucket, an exposed endpoint, an overly permissive IAM role), Legal must be "
-            "looped in immediately — not after the forensic investigation is complete. "
-            "Legal decides whether to notify, not Engineering.\n\n"
-            "## Source\n\n"
-            "Legal review following INC-2025-0047."
-        ),
-        "source_kind": "user",
-        "source_id": "helix-lessons-gdpr-1",
-        "tags": ["gdpr", "incident-response", "legal", "pii", "compliance"],
-    },
+    {"title": "PHI-in-logs is the most likely daily HIPAA violation",
+     "body": "Default exception logging echoed a transcript to Datadog. Tooling "
+             "(blocking SAST rule) must catch this — manual review won't scale.",
+     "tags": ["phi", "logging", "hipaa", "sast"]},
+    {"title": "Enforce safety-critical gates server-side from authoritative state",
+     "body": "The approval gate was bypassable because it trusted the request "
+             "payload. Read state from the database, never the client.",
+     "tags": ["authz", "approval-gate", "secure-design"]},
+    {"title": "Cost is an availability control in metered AI pipelines",
+     "body": "A client retry loop caused a 22× Speech-to-Text bill and delayed "
+             "real notes. Bound spend with per-tenant quotas + dedup.",
+     "tags": ["availability", "cost", "rate-limiting"]},
+    {"title": "Treat all LLM output as untrusted",
+     "body": "Vertex AI output can hallucinate or carry injected instructions; "
+             "validate schema and scan for PHI before use.",
+     "tags": ["llm", "ai-security", "validation"]},
+    {"title": "Least-privilege the CI/CD identity first",
+     "body": "The highest-blast-radius finding was the ci-deploy SA holding "
+             "admin. The deploy identity is a top target — scope it tightly.",
+     "tags": ["iam", "least-privilege", "ci-cd"]},
 ]
 
 
 def seed_lessons(dry_run: bool) -> None:
     from app.storage.lessons_store import create, search
-    for les in LESSONS:
-        existing = search(les["title"][:40], limit=5)
-        if any(e["title"] == les["title"] for e in existing):
-            print(f"  [lesson] '{les['title'][:60]}' already exists — skipped")
+    existing = {l["title"] for l in search("", limit=200)}
+    for l in LESSONS:
+        if l["title"] in existing:
+            print(f"  [lesson] '{l['title'][:40]}…' exists — skipped")
             continue
         if not dry_run:
-            create(
-                title=les["title"],
-                body_md=les["body_md"],
-                source_kind=les["source_kind"],
-                source_id=les["source_id"],
-                tags=les["tags"],
-            )
-        print(f"  [lesson] Created '{les['title'][:65]}...'  tags={les['tags'][:3]}")
+            create(title=l["title"], body_md=l["body"],
+                   body_md_redacted=l["body"], source_kind="manual",
+                   source_id="seed", tags=l["tags"])
+        print(f"  [lesson] Created '{l['title'][:44]}…'")
 
 
-# ── tabletop ──────────────────────────────────────────────────────────────────
-
-TABLETOP_SCENARIO = """\
-# Tabletop: Ransomware via Compromised Analytics Pipeline
-
-## Scenario overview
-
-The analytics-pipeline dbt service account credentials are stolen (via a phishing
-email to fatima.al-amin@helixrobotics.com or via a leaked CI/CD secret). The attacker
-uses the cross-account IAM role (helix-analytics-prod-read in account 999988887777)
-to read all production RDS databases, exfiltrate customer billing addresses to an
-external S3 bucket, and then drop tables in the analytics Snowflake warehouse,
-demanding a ransom.
-
-## Threat actor
-
-External threat actor. Assumed to have: stolen Snowflake static credential
-(from analytics-pipeline Snowflake connector, stored in Vault as static secret HELIX-2031).
-Also assumed to have the AWS cross-account role's external ID (found in Terraform state).
-
-## Injects and discussion questions
-
-**T+0 min — Initial access**
-> CloudTrail shows an AssumeRole call from account 888877776666 to
-> helix-analytics-prod-read in account 999988887777 from an IP outside Helix's
-> known CIDR range.
-
-Discussion:
-- Who gets paged? How fast?
-- Do we have the Vault audit log to cross-check the role assumption?
-- Can we immediately revoke the cross-account role without breaking prod analytics?
-
-**T+5 min — Bulk S3 downloads**
-> Datadog alerts: helix-s3-bulk-download Sigma rule fires. 2,400 S3 GetObject
-> calls against helix-prod-analytics-staging in 3 minutes from the analytics role.
-
-Discussion:
-- Can we determine what data was accessed? (S3 access logs, CloudTrail S3 data events)
-- Has PII been exfiltrated? (analytics-staging contains masked data per dbt — or does it?)
-- What's the GDPR notification threshold here?
-
-**T+15 min — RDS connection spike**
-> CloudWatch: identity-prod-pg and payments-prod-pg show 50x normal read connections
-> from the analytics account.
-
-Discussion:
-- Can rds-db:connect in the cross-account role actually reach pii-prod-pg?
-  (Check subnet routing and SGs — it should NOT be able to, but verify.)
-- What's our blast radius? Which customer data was in the RDS replicas at T+0?
-- Do we have pgaudit on these instances? (Answer: NO — that's a gap, see decisions log.)
-
-**T+25 min — Ransom demand**
-> The attacker emails security@helixrobotics.com with proof of exfil (sample of
-> customer billing addresses) and demands 50 BTC for deletion of the data and
-> decryption of the Snowflake warehouse.
-
-Discussion:
-- Who is the decision-maker? (CEO + Legal + CTO)
-- Do we pay? What's our policy?
-- GDPR notification clock: when did it start? (T+0 or T+25?)
-- OEM customer notification obligations (contractual, within 24h)?
-
-## Expected lessons from this tabletop
-
-1. Cross-account IAM role permissions are too broad (HELIX-2098, 2099, 2100).
-2. No automated alert on cross-account role assumption from unexpected IP.
-3. pgaudit not enabled on prod RDS — forensics would be blind.
-4. GDPR notification decision authority must be pre-delegated before an incident.
-5. Ransom policy should be documented and approved by board before an incident occurs.
-"""
-
+# ── tabletop ─────────────────────────────────────────────────────────────────
 
 def seed_tabletop(dry_run: bool) -> None:
     from app.storage.tabletops_store import create, list_all
-    existing = list_all(limit=100)
-    if any("analytics pipeline" in (t.get("scenario_md") or "").lower() for t in existing):
-        print("  [tabletop] Analytics pipeline ransomware scenario already exists — skipped")
+    title = "Cross-Tenant PHI Breach via Admin Authorization Flaw"
+    if any(title in (t.get("scenario_md") or "") for t in list_all(limit=100)):
+        print("  [tabletop] scenario already exists — skipped")
         return
+    scenario_md = (
+        f"# Tabletop: {title}\n\n"
+        "A Clinic Admin at Health System A reports they can see clinician "
+        "accounts belonging to Health System B in the Admin Portal. Exercise the "
+        "team's response to a suspected cross-tenant PHI exposure (T-011)."
+    )
+    injects = [
+        {"time": "T+0", "event": "Clinic Admin A reports seeing Tenant B data.",
+         "question": "Who declares the incident? What is recorded first?"},
+        {"time": "T+10m", "event": "audit_events confirms 3 cross-tenant reads.",
+         "question": "Is this a reportable breach? Who decides?"},
+        {"time": "T+30m", "event": "Root cause: tenant_id trusted from the request.",
+         "question": "How do you contain without taking the portal fully down?"},
+        {"time": "T+2h", "event": "Scope: 2 tenants, ~40 patient records exposed.",
+         "question": "What are the HITECH notification obligations and timeline?"},
+    ]
+    participants = ("LeSpookyHacker (AppSec), Aanya Krishnan (CTO), "
+                    "Tom Bryce (HIPAA Privacy Officer), Dana Okafor (Platform)")
     if not dry_run:
-        tid = create(
-            scenario_md=TABLETOP_SCENARIO,
-            scope_service_id=None,
-            threat_kind="ransomware",
-            injects=[
-                {"time_offset_min": 0, "title": "CloudTrail: unexpected AssumeRole from foreign IP"},
-                {"time_offset_min": 5, "title": "Datadog: S3 bulk download alert fires"},
-                {"time_offset_min": 15, "title": "CloudWatch: RDS connection spike from analytics account"},
-                {"time_offset_min": 25, "title": "Ransom demand email received"},
-            ],
-            participants="mei.watanabe, diana.okoro, alice.tanaka, fatima.al-amin, tom.brandt",
-        )
-        print(f"  [tabletop] Created analytics-pipeline ransomware scenario  id={tid}")
-    else:
-        print("  [tabletop] Would create analytics-pipeline ransomware scenario (4 injects)")
+        create(scenario_md=scenario_md, threat_kind="Elevation of Privilege",
+               injects=injects, participants=participants)
+    print(f"  [tabletop] Created '{title}'")
 
 
-# ── journal entries ───────────────────────────────────────────────────────────
+# ── IR runbooks ──────────────────────────────────────────────────────────────
 
-JOURNAL_ENTRIES = [
-    {
-        "date_label": "2026-04-28",
-        "body": (
-            "First day at Helix. Met with Priya and Tom. Key takeaways:\n"
-            "- identity-svc is considered the crown jewel — JWT signing key compromise = game over.\n"
-            "- pii-vault is highest-risk because it's sole custodian of customer billing addresses.\n"
-            "  No one has done a threat model on it recently.\n"
-            "- Diana (Senior SRE) carried security reactively before me — my best source on "
-            "incident history and the existing Datadog detections. Weekly 1:1 Thursdays.\n"
-            "- First 30 days: learn the architecture, meet the service owners, identify the top 3 risks.\n"
-            "- TODO: Read all postmortems. Ask Marcus about HELIX-2108 (RDS IAM auth gap)."
-        ),
-    },
-    {
-        "date_label": "2026-05-07",
-        "body": (
-            "Week 2 check-in. Finished reading all postmortems and the architecture docs.\n\n"
-            "Biggest concerns so far:\n"
-            "1. HELIX-1822 (webhook-router SSRF) — no private IP blocking. IMDSv2 helps but doesn't "
-            "   close it completely. Accepted risk expires 2026-08-01 but needs a real fix.\n"
-            "2. analytics cross-account IAM role (HELIX-2098/2099/2100) — can read ALL RDS metadata "
-            "   and has ListAllMyBuckets. Fatima says the dbt connector needs it but that's not true "
-            "   for the RDS DescribeDB* scope.\n"
-            "3. pii-vault break-glass alerts (HELIX-2095) — only monthly manual audit. This should "
-            "   be an automated Datadog alert.\n\n"
-            "Meeting with Marcus next Tuesday about HELIX-2108 status. Alice wants to do a tabletop "
-            "on the analytics pipeline scenario before Q3."
-        ),
-    },
-    {
-        "date_label": "2026-05-19",
-        "body": (
-            "Week 3. Ran STRIDE on identity-svc DFD (uploaded identity-svc-dfd.mmd into Tank).\n\n"
-            "Top 3 findings:\n"
-            "- T002: JWT signing key compromise via Vault IRSA token theft — Critical. "
-            "  Vault Sentinel policies would help but we don't have them configured.\n"
-            "- T001: Refresh token replay, 7-day window, no rotation — High.\n"
-            "- T003: RDS password auth fallback with 24h cache — High. "
-            "  Marcus confirmed HELIX-2108 is scheduled for end of June.\n\n"
-            "Shared the DFD analysis report with Priya. She wants a similar analysis for pii-vault "
-            "before the board meeting on June 15.\n\n"
-            "Started draft of the threat model write-up for identity-svc. "
-            "Also confirmed with Alice (SRE, Vault admin) that she'll add Vault Sentinel "
-            "policies to the Q3 roadmap."
-        ),
-    },
+IR_RUNBOOKS = [
+    {"scenario": "PHI breach (unauthorized access/disclosure of PHI)",
+     "severity": "SEV-1",
+     "body": "See runbooks/phi-breach-response. Record discovery time first "
+             "(HITECH 60-day clock), contain the credential/CMEK, preserve "
+             "audit_events, scope via audit log, notify covered entities."},
+    {"scenario": "LLM prompt-injection incident (T-014)",
+     "severity": "SEV-2",
+     "body": "Quarantine the affected note, capture the de-identified prompt + "
+             "session_id (no raw PHI), find the source (prior note vs scrub gap), "
+             "disable prior-note context for the tenant, notify the clinician."},
 ]
 
 
-def seed_journal(dry_run: bool) -> None:
-    from app.db import LOCK, get_conn
-    import uuid as _uuid
-
-    for entry in JOURNAL_ENTRIES:
-        existing = get_conn().execute(
-            "SELECT id FROM journal_entries WHERE date_label = ?",
-            (entry["date_label"],),
-        ).fetchone()
-        if existing:
-            print(f"  [journal] {entry['date_label']} already exists — skipped")
+def seed_ir_runbooks(dry_run: bool) -> None:
+    from app.storage.ir_runbooks_store import create, list_all
+    existing = {r.get("threat_scenario") for r in list_all(limit=100)}
+    for r in IR_RUNBOOKS:
+        if r["scenario"] in existing:
+            print(f"  [ir] '{r['scenario'][:40]}…' exists — skipped")
             continue
         if not dry_run:
-            jid = _uuid.uuid4().hex
-            now = time.time()
-            with LOCK:
-                get_conn().execute(
-                    "INSERT INTO journal_entries "
-                    "(id, body, body_redacted, date_label, tenure_day, extracted_json, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (jid, entry["body"], entry["body"], entry["date_label"], 0, "{}", now),
-                )
-        print(f"  [journal] Created entry for {entry['date_label']}")
+            create(threat_scenario=r["scenario"], runbook_md=r["body"],
+                   runbook_md_redacted=r["body"], severity_trigger=r["severity"],
+                   contacts=["Aanya Krishnan (CTO)", "Tom Bryce (Privacy Officer)"],
+                   escalation=["AppSec on-call", "CTO", "CEO"])
+        print(f"  [ir] Created runbook '{r['scenario'][:44]}…'")
 
 
-# ── follow-ups ────────────────────────────────────────────────────────────────
+# ── design review ────────────────────────────────────────────────────────────
+
+def seed_design_review(dry_run: bool) -> None:
+    from app.storage.design_reviews_store import create, list_all
+    title = "Design Review: PHI Scrubbing Validation Harness"
+    if any(d.get("title") == title for d in list_all(limit=100)):
+        print("  [design-review] already exists — skipped")
+        return
+    body = (
+        "Proposal to add a labeled-corpus validation harness for the PHI "
+        "scrubbing layer (addresses T-007). Runs in CI; fails the build if "
+        "recall on the labeled PHI set drops below threshold; emits a metric "
+        "for the security-program dashboard."
+    )
+    checklist = [
+        {"item": "Threat model updated for the new component", "status": "pass"},
+        {"item": "No new PHI egress paths", "status": "pass"},
+        {"item": "Secrets via Secret Manager only", "status": "pass"},
+        {"item": "Logging excludes PHI", "status": "fail"},
+        {"item": "Rollback plan documented", "status": "na"},
+    ]
+    if not dry_run:
+        create(title=title, body_md=body, body_md_redacted=body,
+               requester="Marcus Lee (AI Platform)", checklist=checklist)
+    print(f"  [design-review] Created '{title}'")
+
+
+# ── postmortem artifacts ─────────────────────────────────────────────────────
+
+POSTMORTEMS = [
+    {"title": "PHI in Application Logs (Near-Miss)",
+     "severity": "sev2", "incident_date": "2026-05-12",
+     "services": ["transcription-svc"],
+     "fields": {"summary": "Debug log shipped a transcript fragment to Datadog.",
+                "impact": "Potential PHI disclosure to a non-BAA log platform; "
+                          "no external access; logs purged.",
+                "root_cause": "No PHI-in-logs SAST rule; default exception logging.",
+                "action_items": "Ship phi-in-logs rule (blocking); redacting formatter."},
+     "body": "See postmortems/2026-05-phi-in-logs-near-miss for the full writeup."},
+    {"title": "Approval-Gate Bypass Found in Pentest",
+     "severity": "sev2", "incident_date": "2026-04-28",
+     "services": ["emr-integration-svc"],
+     "fields": {"summary": "Pentest bypassed approval via an `approved:true` payload flag.",
+                "impact": "Staging only; unapproved AI note could reach a test EMR.",
+                "root_cause": "Approval enforced client-side, re-trusted in the payload.",
+                "action_items": "Server-side approval from MongoDB (done); detection added."},
+     "body": "See postmortems/2026-04-approval-gate-pentest for the full writeup."},
+]
+
+
+def seed_postmortems(dry_run: bool) -> None:
+    from app.storage.postmortems_store import create, list_by_status
+    existing = {p.get("title") for p in list_by_status(limit=100)}
+    for p in POSTMORTEMS:
+        if p["title"] in existing:
+            print(f"  [postmortem] '{p['title'][:40]}…' exists — skipped")
+            continue
+        if not dry_run:
+            create(title=p["title"], fields=p["fields"], body_md=p["body"],
+                   body_md_redacted=p["body"], incident_date=p["incident_date"],
+                   severity=p["severity"], services_affected=p["services"])
+        print(f"  [postmortem] Created '{p['title'][:44]}…'")
+
+
+# ── stack-audit inventory ────────────────────────────────────────────────────
+
+ASSET_INVENTORY = [
+    ("SAST", "Semgrep (custom rules)", "in_progress", "PHI-in-logs/auth/LLM rules drafted", "Not blocking in CI yet"),
+    ("SCA / dependencies", "pip-audit + npm audit + OSV", "planned", "", "No automated scan yet"),
+    ("Secrets detection", "gitleaks", "planned", "", "Not enforced pre-commit or CI"),
+    ("Container scanning", "Trivy (Artifact Registry)", "partial", "Registry scan on", "No CI gate"),
+    ("DAST", "OWASP ZAP", "planned", "", "Auth + tenant-isolation tests needed"),
+    ("Detection engineering", "Sigma + Datadog", "in_progress", "5 Sigma rules drafted", "Not deployed to Datadog"),
+    ("Vulnerability management", "Tank intake queue", "in_progress", "Queue stood up", "SLAs not enforced org-wide"),
+    ("Threat modeling", "STRIDE / DFD", "in_progress", "AI pipeline + EMR modeled", "Remaining Tier-0 services pending"),
+]
+
+
+def seed_asset_inventory(dry_run: bool) -> None:
+    from app.storage.asset_inventory_store import upsert, get_all
+    existing = {a.get("capability_category") for a in get_all()}
+    for cap, tool, status, cov, gaps in ASSET_INVENTORY:
+        if cap in existing:
+            print(f"  [stack-audit] '{cap}' exists — skipped")
+            continue
+        if not dry_run:
+            upsert(capability_category=cap, tool_name=tool,
+                   deployment_status=status, coverage_notes=cov, known_gaps=gaps)
+        print(f"  [stack-audit] Added '{cap}' ({status})")
+
+
+# ── 90-day plan ──────────────────────────────────────────────────────────────
+
+PLAN_ITEMS = [
+    {"week": 1, "category": "Learn", "task": "Ingest architecture, IAM, PHI data-flow, threat model into the KB", "done": True},
+    {"week": 1, "category": "Learn", "task": "Meet Aanya (CTO), Dana (Platform), Marcus (AI), Tom (Privacy)", "done": False},
+    {"week": 2, "category": "Assess", "task": "Validate the STRIDE register against the live architecture", "done": False},
+    {"week": 2, "category": "Assess", "task": "Stand up the risk register and vuln intake queue", "done": False},
+    {"week": 3, "category": "Quick win", "task": "Ship the phi-in-logs SAST rule (blocking) — T-006", "done": False},
+    {"week": 4, "category": "Quick win", "task": "Remediate the over-broad ci-deploy SA — T-013 / IAM-2026-014", "done": False},
+    {"week": 6, "category": "Build", "task": "Add SAST + secrets + SCA gates to Tier-0 repos", "done": False},
+    {"week": 8, "category": "Build", "task": "Build the PHI scrubbing validation harness — T-007", "done": False},
+    {"week": 9, "category": "Build", "task": "Deploy the 5 Sigma detections to Datadog", "done": False},
+    {"week": 11, "category": "Program", "task": "Author IR runbooks + run the cross-tenant tabletop", "done": False},
+    {"week": 12, "category": "Program", "task": "Map SOC 2 / HIPAA controls; start evidence collection", "done": False},
+]
+
+
+def seed_plan(dry_run: bool) -> None:
+    from app.storage.plan_store import create, get_latest
+    if get_latest():
+        print("  [plan] 90-day plan already exists — skipped")
+        return
+    if not dry_run:
+        create(PLAN_ITEMS)
+    print(f"  [plan] Created 90-day plan ({len(PLAN_ITEMS)} tasks)")
+
+
+# ── report subscription ──────────────────────────────────────────────────────
+
+def seed_subscriptions(dry_run: bool) -> None:
+    from app.storage.subscriptions_store import subscribe, list_all
+    if any(s.get("kind") == "weekly_security_digest" for s in list_all()):
+        print("  [subscription] weekly digest already exists — skipped")
+        return
+    if not dry_run:
+        subscribe(kind="weekly_security_digest", cadence="weekly",
+                  role_mode="both", scope={})
+    print("  [subscription] Subscribed to weekly_security_digest")
+
+
+# ── journal (Day 1) ──────────────────────────────────────────────────────────
+
+def seed_journal(dry_run: bool) -> None:
+    from app.storage.journal_store import upsert_for_today, get_today
+    if get_today():
+        print("  [journal] entry for today already exists — skipped")
+        return
+    body = (
+        "Day one as the first AppSec hire. Spent the morning loading the "
+        "architecture, IAM design, PHI data-flow and the STRIDE register into "
+        "Tank. First impressions: the PHI scrubbing layer (no validation suite) "
+        "and the over-broad CI deploy identity feel like the scariest items. "
+        "Approval-gate fix already landed from the pentest — good sign. Next: "
+        "meet the platform and AI leads, and turn the STRIDE register into a "
+        "real risk register."
+    )
+    if not dry_run:
+        upsert_for_today(body=body, body_redacted=body)
+    print("  [journal] Wrote day-1 journal entry")
+
+
+# ── follow-ups ───────────────────────────────────────────────────────────────
 
 FOLLOWUPS = [
-    {
-        "title": "Ask Marcus about HELIX-2108 status (RDS IAM auth for identity-prod-pg)",
-        "body": "Confirm whether the Q2 2026 maintenance window is scheduled. If not, escalate to Priya. Deferred-fix decision expires 2026-07-01.",
-        "due_at": _days_from_now(7),
-    },
-    {
-        "title": "Verify HELIX-1822 SSRF fix timeline with Yui",
-        "body": "HELIX-1822 (webhook-router private IP blocking) is accepted risk expiring 2026-08-01. Confirm it's on Yui's sprint radar for Q3. If not, flag to Priya.",
-        "due_at": _days_from_now(14),
-    },
-    {
-        "title": "Get annual Stripe SOC 2 Type II report from vendor management",
-        "body": "SOC 2 control CC9.2 requires annual review of Stripe's SOC 2 report. Last review was 2025-03. Raj Patel tracks vendor assessments — ask him for the current report or the date it's expected.",
-        "due_at": _days_from_now(30),
-    },
+    {"title": "Ask Dana to scope down the ci-deploy SA (remove admin/editor)", "days": 3},
+    {"title": "Confirm Speech-to-Text + Vertex AI BAAs with Tom (Privacy Officer)", "days": 7},
+    {"title": "Get a labeled PHI corpus from Marcus for the scrubber test harness", "days": 10},
 ]
 
 
 def seed_followups(dry_run: bool) -> None:
     from app.storage.followups_store import create, list_by_status
-    existing_titles = {f["title"] for f in list_by_status("open", limit=500)}
-
-    for fu in FOLLOWUPS:
-        if fu["title"] in existing_titles:
-            print(f"  [followup] '{fu['title'][:60]}' already exists — skipped")
+    existing = {f["title"] for f in list_by_status("open", limit=200)}
+    for f in FOLLOWUPS:
+        if f["title"] in existing:
+            print(f"  [followup] '{f['title'][:40]}…' exists — skipped")
             continue
         if not dry_run:
-            create(
-                title=fu["title"],
-                body=fu.get("body"),
-                due_at=fu.get("due_at"),
-            )
-        from datetime import datetime
-        due = datetime.fromtimestamp(fu["due_at"]).strftime("%Y-%m-%d") if fu.get("due_at") else "no due date"
-        print(f"  [followup] Created '{fu['title'][:65]}'  due={due}")
+            create(title=f["title"], source_kind="manual",
+                   due_at=_days_from_now(f["days"]))
+        print(f"  [followup] Created '{f['title'][:44]}…'")
 
 
-# ── main ──────────────────────────────────────────────────────────────────────
+# ── main ─────────────────────────────────────────────────────────────────────
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print what would be inserted without writing to the DB")
-    args = parser.parse_args(argv)
-    dry_run = args.dry_run
-
-    if dry_run:
-        print("=== DRY RUN — no changes will be written ===\n")
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--dry-run", action="store_true",
+                    help="print what would be inserted, change nothing")
+    args = ap.parse_args(argv)
+    dry = args.dry_run
 
     # Force DB init before any store imports.
     from app.db import get_conn
     get_conn()
 
-    sections = [
-        ("Organization", seed_org),
-        ("Teams", seed_teams),
-        ("Projects", seed_projects),
-        ("DFD Analyses", seed_dfds),
+    print("Seeding MedScribe-R-Us sample records"
+          + (" (DRY RUN)" if dry else "") + " ...\n")
+
+    print("Organization");        seed_org(dry)
+    print("Persona / app_state"); seed_app_state(dry)
+    print("Teams");               team_ids = seed_teams(dry)
+    print("Projects");            seed_projects(team_ids, dry)
+
+    for label, fn in [
+        ("DFD analyses", seed_dfds),
+        ("Risk register", seed_risks),
+        ("Vulnerabilities", seed_vulns),
         ("Decisions", seed_decisions),
         ("Glossary", seed_glossary),
         ("Lessons", seed_lessons),
         ("Tabletop", seed_tabletop),
-        ("Journal entries", seed_journal),
+        ("IR runbooks", seed_ir_runbooks),
+        ("Design review", seed_design_review),
+        ("Postmortems", seed_postmortems),
+        ("Stack-audit inventory", seed_asset_inventory),
+        ("90-day plan", seed_plan),
+        ("Report subscription", seed_subscriptions),
+        ("Journal", seed_journal),
         ("Follow-ups", seed_followups),
-    ]
+    ]:
+        print(label)
+        fn(dry)
 
-    team_ids: dict[str, str] = {}
-    for label, fn in sections:
-        print(f"\n[{label}]")
-        if label == "Teams":
-            team_ids = fn(dry_run)
-        elif label == "Projects":
-            fn(team_ids, dry_run)
-        else:
-            fn(dry_run)
-
-    print("\nDone." if not dry_run else "\nDry run complete — no changes written.")
+    print("\nDone." + (" (dry run — nothing written)" if dry else ""))
     return 0
 
 

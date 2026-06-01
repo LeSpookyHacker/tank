@@ -1,0 +1,18 @@
+flowchart TD
+  subgraph internet["Internet (Untrusted)"]
+    Clin([Clinician Browser])
+    IdP([Health-System IdP OIDC / SAML])
+  end
+  subgraph vpc["MedScribe VPC"]
+    GW[API Gateway Cloud Armor]
+    CP[clinician-portal Next.js 15]
+    ABAC[ABAC service care-team check]
+    Mongo[(MongoDB notes / transcripts de-identified views)]
+  end
+  Clin -->|HTTPS session cookie| GW
+  GW -->|JWT validated| CP
+  Clin -->|OIDC login| IdP
+  IdP -->|id_token role/tenant_id| CP
+  CP -->|note read/approve| ABAC
+  ABAC -->|allow/deny care-team| CP
+  CP -->|approved note set approved_by| Mongo

@@ -1,0 +1,11 @@
+resource,type,project,region,data_tier,encryption,public,notes
+medscribe-phi-audio,GCS bucket (per-tenant),medscribe-prod,us-central1,phi,CMEK (per-tenant),no,Raw audio; uniform bucket-level access
+medscribe-config,GCS bucket,medscribe-prod,us-central1,internal,Google-managed,no,Non-secret runtime config
+mongo-prod,MongoDB Atlas cluster,medscribe-prod,us-central1,phi,AES-256 + field-level,no,PSC endpoint mongo-prod.medscribe.internal
+phi-audio-cmk,Cloud KMS key ring,medscribe-prod,us-central1,n/a,n/a,no,Per-tenant CMEK; rotation 90d
+secrets-prod,Secret Manager,medscribe-prod,us-central1,secret,Google-managed,no,Vertex key/Mongo conn/FHIR OAuth/Datadog
+vertex-gemini,Vertex AI endpoint,medscribe-prod,us-central1,de-identified,in-transit TLS,no,Reached via vertex-proxy.medscribe.internal
+stt-api,Speech-to-Text,medscribe-prod,us-central1,phi,in-transit TLS,no,HIPAA BAA in place
+artifact-registry,Artifact Registry,medscribe-prod,us-central1,internal,Google-managed,no,Container image scanning enabled
+cloud-armor-prod,Cloud Armor policy,medscribe-prod,global,n/a,n/a,n/a,WAF + per-tenant rate limits
+breakglass-bastion,Compute Engine,medscribe-prod,us-central1,internal,Google-managed,no,10.20.30.40; FIDO2-gated SSH

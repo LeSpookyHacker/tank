@@ -1,0 +1,26 @@
+{
+  "_comment": "FINDING (IAM-2026-014): over-broad binding discovered in medscribe-prod. The CI/CD deploy service account holds project Editor AND Secret Manager admin with no condition — a single CI compromise yields full PHI access (relates to T-013). Pending remediation.",
+  "project": "medscribe-prod",
+  "version": 1,
+  "bindings": [
+    {
+      "role": "roles/editor",
+      "members": ["serviceAccount:ci-deploy@medscribe-prod.iam.gserviceaccount.com"]
+    },
+    {
+      "role": "roles/secretmanager.admin",
+      "members": ["serviceAccount:ci-deploy@medscribe-prod.iam.gserviceaccount.com"]
+    },
+    {
+      "role": "roles/iam.serviceAccountTokenCreator",
+      "members": [
+        "serviceAccount:ci-deploy@medscribe-prod.iam.gserviceaccount.com",
+        "group:engineering@medscribe-r-us.fake"
+      ]
+    },
+    {
+      "role": "roles/storage.admin",
+      "members": ["user:legacy-admin@medscribe-r-us.fake"]
+    }
+  ]
+}

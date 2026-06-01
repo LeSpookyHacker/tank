@@ -1,0 +1,29 @@
+flowchart TD
+  subgraph internet["Internet (Untrusted)"]
+    Clin([Clinician Browser])
+    Vertex([Vertex AI Gemini External GCP])
+    EMR([Epic / Cerner FHIR])
+  end
+  subgraph vpc["MedScribe VPC (medscribe-prod)"]
+    GW[API Gateway Cloud Armor WAF]
+    TR[transcription-svc]
+    PS[phi-scrub-svc]
+    AISUM[ai-summarization-svc]
+    OV[output-validation-svc]
+    EMRI[emr-integration-svc]
+    Mongo[(MongoDB Atlas transcripts / notes / token_maps)]
+    KMS[Cloud KMS CMEK]
+  end
+  Clin -->|TLS 1.3 audio stream| GW
+  GW -->|JWT auth| TR
+  TR -->|raw transcript| Mongo
+  Mongo --> PS
+  PS -->|token map field-encrypted| Mongo
+  PS -->|de-identified text only| AISUM
+  AISUM -->|VPC-SC perimeter de-id text + prompt| Vertex
+  Vertex -->|untrusted output| OV
+  OV -->|re-inject from token map| Mongo
+  OV -->|draft note| Mongo
+  EMRI -->|approval validated from Mongo| Mongo
+  EMRI -->|FHIR R4 SMART OAuth| EMR
+  KMS -->|per-tenant audio CMEK| Mongo

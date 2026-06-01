@@ -1,0 +1,25 @@
+{
+  "framework": "HIPAA Security Rule",
+  "role": "Business Associate",
+  "scope": "MedScribe-R-Us PHI processing",
+  "controls": [
+    {"id": "164.312(a)(1)", "name": "Access control", "status": "partial",
+     "evidence": "RBAC + ABAC (care-team) designed; ABAC service not fully deployed", "owner": "AppSec"},
+    {"id": "164.312(a)(2)(iv)", "name": "Encryption / decryption", "status": "implemented",
+     "evidence": "AES-256 at rest, CMEK for audio, field-level for transcripts", "owner": "Platform"},
+    {"id": "164.312(b)", "name": "Audit controls", "status": "partial",
+     "evidence": "Append-only audit_events + Cloud Logging mirror; HMAC chain in design", "owner": "AppSec"},
+    {"id": "164.312(c)(1)", "name": "Integrity", "status": "partial",
+     "evidence": "Transcript HMAC + append-only; not yet on all collections", "owner": "AI Platform"},
+    {"id": "164.312(d)", "name": "Person/entity authentication", "status": "partial",
+     "evidence": "MFA for admins; clinician MFA delegated to health-system IdP", "owner": "AppSec"},
+    {"id": "164.312(e)(1)", "name": "Transmission security", "status": "implemented",
+     "evidence": "TLS 1.3 + mTLS; SMART on FHIR OAuth to EMR", "owner": "Platform"},
+    {"id": "164.308(a)(1)(ii)(A)", "name": "Risk analysis", "status": "gap",
+     "evidence": "STRIDE register drafted (T-001..T-014); formal SRA not complete", "owner": "AppSec"},
+    {"id": "164.308(a)(6)", "name": "Security incident procedures", "status": "gap",
+     "evidence": "No documented IR procedures at program start", "owner": "AppSec"},
+    {"id": "164.514(b)", "name": "De-identification (Safe Harbor)", "status": "partial",
+     "evidence": "NER+regex scrubber; no labeled-corpus validation suite (T-007)", "owner": "AI Platform"}
+  ]
+}

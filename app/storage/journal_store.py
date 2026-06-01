@@ -19,6 +19,10 @@ def upsert_for_today(*, body: str, body_redacted: str) -> str:
     label = _today_label()
     conn = get_conn()
     now = time.time()
+    # Compute tenure_day() BEFORE taking LOCK: it calls get_state(), which
+    # acquires the same non-reentrant global LOCK — calling it inside the
+    # `with LOCK` block below would deadlock.
+    td = tenure_day()
     with LOCK:
         existing = conn.execute(
             "SELECT id FROM journal_entries WHERE date_label = ?", (label,)
@@ -36,7 +40,7 @@ def upsert_for_today(*, body: str, body_redacted: str) -> str:
             "(id, body, body_redacted, date_label, tenure_day, "
             " extracted_json, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (jid, body, body_redacted, label, tenure_day(), "{}", now),
+            (jid, body, body_redacted, label, td, "{}", now),
         )
     return jid
 

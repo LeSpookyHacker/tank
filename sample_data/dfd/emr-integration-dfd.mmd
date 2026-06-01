@@ -1,0 +1,16 @@
+flowchart TD
+  subgraph internet["Internet (Untrusted)"]
+    EMR([Epic / Cerner FHIR R4 SMART on FHIR])
+  end
+  subgraph vpc["MedScribe VPC"]
+    GW[API Gateway]
+    EMRI[emr-integration-svc Cloud Run Python]
+    Mongo[(MongoDB notes status / approved_by)]
+    SM[Secret Manager FHIR OAuth client secret]
+    Audit[(audit_events append-only)]
+  end
+  GW -->|approve action| EMRI
+  EMRI -->|read approval state authoritative| Mongo
+  EMRI -->|fetch FHIR OAuth secret| SM
+  EMRI -->|FHIR DocumentReference encounter-scoped| EMR
+  EMRI -->|write event HMAC| Audit

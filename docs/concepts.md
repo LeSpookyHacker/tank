@@ -36,16 +36,16 @@ When Tank processes a document, it extracts **entities** — the named things yo
 
 | Kind | Examples |
 |------|---------|
-| Service | payments-api, auth-service, pii-vault |
-| Repo | payments-api (GitHub), webhook-router |
-| Person | Jordan Lee (VP Eng), Mei Watanabe |
-| DataStore | prod-db, redis-cache, audit-logs-s3 |
-| Vendor | Stripe, Datadog, PagerDuty |
+| Service | ai-summarization-svc, emr-integration-svc, phi-scrub-svc |
+| Repo | ai-summarization-svc (GitHub), clinician-portal |
+| Person | Aanya Krishnan (CTO), Marcus Lee (AI Platform) |
+| DataStore | mongo-prod (transcripts/notes), token_maps, audit_events |
+| Vendor | Vertex AI, Datadog, Auth0 |
 | Control | MFA enforcement, TLS-everywhere, least-privilege |
-| Policy | secrets-management-policy, data-classification-policy |
-| Runbook | pii-breach-response, service-restart |
-| IAMPolicy | analytics-cross-account-role, k8s-rbac-pii-vault |
-| Detection | helix-ec2-metadata-ssrf (Sigma rule) |
+| Policy | data-classification-policy, vuln-sla-policy |
+| Runbook | phi-breach-response, secret-rotation |
+| IAMPolicy | gcp-iam-bindings, overbroad-role |
+| Detection | sigma-phi-bulk-access (Sigma rule) |
 | ATT&CKTechnique | T1552.005 (Cloud Instance Metadata API) |
 | Threat | spoofing-auth-token, tampering-payment-data |
 | Risk | (formal risk register entries) |
