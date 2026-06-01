@@ -20,7 +20,7 @@ same conversation.
 The side panel is hidden here since the page IS the chat.
 
 Both surfaces use the same streaming chat interface with full tool use.
-The chat loop sees your KB through 13 tools (see below); Sonnet picks
+The chat loop sees your KB through 15 tools (see below); Sonnet picks
 which to call.
 
 ### What makes it work
@@ -89,7 +89,7 @@ Defined in [app/kb/tools.py](../../app/kb/tools.py).
 
 ---
 
-## Report kinds (11 total)
+## Report kinds (14 total)
 
 All use Sonnet 4.6 with `thinking={"type": "adaptive"}` and share
 the cached scope block. Generated from `/reports` or via subscription.
@@ -118,6 +118,13 @@ architectural risks that no single TM would surface. Output:
 `gap (pattern, severity, affected entities, evidence)` list +
 blind-spots list.
 
+### `oncall_handoff`
+
+A rotation-handoff brief for the incoming on-call primary responder.
+Output: open incidents, recent service changes, top risk areas to
+watch, and contacts for each affected service. Scoped to a specific
+on-call rotation if one is provided, otherwise KB-wide.
+
 ### `plan_30_60_90`
 
 Trust-building / coalition / execute ladder. Output: per-window
@@ -144,12 +151,53 @@ threat_model_on_file. Add 1-2 custom controls per scope.
 >
 > ![Control matrix](../images/feature-control-matrix.png)
 
+### `weekly_security_digest`
+
+A weekly aggregate of security activity across the KB: new threats
+found, decisions made, vulnerabilities opened/closed, drift detected,
+postmortems published. Scheduled automatically via subscriptions.
+The digest diff on the report detail page shows what changed since
+the prior week.
+
+### `attack_mapping`
+
+MITRE ATT&CK technique coverage analysis. Maps ingested detection
+rules (Sigma, custom SAST) to ATT&CK techniques; identifies
+techniques with no coverage. See also
+[features/coverage-visibility.md](coverage-visibility.md).
+
+### `iam_audit`
+
+Reviews IAM policies ingested as `IAMPolicy` entities and surfaces
+risky patterns: wildcard roles, excessive permissions, missing
+conditions, over-broad service accounts. Pairs with the IAM
+translator for detailed per-policy analysis.
+
 ### `risk_register`
 
 Generates a heat-map narrative from all open risks — inherent vs
 residual score distribution, top risks by residual score, control
 coverage by risk category. Uses the `risks` table; pairs with the
 security program dashboard for leadership reporting.
+
+### `state_of_security`
+
+A concise snapshot of the overall security posture: what's covered,
+what's not, top open risks, compliance status, and a one-paragraph
+executive summary. Good for a monthly status email.
+
+### `initial_assessment`
+
+A structured first-90-days security readiness assessment: coverage
+by domain (identity, network, data, SDLC, detection), key findings,
+quick wins, and a prioritized roadmap. Generated once at program
+start; can be regenerated at any time.
+
+### `program_roadmap`
+
+A strategic 6–12 month security program roadmap tailored to your KB,
+compliance targets, and open risks. Output: phased initiatives, per-phase
+milestones, resource estimates, and sequencing rationale.
 
 ---
 

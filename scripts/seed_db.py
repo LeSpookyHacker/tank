@@ -649,6 +649,7 @@ def seed_postmortems(dry_run: bool) -> None:
 # ── stack-audit inventory ────────────────────────────────────────────────────
 
 ASSET_INVENTORY = [
+    # AppSec program tools (standing up during first 90 days)
     ("SAST", "Semgrep (custom rules)", "in_progress", "PHI-in-logs/auth/LLM rules drafted", "Not blocking in CI yet"),
     ("SCA / dependencies", "pip-audit + npm audit + OSV", "planned", "", "No automated scan yet"),
     ("Secrets detection", "gitleaks", "planned", "", "Not enforced pre-commit or CI"),
@@ -657,6 +658,25 @@ ASSET_INVENTORY = [
     ("Detection engineering", "Sigma + Datadog", "in_progress", "5 Sigma rules drafted", "Not deployed to Datadog"),
     ("Vulnerability management", "Tank intake queue", "in_progress", "Queue stood up", "SLAs not enforced org-wide"),
     ("Threat modeling", "STRIDE / DFD", "in_progress", "AI pipeline + EMR modeled", "Remaining Tier-0 services pending"),
+    # Platform-owned tools already deployed
+    ("Identity Provider (SSO)", "Auth0 (clinicians via health-system SSO/OIDC; admins via Auth0)", "deployed",
+     "All user types covered; health-system IdP federation for clinicians",
+     "Platform admin FIDO2-only; no SCIM provisioning yet"),
+    ("Multi-Factor Authentication", "Auth0 TOTP + WebAuthn; health-system IdP enforces MFA for clinicians", "deployed",
+     "Admins: TOTP/WebAuthn required; platform admins: FIDO2 only",
+     "Patient magic-link has optional MFA only; SMS MFA explicitly blocked"),
+    ("Web Application Firewall (WAF)", "GCP Cloud Armor", "deployed",
+     "OWASP CRS + rate limiting per tenant + geo rules on API Gateway",
+     "Custom FHIR callback rules still permissive (open item)"),
+    ("SIEM / Log Aggregation", "Datadog + GCP Cloud Logging", "partial",
+     "Application logs + Cloud Audit Logs flowing; Sigma rules drafted",
+     "Sigma rules not yet deployed to Datadog; no PHI BAA on Datadog — PHI must not reach it"),
+    ("Backup & Recovery", "SQLite weekly backup (Tank); GCP managed backups for MongoDB Atlas and GCS", "partial",
+     "MongoDB Atlas continuous backup on; GCS versioning on; DR region us-east1 provisioned",
+     "DR failover untested; no documented RTO/RPO targets yet"),
+    ("Cloud Security Posture Management (CSPM)", "None", "gap",
+     "",
+     "No CSPM tool; manual Terraform policy checks + conftest for IaC; GCP Security Command Center not enabled"),
 ]
 
 
