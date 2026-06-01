@@ -230,7 +230,8 @@ lens.**
 | Capture a lesson from an artifact | `app/claude/lesson_extractor.py::extract_from_<source>()` — runs synchronously on publish/reject; persisted to `lessons` table |
 | Add ownership / personal-dashboard signal | `app/routers/me.py::_risk_score_for(entity_id)` — append to the heuristic mix |
 | Add a continuous-ingestion connector | `app/ingest/watchers/<kind>.py` implementing `scan(watcher_row) -> ScanResult` + register in `watchers/__init__.py::dispatch`. Kinds: `folder`, `ics_url`, `cve_feed`, `github_repo`. Users enable via Settings → Integrations. |
-| Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt) and `build_kb_block(hits, entity_cards)` (retrieved context). Both return `{"cache_control": {"type": "ephemeral"}}` blocks. |
+| Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt, 1h TTL), `build_kb_block(hits, entity_cards)` (per-turn retrieved context, 5m TTL), `build_scope_block(service_id=None)` (canonical KB-scope, 1h TTL, shared across reports + anniversaries + day1 + plan + meeting prep + policy + compliance wizard). Use the `CACHE_5M` / `CACHE_1H` constants from the same module instead of inlining the dict. |
+| Add a batched background job (50% off) | `app/claude/batches.py` — declare a handler with `@batches.register("<kind>")` (and optionally `@batches.register_finalizer("<kind>")` for N→1 aggregation patterns). Build each request via `app/claude/batch_helpers.py::tool_params_for(cls)` (Pydantic-class JSON schema as the forced tool's `input_schema`) and `extract_validated(msg, cls)` in the handler. Submit via `batches.submit(kind, requests, payload)`; scheduler `_tick` polls every minute. The synchronous `messages.parse` path stays for HTTP / user-waiting call sites. |
 | Change smart auto-categorization rules | `app/ingest/auto_categorize.py` — `suggest_category(path)` (path-keyword + content-sniff heuristics) and `walk_directory(root)` (returns `(path, category)` pairs, skipping hidden/.git/node_modules). Mirrors these heuristics in `app/templates/ingest.html` JS (`guessCategory`). |
 | Add or switch projects | `app/storage/projects_store.py` + `app/routers/projects.py`. `project_id TEXT` FK added to 7 tables (documents, chunks, entities, relationships, reports, conversations, messages). Active project set in `app_state`; the project switcher in the topnav reads it from `/api/projects`. Projects belong to Teams (`team_id`); Teams belong to an Org (`org_id`). The full 3-level hierarchy (Org→Team→Project) is navigated via `app/routers/dashboard.py`. |
 | Change the side-panel chat UI | `app/templates/base.html` — the entire panel markup + ~180-line JS IIFE lives at the bottom of the `<script>` block. Panel is suppressed on `/chat` and `/onboarding` via `SUPPRESS_PATHS`. Width (240–600px), open/closed state, and `panelConvId` persist in `localStorage`. `--topbar-h` and `--footer-h` are set at runtime so the panel height fits exactly between them. CSS in `app/static/style.css` under `/* ── Side panel layout ──`. |
@@ -509,9 +510,13 @@ Other `localStorage` keys used across the UI:
   `app/ingest/embedder.py`. Privacy beats retrieval quality.
 - **Anthropic SDK call shape**: `messages.parse(model=MODEL,
   thinking={"type":"adaptive"}, system=[...], messages=[...],
-  output_format=PydanticClass)` for structured output;
-  `messages.stream(...)` for chat. Prompt caching via inline
-  `{"type":"text","text":"...","cache_control":{"type":"ephemeral"}}`.
+  output_format=PydanticClass)` for interactive structured output;
+  `messages.stream(...)` for chat; `messages.batches.create(requests=[...])`
+  via `app/claude/batches.py` for scheduler fan-out (50% off, async,
+  no `output_format` — use `tool_params_for` / `extract_validated`).
+  Prompt caching via inline text blocks with `"cache_control": CACHE_5M`
+  (per-turn) or `CACHE_1H` (stable for the session) from
+  `app/claude/caching.py`.
 - **SQLite**: single global connection guarded by `threading.Lock` (see
   `app/db.py`). All writes go inside `with LOCK:`. WAL mode + foreign
   keys on.

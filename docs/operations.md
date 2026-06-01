@@ -145,14 +145,15 @@ on shutdown. Wakes every 60s.
 
 ### Job table
 
-| Job | When | What it does |
-| --- | --- | --- |
-| `digest` | daily, at `app_state.digest_time` | Regenerate nudges (rate-limited 2/day), run due `report_subscriptions`, check anniversary milestone |
-| `reflection` | weekly, `reflection_day` 16:00 | Weekly reflection trigger (UI-driven from here) |
-| `journal_prompt` | weekday 18:00 if no entry today | Insert `journal_prompt` nudge |
-| `auto_briefs` | nightly 22:00 | Generate meeting_prep for tomorrow's ICS meetings (≤5/day) |
-| `attack_surface_snapshot` | Sunday 09:00 | Snapshot all Endpoint entities + diff vs prior |
-| `weekly_backup` | Sunday 03:00 | `sqlite3.Connection.backup()` to `~/.tank/backups/`; keep 8 |
+| Job | When | What it does | Path |
+| --- | --- | --- | --- |
+| `digest` | daily, at `app_state.digest_time` | Regenerate nudges (rate-limited 2/day), run due `report_subscriptions`, check anniversary milestone | subscriptions submit one batch (50% off); nudges + anniversary fan-out also batch |
+| `reflection` | weekly, `reflection_day` 16:00 | Weekly reflection trigger (UI-driven from here) | sync |
+| `journal_prompt` | weekday 18:00 if no entry today | Insert `journal_prompt` nudge | sync (no Claude call) |
+| `auto_briefs` | nightly 22:00 | Submit meeting-prep briefs for tomorrow's ICS meetings (≤5/night) to the Batches API; rehydrated results persist to `meeting_briefs` when the batch lands | batched |
+| `attack_surface_snapshot` | Sunday 09:00 | Snapshot all Endpoint entities + diff vs prior | sync (no Claude call) |
+| `weekly_backup` | Sunday 03:00 | `sqlite3.Connection.backup()` to `~/.tank/backups/`; keep 8 | sync |
+| `batches.poll_inflight` | every tick (~60s) | Refresh status of every in-flight Anthropic batch; dispatch results to the registered handler when a batch ends | sync |
 
 ### Why jobs might not fire
 
@@ -192,6 +193,86 @@ with LOCK:
                        ('digest',))
 "
 ```
+
+---
+
+## Anthropic Message Batches
+
+Four scheduler workloads submit to Anthropic's [Message Batches
+API](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
+for **50% off** both input and output token rates. Results arrive
+asynchronously (Anthropic targets <1h, guarantees <24h); a poll runs
+on every scheduler tick (~60s) and dispatches finished results to
+their registered handler.
+
+### Batch kinds
+
+| Kind | Origin | Persistence |
+| --- | --- | --- |
+| `auto_brief` | `_fire_auto_briefs` (nightly 22:00) | Each rehydrated brief lands in `meeting_briefs` |
+| `report_subscription` | `_run_due_subscriptions` (daily digest) | Each report lands in `reports` + `subscriptions_store.mark_run` |
+| `anniversary_bundle` | `_maybe_anniversary` (tenure milestones) | Generic retro + security retro + philosophy seed/evolve land in `reports` |
+| `attack_mapping_per_tm` | `attack_mapping.schedule_batch` (subscription) | Per-TM rows stash in `attack_mapping_scratch`; finalizer aggregates into one `attack_mapping` report |
+
+### Inspect in-flight + recent batches
+
+```bash
+sqlite3 ~/.tank/db.sqlite \
+  "SELECT id, kind, status, request_count,
+          datetime(created_at,'unixepoch','localtime') AS created,
+          datetime(completed_at,'unixepoch','localtime') AS completed,
+          result_summary
+   FROM batch_jobs ORDER BY created_at DESC LIMIT 20;"
+```
+
+Statuses are Anthropic's terms — `submitted`, `in_progress`, `ended`
+(success or partial), and the terminal failure states `failed`,
+`cancelled`, `expired`. Anything other than the four terminal states
+is in-flight and will be re-polled on the next tick.
+
+### Token spend from batches
+
+Per-result usage is logged via `log_token_usage(f"batches.{kind}", ...)`
+inside the result loop, so it lands as ordinary `api_calls` rows:
+
+```bash
+sqlite3 ~/.tank/db.sqlite \
+  "SELECT call_site, COUNT(*) AS calls,
+          SUM(tokens_in) AS tin, SUM(tokens_out) AS tout
+   FROM api_calls WHERE call_site LIKE 'batches.%'
+   GROUP BY call_site ORDER BY tin DESC;"
+```
+
+For subscription reports, full token counts (`tokens_in`, `tokens_out`,
+`cache_read_in`, `cache_create_in`) also write to the `reports` table —
+matching the sync path — so `/api/usage/cost` continues to aggregate
+correctly.
+
+### Recovering from a stuck batch
+
+A batch that never reaches a terminal state usually means polling
+errored out (network blip, expired API key). Look in the logs for
+`tank.batches` warnings. The poll retries every tick, so transient
+errors heal themselves. To force-skip a hung row:
+
+```bash
+sqlite3 ~/.tank/db.sqlite \
+  "UPDATE batch_jobs SET status='cancelled',
+          completed_at=strftime('%s','now'),
+          result_summary='manually cancelled'
+   WHERE id = '<batch_job_id>';"
+```
+
+For `attack_mapping_per_tm`, if a finalizer crash leaves orphan rows in
+`attack_mapping_scratch`, drop them manually:
+
+```bash
+sqlite3 ~/.tank/db.sqlite \
+  "DELETE FROM attack_mapping_scratch
+   WHERE batch_job_id = '<batch_job_id>';"
+```
+
+The same workload re-runs on the next subscription dispatch.
 
 ---
 

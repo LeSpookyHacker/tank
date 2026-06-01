@@ -6,6 +6,8 @@ A local-first security engineering partner for the first security hire. Tank ask
 
 **Nothing leaves your machine in cleartext.** Hostnames, emails, IPs, account IDs, and secrets are redacted locally before any Claude API call.
 
+**Cost-conscious by default.** Prompt caching at every stable breakpoint (1h TTL on system + KB-scope blocks, 5m on per-turn retrieval), a Sonnet/Haiku split that routes structured-extraction work to the cheaper model, and Anthropic Message Batches (50% off) for every background scheduler job — auto-briefs, report subscriptions, anniversaries, and ATT&CK mapping all submit asynchronously and persist when results land.
+
 ---
 
 ## Features

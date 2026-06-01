@@ -202,6 +202,26 @@ Total: typical engineer's daily use lands around **$15-25/month**
 including periodic report runs. The Anthropic dashboard tracks
 spend per API key — recommended to use a dedicated key for Tank.
 
+Tank applies several optimizations on top of these baselines:
+
+- **Prompt caching.** System prompts, role + lens, and the KB entity
+  scope use the 1-hour extended ephemeral cache; per-turn KB hit
+  blocks use the 5-minute default. A digest tick that fires several
+  reports back-to-back pays cache-read rates after the first
+  (cache reads are ~10× cheaper than uncached input tokens).
+- **Sonnet / Haiku split.** Structured-extraction work — entity
+  extraction during ingest, meeting prep, glossary discovery,
+  journal and lesson extraction, nudge question-of-week — routes to
+  Haiku (~3× cheaper than Sonnet).
+- **Message Batches API.** Every background scheduler workload — the
+  daily report subscriptions, nightly auto-briefs, anniversary
+  bundle (generic + security + philosophy), and ATT&CK mapping —
+  submits asynchronously through Anthropic's Batches endpoint at
+  **50% off** both input and output rates.
+- **Token-efficient tools beta (opt-in).** Setting
+  `TANK_TOOL_TOKEN_EFFICIENT=1` enables Anthropic's beta header on
+  the chat path; saves ~14% on tool-heavy turns.
+
 ### Why is there no cost cap?
 
 Phase 8+ should add one. Today the rate limits are: nudges

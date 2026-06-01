@@ -1515,3 +1515,166 @@ app/templates/security_program.html
 ```bash
 python -m pytest -q   # 28/28 still pass
 ```
+
+---
+
+## 2026-06-01 — Token-use optimization pass + Anthropic Message Batches
+
+### Goal
+
+Audit every Claude API call site, fix the leaks that cost tokens
+without buying anything, and adopt the API features Tank wasn't using
+yet — extended-TTL prompt caching, Anthropic's Message Batches (50%
+off async fan-out), and the token-efficient-tools beta header.
+
+### Tier 1 — safe wins (commit `6afceef`, merged in PR #6)
+
+- `threat_modeling._prior_block` was returning an uncached text block.
+  Every regen re-tokenized the prior threat list cold even when the
+  service architecture hadn't drifted. Now marked `CACHE_1H`.
+- `policy_generator` was concatenating `policy_base` + `policy_<kind>`
+  into a single cached string, so generating two different policies
+  caused two full cache writes (the base rules are identical across
+  all five kinds). Split into two cache blocks so a multi-policy
+  session hits the base cache after the first call.
+- `glossary_extractor` was using Sonnet for what is structurally a
+  Haiku task (fixed Pydantic schema, no reasoning). Switched.
+- `anniversary_security` was passing `tokens_in=None`,
+  `tokens_out=None` to `reports_store.insert`, so its spend was
+  invisible to `/api/usage/cost`. Now forwards usage from the
+  response, matching the generic anniversary path.
+- `policy_generator` log site renamed from `policy_gen.{kind}` to
+  `policy.{kind}` for consistency with other module call-site labels.
+
+### Tier 2 — cache rework + token-efficient tools beta (commit `6afceef`)
+
+- `app/claude/caching.py` introduces `CACHE_5M` and `CACHE_1H`
+  constants. System prompts + KB entity scope use 1h TTL; per-turn
+  KB hit blocks keep 5m (search results vary per query, longer TTL
+  doesn't help).
+- `_build_scope_block` moved out of `reports.py` into
+  `caching.py` as the canonical `build_scope_block(service_id=None)`.
+  All eight prior import sites (policy generator, anniversaries,
+  day-1 brief, plan generator, prioritization, meeting prep,
+  compliance wizard, reports) now share one cached block. A digest
+  burst that runs several reports pays cache reads after the first.
+  `reports.py` keeps a thin `_build_scope_block` shim for backward
+  compatibility.
+- `chat.py` adds an opt-in `TANK_TOOL_TOKEN_EFFICIENT=1` env flag
+  that enables Anthropic's `anthropic-beta:
+  token-efficient-tools-2025-02-19` header on the streaming call.
+  ~14% token reduction on tool-heavy chat turns; flag-gated so a
+  regression can be flipped off without a deploy.
+
+### Tier 3 — Message Batches infrastructure (commit `71b2d5d`, PR #6)
+
+- New module `app/claude/batches.py` with three layers:
+  `submit(kind, requests, payload)` → persists a `batch_jobs` row;
+  `poll_inflight()` → refresh + dispatch (called from scheduler
+  `_tick` every ~60s); `@register(kind)` decorator binds a
+  per-result handler `(custom_id, msg, payload) -> None`. Token
+  accounting via `log_token_usage(f"batches.{kind}", ...)` inside
+  the result loop — runs before the handler so spend is captured
+  even if the handler crashes.
+- `_migrate_batch_jobs` in `app/db.py` creates the `batch_jobs`
+  table with a status + created_at index.
+- CLAUDE.md documents the migration pattern + the constraint that
+  `messages.batches.create` doesn't accept `output_format=PydanticClass`.
+
+### Tier 3.B — consumer migrations (commit `8d47cea`, PR #7)
+
+All four deferred fan-out workloads now ride the Batches API:
+
+| Kind | Origin | Persistence |
+| --- | --- | --- |
+| `auto_brief` | `_fire_auto_briefs` (nightly 22:00) | Each rehydrated brief lands in new `meeting_briefs` table |
+| `report_subscription` | `_run_due_subscriptions` (daily digest) | 12 of 14 report kinds via `_BATCH_DISPATCH`; each lands in `reports` + `subscriptions_store.mark_run` |
+| `anniversary_bundle` | `_maybe_anniversary` (tenure milestone) | One batch carries 2–3 artifacts (generic retro, security retro, philosophy seed/evolve); handler dispatches by custom_id prefix |
+| `attack_mapping_per_tm` | `attack_mapping.schedule_batch` | Per-result rows stash in `attack_mapping_scratch`; new finalizer hook (`@batches.register_finalizer`) aggregates into ONE `attack_mapping` report and clears scratch |
+
+Supporting pieces:
+
+- `app/claude/batch_helpers.py` — structured-output adapter for the
+  Batches endpoint (which doesn't take `output_format`):
+  `tool_params_for(cls)` builds `(tools, tool_choice)` from
+  `cls.model_json_schema()`; `extract_validated(msg, cls)` walks
+  message content for the forced `tool_use` block and validates.
+- `@batches.register_finalizer(kind)` — new hook in `batches.py`
+  that runs once after all per-result handlers have dispatched.
+  Used by `attack_mapping` to aggregate per-TM rows into one
+  combined report.
+- New `meeting_briefs` store + table — the prior sync path for
+  `_fire_auto_briefs` had a latent positional-vs-kwargs bug *and*
+  discarded results. Both fixed.
+- New `attack_mapping_scratch` store + table — short-lived
+  per-batch aggregation buffer for the finalizer pattern.
+
+Sync paths preserved for every interactive HTTP route
+(`POST /api/meeting-prep`, `POST /api/reports/{kind}`, attack-mapping
+HTTP path) so user-facing latency is unchanged.
+
+### Verification
+
+- All 16 changed modules import clean under Python 3.11.
+- All four batch handlers + the attack_mapping finalizer register at
+  module import time.
+- `tool_params_for` / `extract_validated` unit-tested with
+  valid / no-tool-use-block / schema-invalid inputs.
+- End-to-end smoke for each handler against a stubbed Anthropic
+  message: auto_brief → `meeting_briefs` row; report_subscription →
+  `reports` row + `subscriptions.mark_run`; attack_mapping_per_tm →
+  scratch population → finalizer aggregation → ONE report + scratch
+  cleared.
+- Redaction tripwire: 25/28 pass — same 3 pre-existing AWS-key
+  failures as `main` (a `detect-secrets` version drift unrelated to
+  this work).
+
+### Files added
+
+```
+app/claude/batches.py
+app/claude/batch_helpers.py
+app/storage/meeting_briefs_store.py
+app/storage/attack_mapping_scratch_store.py
+```
+
+### Files modified (alphabetical, abbreviated)
+
+```
+CLAUDE.md
+README.md
+app/claude/anniversary.py
+app/claude/anniversary_security.py
+app/claude/attack_mapping.py
+app/claude/caching.py
+app/claude/chat.py
+app/claude/glossary_extractor.py
+app/claude/meeting_prep.py
+app/claude/philosophy.py
+app/claude/policy_generator.py
+app/claude/reports.py
+app/claude/scheduler.py
+app/claude/threat_modeling.py
+app/db.py
+docs/architecture.md
+docs/configuration.md
+docs/faq.md
+docs/operations.md
+```
+
+### Known deferred
+
+- **Adaptive thinking on more reasoning paths** — `threat_modeling`,
+  `risk_register.assess`, and the report runners could enable
+  `thinking={"type":"adaptive"}` for higher output quality at
+  ~+25-50% token cost. Listed in the original plan as "Tier 4 — not
+  a savings measure"; left to the user to decide.
+- **Caching chat conversation history** — possible to cache the last
+  assistant turn so multi-turn chat sessions pay cache reads on the
+  accumulated history. Fragile interaction with the tool-use loop;
+  defer until measured a problem.
+- **Native Citations API** — Tank rolls its own citation flow
+  integrated with redact/rehydrate. Switching to Anthropic's native
+  feature loses the integration with no real token savings.
+- **Files API for vision** — vision is one-shot at ingest; no re-use
+  pattern, no payoff.
