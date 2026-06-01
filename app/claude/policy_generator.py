@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 
-from app.claude.reports import _build_scope_block
+from app.claude.caching import CACHE_1H, build_scope_block
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
@@ -33,11 +33,10 @@ def generate(kind: str) -> str:
     prompt_name = _PROMPT_MAP[kind]
     base_rules = load_prompt("policy_base")
     specific_prompt = load_prompt(prompt_name)
-    system_text = f"{base_rules}\n\n---\n\n{specific_prompt}"
 
     state = get_state()
     org_context = _build_org_context(state)
-    scope_block = _build_scope_block()
+    scope_block = build_scope_block()
 
     client = get_client()
     try:
@@ -45,11 +44,24 @@ def generate(kind: str) -> str:
             model=MODEL,
             max_tokens=4096,
             thinking={"type": "adaptive"},
-            system=[{
-                "type": "text",
-                "text": system_text,
-                "cache_control": {"type": "ephemeral"},
-            }],
+            # Two cache blocks: the base rules are identical across all five
+            # policy kinds, so generating multiple policies in a session warms
+            # this block once and then pays cache-read rates. The per-kind
+            # specific prompt has its own cache block so a re-run of the same
+            # kind also gets a full cache hit. 1h TTL covers a working
+            # session that authors multiple policies back-to-back.
+            system=[
+                {
+                    "type": "text",
+                    "text": base_rules,
+                    "cache_control": CACHE_1H,
+                },
+                {
+                    "type": "text",
+                    "text": specific_prompt,
+                    "cache_control": CACHE_1H,
+                },
+            ],
             messages=[{
                 "role": "user",
                 "content": [
@@ -61,7 +73,7 @@ def generate(kind: str) -> str:
             }],
         )
         usage = getattr(resp, "usage", None)
-        log_token_usage(f"policy_gen.{kind}", MODEL, usage)
+        log_token_usage(f"policy.{kind}", MODEL, usage)
         content_md_redacted = ""
         for block in resp.content or []:
             t = getattr(block, "text", None)

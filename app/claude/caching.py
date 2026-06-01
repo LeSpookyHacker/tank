@@ -5,9 +5,21 @@
 # Two breakpoints per request:
 # 1. End of system prompt (stable per role × lens × project notes).
 # 2. End of KB context block (the retrieved chunks + entity cards).
+#
+# Two TTL flavors for cache_control:
+# - CACHE_5M: the default 5-minute ephemeral cache. Use for blocks that
+#   are stable only within one user turn or one fast back-to-back run
+#   (KB hit set, search-derived content).
+# - CACHE_1H: 1-hour extended ephemeral. Use for blocks stable across an
+#   entire working session — role/lens system prompt, KB entity scope,
+#   prior threat-model versions, policy base rules. Pays back on digest-
+#   time scheduler bursts, anniversary runs, multi-policy/multi-risk ops.
 from __future__ import annotations
 
 from app.config import load_prompt
+
+CACHE_5M: dict = {"type": "ephemeral"}
+CACHE_1H: dict = {"type": "ephemeral", "ttl": "1h"}
 
 
 def build_system_block(
@@ -35,7 +47,10 @@ def build_system_block(
     return {
         "type": "text",
         "text": base + lens_text + notes_text,
-        "cache_control": {"type": "ephemeral"},
+        # Role + lens + project notes are stable across a whole working
+        # session, so 1h extended cache turns the second-through-Nth turn
+        # into a guaranteed cache read.
+        "cache_control": CACHE_1H,
     }
 
 
@@ -98,5 +113,72 @@ def build_kb_block(hits: list[dict], entity_cards: list[dict]) -> dict:
     return {
         "type": "text",
         "text": text,
-        "cache_control": {"type": "ephemeral"},
+        # KB hit set is per-turn (search results vary by query), so the
+        # default 5-minute TTL is the right shape — long enough that a
+        # back-to-back follow-up gets a cache hit, short enough that a
+        # different query doesn't keep a stale block warm.
+        "cache_control": CACHE_5M,
+    }
+
+
+def build_scope_block(service_id: str | None = None,
+                      limit_per_type: int = 30) -> dict:
+    """Cache-controlled text block summarizing the relevant KB slice.
+
+    Single source of truth for the entity-graph scope shared across
+    reports, anniversaries, day-1 brief, plan generator, prioritization,
+    meeting prep, policy generator, and compliance wizard. Wrapping in
+    a 1h cache block means a digest-time burst (or a multi-policy /
+    multi-risk session) pays cache-read rates for the second-through-Nth
+    call instead of re-tokenizing the whole entity graph each time.
+
+    `service_id` swaps the leading section to a per-service summary;
+    the global type-bucketed listing always follows so KB-wide reports
+    get the same shape.
+    """
+    # Imports are deferred to avoid a circular import: kb.entities and
+    # redact.engine both pull in app.config and indirectly app.db, which
+    # is fine, but keeping caching.py import-light at module load is
+    # nicer for callers that just want the cache_control constants.
+    from app.kb.entities import get_card, list_by_type
+    from app.redact.engine import apply_redactions
+
+    parts: list[str] = ["## KB scope"]
+
+    if service_id:
+        card = get_card(service_id)
+        if card:
+            svc_name = apply_redactions(card['name']).redacted_text
+            svc_desc = apply_redactions(card.get('description') or '').redacted_text
+            parts.append(f"### Primary service: {svc_name}")
+            parts.append(f"description: {svc_desc or '—'}")
+            parts.append(f"attrs: {card.get('attrs')}")
+            for ch in card.get("linked_chunks", []):
+                parts.append(
+                    f"  chunk[{ch['chunk_id']}] section={ch.get('section_path') or '—'}: "
+                    f"{(ch.get('snippet') or '')[:300]}"
+                )
+            parts.append("")
+
+    # Always include a global view of entities by type so reports can
+    # reason about the org as a whole.
+    for t in ("Service", "Person", "DataStore", "CloudAccount", "Vendor",
+              "Control", "Policy", "Runbook", "Repo"):
+        rows = list_by_type(t, limit=limit_per_type)
+        if not rows:
+            continue
+        parts.append(f"### {t} ({len(rows)})")
+        for r in rows:
+            ent_name = apply_redactions(r['name']).redacted_text
+            line = f"- [{r['id'][:8]}] {ent_name!r}"
+            if r.get("description"):
+                ent_desc = apply_redactions(r['description'] or '').redacted_text
+                line += f" — {ent_desc[:140]}"
+            parts.append(line)
+        parts.append("")
+
+    return {
+        "type": "text",
+        "text": "\n".join(parts),
+        "cache_control": CACHE_1H,
     }

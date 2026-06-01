@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -269,6 +270,18 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
 
     loop = asyncio.get_event_loop()
 
+    # Token-efficient tool use: opt-in beta header that compresses the
+    # tool-use protocol overhead (Anthropic reports ~14% lower output
+    # tokens on tool-heavy turns). The chat loop sends 15 tools with
+    # ~1.4K tokens of schema on every turn, so this lands meaningfully.
+    # Gated behind an env flag so a regression can be flipped off without
+    # a deploy.
+    _stream_extras: dict[str, Any] = {}
+    if os.environ.get("TANK_TOOL_TOKEN_EFFICIENT", "").lower() in ("1", "true", "on"):
+        _stream_extras["extra_headers"] = {
+            "anthropic-beta": "token-efficient-tools-2025-02-19",
+        }
+
     def _run_stream():
         return client.messages.stream(
             model=MODEL,
@@ -276,6 +289,7 @@ async def run_turn(conversation_id: str, user_text: str) -> str:
             system=system_blocks,
             messages=history,
             tools=TOOL_SCHEMAS,
+            **_stream_extras,
         )
 
     iteration = 0
