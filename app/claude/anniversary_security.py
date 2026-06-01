@@ -67,6 +67,7 @@ def generate(day_n: int) -> str | None:
             output_format=AnniversaryRetro,
         )
         parsed = getattr(resp, "parsed_output", None)
+        usage = getattr(resp, "usage", None)
     except Exception as exc:
         log.warning("anniversary_security %d failed: %s", day_n, exc)
         return None
@@ -81,7 +82,10 @@ def generate(day_n: int) -> str | None:
         role_mode=state.role_mode.value,
         model=MODEL,
         scope={"day_n": day_n},
-        tokens_in=None, tokens_out=None,
+        tokens_in=getattr(usage, "input_tokens", 0) if usage else None,
+        tokens_out=getattr(usage, "output_tokens", 0) if usage else None,
+        cache_read_in=getattr(usage, "cache_read_input_tokens", 0) if usage else None,
+        cache_create_in=getattr(usage, "cache_creation_input_tokens", 0) if usage else None,
     )
 
 

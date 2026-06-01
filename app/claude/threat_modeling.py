@@ -18,6 +18,7 @@ import json
 import logging
 from typing import Any
 
+from app.claude.caching import CACHE_1H
 from app.claude.event_bus import publish
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import get_card
@@ -109,7 +110,11 @@ def _prior_block(prior: dict | None) -> dict | None:
         parts.append(f"likelihood={t.get('likelihood')} impact={t.get('impact')}")
         parts.append(t.get("description", ""))
         parts.append("")
-    return {"type": "text", "text": "\n".join(parts)}
+    # Prior threats are stable across regens until arch drifts; 1h cache
+    # means rapid back-to-back regens (or a weekly digest that touches
+    # several services) pay cache-read rates instead of cold each time.
+    return {"type": "text", "text": "\n".join(parts),
+            "cache_control": CACHE_1H}
 
 
 def _render_md(parsed: ThreatModelV2, version: int) -> str:
@@ -159,7 +164,9 @@ def generate(service_id: str) -> str:
     system_block = {
         "type": "text",
         "text": load_prompt("threat_model_v2"),
-        "cache_control": {"type": "ephemeral"},
+        # threat_model_v2 system prompt is stable across all services;
+        # 1h cache covers a Sunday digest that regenerates several TMs.
+        "cache_control": CACHE_1H,
     }
     user_blocks: list[dict] = [_scope_block(service_id, chunks)]
     pb = _prior_block(prior)

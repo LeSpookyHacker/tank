@@ -17,9 +17,9 @@ from typing import Any, Type, TypeVar
 
 from pydantic import BaseModel
 
+from app.claude.caching import CACHE_1H, build_scope_block
 from app.claude.event_bus import publish
 from app.config import MODEL, get_client, load_prompt
-from app.kb.entities import get_card, list_by_type
 from app.redact.engine import apply_redactions, rehydrate
 from app.redact.store import load_rehydration_map
 from app.role import get_state
@@ -37,59 +37,13 @@ T = TypeVar("T", bound=BaseModel)
 
 # ---------------- scope builders ----------------
 
+# Back-compat re-export. The canonical implementation lives in
+# `app/claude/caching.py` so non-report modules (anniversaries, policy,
+# day1, plan, meeting prep, prioritization, compliance wizard) share the
+# same cached block and benefit from cross-module cache hits.
 def _build_scope_block(service_id: str | None = None,
                        limit_per_type: int = 30) -> dict:
-    """Cache-controlled text block summarizing the relevant KB slice.
-
-    Why this exists: the same KB scope feeds every generator in
-    REPORT_REGISTRY. Wrapping it in an `ephemeral` cache block means the
-    first generator's call warms the cache and subsequent generators pay
-    cache-read rates for the block — empirically ~2x cheaper end-to-end.
-
-    `service_id` swaps the leading section to a per-service summary
-    (`threat_landscape`, `oncall_handoff`); the global type-bucketed
-    listing always follows so KB-wide reports get the same shape.
-    """
-    parts: list[str] = ["## KB scope"]
-
-    if service_id:
-        card = get_card(service_id)
-        if card:
-            svc_name = apply_redactions(card['name']).redacted_text
-            svc_desc = apply_redactions(card.get('description') or '').redacted_text
-            parts.append(f"### Primary service: {svc_name}")
-            parts.append(f"description: {svc_desc or '—'}")
-            parts.append(f"attrs: {card.get('attrs')}")
-            for ch in card.get("linked_chunks", []):
-                parts.append(
-                    f"  chunk[{ch['chunk_id']}] section={ch.get('section_path') or '—'}: "
-                    f"{(ch.get('snippet') or '')[:300]}"
-                )
-            parts.append("")
-
-    # Always include a global view of entities by type so reports can
-    # reason about the org as a whole.
-    for t in ("Service", "Person", "DataStore", "CloudAccount", "Vendor",
-              "Control", "Policy", "Runbook", "Repo"):
-        rows = list_by_type(t, limit=limit_per_type)
-        if not rows:
-            continue
-        parts.append(f"### {t} ({len(rows)})")
-        for r in rows:
-            ent_name = apply_redactions(r['name']).redacted_text
-            line = f"- [{r['id'][:8]}] {ent_name!r}"
-            if r.get("description"):
-                ent_desc = apply_redactions(r['description'] or '').redacted_text
-                line += f" — {ent_desc[:140]}"
-            parts.append(line)
-        parts.append("")
-
-    text = "\n".join(parts)
-    return {
-        "type": "text",
-        "text": text,
-        "cache_control": {"type": "ephemeral"},
-    }
+    return build_scope_block(service_id=service_id, limit_per_type=limit_per_type)
 
 
 # ---------------- shared runner ----------------
@@ -103,9 +57,11 @@ def _run(prompt_name: str, output_format: Type[T], *,
     system_block = {
         "type": "text",
         "text": load_prompt(prompt_name),
-        "cache_control": {"type": "ephemeral"},
+        # Each report's system prompt is stable; 1h cache covers
+        # any digest-time burst that re-runs the same kind.
+        "cache_control": CACHE_1H,
     }
-    scope_block = _build_scope_block(service_id=service_id)
+    scope_block = build_scope_block(service_id=service_id)
     user_blocks = [scope_block]
     if user_task:
         user_blocks.append({"type": "text", "text": user_task})

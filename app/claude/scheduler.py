@@ -192,6 +192,19 @@ async def _tick() -> None:
                 "weekly_backup", week_label):
         await _fire_weekly_backup(week_label)
 
+    # ── Anthropic Message Batches poll ──
+    # Cheap when nothing is in-flight (one SELECT). When a background
+    # batch (auto_briefs, subscriptions, etc.) finishes, its results are
+    # fetched here and handed to the registered handler for persistence.
+    # Runs every tick so latency-from-batch-end to result-processing is
+    # at most one tick (~60s).
+    try:
+        from app.claude import batches as batches_mod
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, batches_mod.poll_inflight)
+    except Exception as exc:
+        log.warning("batches poll failed: %s", exc)
+
 
 # ---------------- job bodies ----------------
 
