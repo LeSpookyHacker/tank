@@ -21,6 +21,15 @@ fi
 say()  { printf '%b\n' "$*"; }
 fail() { printf '%b\n' "${RED}error:${RST} $*" >&2; exit 1; }
 
+# sqlite3 CLI availability (used for banner stats; not required to run)
+_SQLITE3_OK=0
+if command -v sqlite3 >/dev/null 2>&1; then
+    _SQLITE3_OK=1
+else
+    say "${DIM}▸ sqlite3 CLI not found — KB stats will be skipped in the banner.${RST}"
+    say "${DIM}  Install with: sudo apt install sqlite3   # or brew install sqlite3${RST}"
+fi
+
 # 1. Python version check (>=3.11)
 if ! command -v python3 >/dev/null 2>&1; then
     fail "python3 not found. Install Python 3.11+ from https://www.python.org/ or via Homebrew."
@@ -42,7 +51,8 @@ source .venv/bin/activate
 
 # 3. Deps (hash-cached so reruns are instant)
 REQ_HASH_FILE=".venv/.req.hash"
-REQ_HASH_NOW=$(shasum -a 256 requirements.txt | awk '{print $1}')
+REQ_HASH_NOW=$(sha256sum requirements.txt 2>/dev/null | awk '{print $1}' \
+    || shasum -a 256 requirements.txt | awk '{print $1}')
 REQ_HASH_CACHED=""
 [[ -f "$REQ_HASH_FILE" ]] && REQ_HASH_CACHED=$(cat "$REQ_HASH_FILE")
 
@@ -85,8 +95,10 @@ mkdir -p "$(dirname "$DB_PATH")"
 # we're in first-run mode. FastAPI's startup event creates the schema.
 FIRST_RUN=1
 if [[ -f "$DB_PATH" ]]; then
-    COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM app_state WHERE id = 1;" 2>/dev/null || echo "0")
-    [[ "$COUNT" == "1" ]] && FIRST_RUN=0
+    if [[ "$_SQLITE3_OK" -eq 1 ]]; then
+        COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM app_state WHERE id = 1;" 2>/dev/null || echo "0")
+        [[ "$COUNT" == "1" ]] && FIRST_RUN=0
+    fi
 fi
 
 BIND_HOST="${TANK_BIND_HOST:-127.0.0.1}"
@@ -101,15 +113,20 @@ if [[ "$FIRST_RUN" -eq 1 ]]; then
     say "  Tank will walk you through onboarding (~7 min)."
     say "  ${DIM}Nothing has been sent anywhere yet.${RST}"
 else
-    DOCS=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM documents;" 2>/dev/null || echo "0")
-    ENT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM entities;" 2>/dev/null || echo "0")
-    REDACTIONS=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM redaction_map;" 2>/dev/null || echo "0")
-    LAST=$(sqlite3 "$DB_PATH" \
-        "SELECT datetime(updated_at, 'unixepoch', 'localtime') FROM conversations ORDER BY updated_at DESC LIMIT 1;" \
-        2>/dev/null || echo "")
-    say "${DIM}▸ welcome back.${RST}"
-    say "  documents:  ${BOLD}${DOCS}${RST}     entities: ${BOLD}${ENT}${RST}     redactions: ${BOLD}${REDACTIONS}${RST}"
-    [[ -n "$LAST" ]] && say "  last chat:  ${DIM}${LAST}${RST}"
+    if [[ "$_SQLITE3_OK" -eq 1 ]]; then
+        DOCS=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM documents;" 2>/dev/null || echo "0")
+        ENT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM entities;" 2>/dev/null || echo "0")
+        REDACTIONS=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM redaction_map;" 2>/dev/null || echo "0")
+        LAST=$(sqlite3 "$DB_PATH" \
+            "SELECT datetime(updated_at, 'unixepoch', 'localtime') FROM conversations ORDER BY updated_at DESC LIMIT 1;" \
+            2>/dev/null || echo "")
+        say "${DIM}▸ welcome back.${RST}"
+        say "  documents:  ${BOLD}${DOCS}${RST}     entities: ${BOLD}${ENT}${RST}     redactions: ${BOLD}${REDACTIONS}${RST}"
+        [[ -n "$LAST" ]] && say "  last chat:  ${DIM}${LAST}${RST}"
+    else
+        say "${DIM}▸ welcome back.${RST}"
+        say "  ${DIM}(install sqlite3 CLI to see KB stats)${RST}"
+    fi
     say "  open ${BOLD}http://${BIND_HOST}:${BIND_PORT}${RST}"
 fi
 say ""
