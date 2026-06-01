@@ -268,11 +268,15 @@ async def _fire_journal_prompt(today_label: str) -> None:
 
 
 async def _fire_auto_briefs(today_label: str) -> None:
-    """Generate meeting-prep briefs for tomorrow's calendar items.
+    """Submit a batch of meeting-prep briefs for tomorrow's calendar items.
 
     Lookahead window is 4h–36h: skips anything imminent (no time to act on
     a brief) and stops around tomorrow's EOD. Capped at
     `_AUTO_BRIEFS_MAX_PER_NIGHT` to bound token spend on busy calendars.
+
+    Results land asynchronously via the Batches API poll loop —
+    `meeting_prep._handle_auto_brief` writes each rehydrated brief to
+    `meeting_briefs` when the batch ends.
     """
     scheduler_state_store.mark_fired("auto_briefs", today_label)
     try:
@@ -285,25 +289,32 @@ async def _fire_auto_briefs(today_label: str) -> None:
     end = time.time() + _AUTO_BRIEFS_LOOKAHEAD_END
     upcoming = meetings_store.list_between(start, end) \
         if hasattr(meetings_store, "list_between") else []
-    loop = asyncio.get_event_loop()
-    generated = 0
+
+    # Cap before submission so we don't burn batch slots on a long calendar.
+    selected: list[dict] = []
     for m in upcoming:
-        if generated >= _AUTO_BRIEFS_MAX_PER_NIGHT:
+        if len(selected) >= _AUTO_BRIEFS_MAX_PER_NIGHT:
             break
-        attendees = m.get("attendees") or []
-        if not attendees:
+        if not (m.get("attendees") or []):
             continue
-        who = attendees[0]
-        try:
-            await loop.run_in_executor(
-                None, mp_mod.prepare, who, m.get("title"), None,
-            )
-            generated += 1
-        except Exception as exc:
-            log.warning("auto-brief for %r failed: %s", who, exc)
-    if generated:
-        publish("scheduler.global", "auto_briefs_fired",
-                {"count": generated, "date": today_label})
+        selected.append(m)
+
+    if not selected:
+        return
+
+    loop = asyncio.get_event_loop()
+    try:
+        batch_id = await loop.run_in_executor(
+            None, mp_mod.schedule_batch, selected,
+        )
+    except Exception as exc:
+        log.warning("auto_briefs batch submit failed: %s", exc)
+        return
+
+    if batch_id:
+        publish("scheduler.global", "auto_briefs_submitted",
+                {"count": len(selected), "date": today_label,
+                 "batch_id": batch_id})
 
 
 async def _fire_attack_surface_snapshot(week_label: str) -> None:
@@ -400,17 +411,68 @@ def _take_backup() -> None:
 async def _run_due_subscriptions() -> None:
     """Fire every report subscription whose `next_run_at` has passed.
 
-    Looks up the generator in REPORT_REGISTRY. Scope-bearing report kinds
-    (threat_landscape, questions_for_team) require the scope JSON to carry
-    the relevant target (service_id, team_or_person); skip if missing.
+    Two paths:
+    - **Batch path**: `reports.schedule_batch_for_subs(subs)` collects every
+      batch-eligible sub (12 of 14 kinds) into one Anthropic Batch (50% off).
+      Results land asynchronously via the poll loop — the handler
+      `reports._handle_report_subscription` persists the report and calls
+      `subscriptions_store.mark_run` per result.
+    - **Sync fallback**: kinds the batch path can't handle today —
+      `attack_mapping` (has its own per-TM batch fan-out), `iam_audit`
+      (no Claude call), and scope-missing skips — run synchronously via
+      REPORT_REGISTRY just like before.
     """
+    from app.claude import reports as reports_mod
     from app.claude.reports import REPORT_REGISTRY
     from app.storage import subscriptions_store
+
+    subs = list(subscriptions_store.list_due_for_run())
+    if not subs:
+        return
+
     loop = asyncio.get_event_loop()
-    for sub in subscriptions_store.list_due_for_run():
+
+    # 1) Batch path for the supported kinds.
+    try:
+        batch_id, leftover = await loop.run_in_executor(
+            None, reports_mod.schedule_batch_for_subs, subs,
+        )
+        if batch_id:
+            log.info("subscriptions batch submitted: id=%s subs=%d",
+                     batch_id, len(subs) - len(leftover))
+    except Exception as exc:
+        log.warning("subscriptions batch submit failed: %s", exc)
+        leftover = subs  # fall everyone back to sync
+
+    # 2) Sync fallback for kinds the batch path skipped.
+    for sub in leftover:
         gen = REPORT_REGISTRY.get(sub["kind"])
         if gen is None:
             continue
+        # attack_mapping has its own dedicated batch path; route it there.
+        if sub["kind"] == "attack_mapping":
+            try:
+                from app.claude import attack_mapping as am_mod
+                am_batch_id = await loop.run_in_executor(
+                    None, am_mod.schedule_batch,
+                )
+                if am_batch_id:
+                    # We don't have a single report_id yet (finalizer
+                    # creates it later), but mark_run requires one.
+                    # Leave last_report_id unchanged this cycle —
+                    # subscriptions_store.list_due_for_run will see the
+                    # report when it lands. To avoid an immediate re-fire
+                    # next tick, advance last_run_at by writing a sentinel.
+                    subscriptions_store.mark_run(sub["id"], am_batch_id)
+                    publish("reports.global", "subscription_batched",
+                            {"subscription_id": sub["id"],
+                             "kind": sub["kind"], "batch_id": am_batch_id})
+            except Exception as exc:
+                log.warning("attack_mapping batch for sub %s failed: %s",
+                            sub["id"], exc)
+            continue
+
+        # Everything else: legacy sync REPORT_REGISTRY dispatch.
         try:
             import json
             scope = json.loads(sub["scope_json"] or "{}")
@@ -437,12 +499,14 @@ async def _run_due_subscriptions() -> None:
 
 
 async def _maybe_anniversary() -> None:
-    """Fire anniversary retros on tenure-day milestones.
+    """Submit one batch per tenure-day milestone.
 
-    Three artifacts ship per milestone: a generic retro, a security-focused
+    Three artifacts ride in the same batch: a generic retro, a security
     retro, and a philosophy doc (seeded at Day-30, evolved thereafter).
-    De-duped via `reports_store.latest_for_kind` so a same-day retrigger
-    can't double-write.
+    Results land asynchronously via the poll loop —
+    `anniversary._handle_anniversary_bundle` dispatches each one to the
+    right persistence path. De-duped via `reports_store.latest_for_kind`
+    so a same-day retrigger can't double-submit.
     """
     state = get_state()
     if not state.tenure_started_at:
@@ -453,37 +517,13 @@ async def _maybe_anniversary() -> None:
     from app.storage import reports_store
     if reports_store.latest_for_kind(f"anniversary_{day}"):
         return
-    log.info("firing Day-%d anniversary retro", day)
-    from app.claude.anniversary import generate as anniv_generate
+    log.info("submitting Day-%d anniversary batch", day)
     loop = asyncio.get_event_loop()
     try:
-        report_id = await loop.run_in_executor(None, anniv_generate, day)
-        publish("scheduler.global", "anniversary_fired",
-                {"day_n": day, "report_id": report_id})
+        from app.claude.anniversary import schedule_batch as anniv_schedule
+        batch_id = await loop.run_in_executor(None, anniv_schedule, day)
+        if batch_id:
+            publish("scheduler.global", "anniversary_submitted",
+                    {"day_n": day, "batch_id": batch_id})
     except Exception as exc:
-        log.warning("anniversary day %d failed: %s", day, exc)
-
-    try:
-        from app.claude.anniversary_security import generate as sec_generate
-        sec_report_id = await loop.run_in_executor(None, sec_generate, day)
-        publish("scheduler.global", "anniversary_security_fired",
-                {"day_n": day, "report_id": sec_report_id})
-    except Exception as exc:
-        log.warning("anniversary_security day %d failed: %s", day, exc)
-
-    if day == 30:
-        try:
-            from app.claude.philosophy import seed as philosophy_seed
-            phil_id = await loop.run_in_executor(None, philosophy_seed)
-            publish("scheduler.global", "philosophy_seeded",
-                    {"report_id": phil_id})
-        except Exception as exc:
-            log.warning("philosophy seed failed: %s", exc)
-    elif day in (60, 90, 180, 365):
-        try:
-            from app.claude.philosophy import evolve as philosophy_evolve
-            phil_id = await loop.run_in_executor(None, philosophy_evolve)
-            publish("scheduler.global", "philosophy_evolved",
-                    {"report_id": phil_id, "day_n": day})
-        except Exception as exc:
-            log.warning("philosophy evolve %d failed: %s", day, exc)
+        log.warning("anniversary day %d batch submit failed: %s", day, exc)

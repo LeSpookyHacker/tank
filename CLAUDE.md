@@ -387,16 +387,18 @@ pattern — reuse `_build_scope_block()` idiom for KB injection.
 
 ## Anthropic Message Batches (50% off, async)
 
-`app/claude/batches.py` wraps `client.messages.batches.create` for non-interactive scheduler fan-out. Submitted batches land in the `batch_jobs` table (`_migrate_batch_jobs` in `app/db.py`); the scheduler `_tick` calls `poll_inflight()` every ~60s and dispatches results to a kind-specific handler registered via `@batches.register("<kind>")`. The infrastructure is in place; consumer migrations are sequenced module-by-module:
+`app/claude/batches.py` wraps `client.messages.batches.create` for non-interactive scheduler fan-out. Submitted batches land in the `batch_jobs` table (`_migrate_batch_jobs` in `app/db.py`); the scheduler `_tick` calls `poll_inflight()` every ~60s and dispatches results to a kind-specific handler registered via `@batches.register("<kind>")`. Aggregator patterns (N→1) use `@batches.register_finalizer("<kind>")` to run once after all per-result handlers have fired.
 
-- `_fire_auto_briefs` — up to 5 same-shape Haiku calls per night.
-- `_run_due_subscriptions` — N report subscriptions per digest tick.
-- `_maybe_anniversary` — generic retro + security retro + philosophy at tenure milestones.
-- `attack_mapping.generate` — N+1 Sonnet call per Threat Model.
+All four scheduler fan-out consumers are migrated:
 
-Constraint: `messages.batches.create` does NOT accept `output_format=PydanticClass`. Modules that today use `messages.parse` must add a structured-output adapter (force-tool-call or JSON-in-text) on the batch path. The synchronous path stays in place for interactive (user-waiting) call sites. See the module docstring in `app/claude/batches.py` for the migration pattern.
+- `_fire_auto_briefs` (kind `auto_brief`) — Haiku, one request per upcoming meeting. Handler in `app/claude/meeting_prep.py::_handle_auto_brief` persists each rehydrated brief into the new `meeting_briefs` table.
+- `_run_due_subscriptions` (kind `report_subscription`) — Sonnet, one request per due subscription. Dispatch table `_BATCH_DISPATCH` in `app/claude/reports.py` covers 12 of 14 kinds; `attack_mapping` routes to its own batch path and `iam_audit` stays sync (no Claude call). Handler `_handle_report_subscription` mirrors `_finalize` exactly.
+- `_maybe_anniversary` (kind `anniversary_bundle`) — one batch carrying 2–3 artifacts per tenure milestone (generic retro + security retro + philosophy seed/evolve). Handler dispatches by `custom_id` prefix to the right persistence path.
+- `attack_mapping.schedule_batch` (kind `attack_mapping_per_tm`) — Sonnet, one request per latest Threat Model. Per-result handler writes partial rows to `attack_mapping_scratch`; finalizer aggregates, computes coverage_summary + top_gaps, persists ONE combined report under `kind="attack_mapping"`, then clears scratch.
 
-Token accounting for batch results uses `log_token_usage(f"batches.{kind}", model, usage)` inside the result loop — they show up as ordinary `api_calls` rows.
+Structured-output adapter: `app/claude/batch_helpers.py` provides `tool_params_for(cls)` and `extract_validated(msg, cls)`. The Batches endpoint doesn't accept `output_format=PydanticClass`, so each migration declares a single tool whose `input_schema` is the Pydantic class's JSON schema and forces it via `tool_choice={"type": "tool", "name": ...}`. The synchronous `messages.parse` path stays in place for interactive (user-waiting) call sites.
+
+Token accounting for batch results uses `log_token_usage(f"batches.{kind}", model, usage)` inside the result loop — they show up as ordinary `api_calls` rows. Subscription reports additionally pass `tokens_in/out/cache_read_in/cache_create_in` to `reports_store.insert` so per-report spend is captured in the reports table (matches sync path).
 
 ## DFD Threat Modeling
 

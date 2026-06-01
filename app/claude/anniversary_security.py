@@ -89,6 +89,53 @@ def generate(day_n: int) -> str | None:
     )
 
 
+def build_batch_request(day_n: int) -> dict:
+    """Build a single anniversary_security batch request.
+
+    Mirrors the sync `generate()` prompt + facts assembly. Custom id is
+    `security-{day_n}` so the bundle handler can dispatch.
+    """
+    from app.claude.batch_helpers import tool_params_for
+
+    state = get_state()
+    window_start = time.time() - day_n * 86400
+    decisions = decisions_store.recent(days=day_n, limit=200)
+    tms = [t for t in threat_models_store.list_all_latest()
+           if t.get("generated_at", 0) >= window_start]
+    pms = [p for p in postmortems_store.list_by_status("published")
+           if p.get("created_at", 0) >= window_start]
+    facts = (
+        f"## Window: last {day_n} days\n"
+        f"- Decisions made: {len(decisions)}\n"
+        f"- Threat models generated/updated: {len(tms)}\n"
+        f"- Postmortems published: {len(pms)}\n\n"
+        "## Decisions\n"
+        + "\n".join(f"- {d['title']} [{d['kind']}]" for d in decisions[:30])
+        + "\n\n## Threat models\n"
+        + "\n".join(f"- {t['title']} v{t['version']}" for t in tms)
+        + "\n\n## Postmortems\n"
+        + "\n".join(f"- {p['title']} ({p.get('severity')})" for p in pms)
+    )
+    prompt = load_prompt("anniversary_security")
+    tools, tool_choice = tool_params_for(AnniversaryRetro)
+    return {
+        "custom_id": f"security-{day_n}",
+        "params": {
+            "model": MODEL,
+            "max_tokens": 2500,
+            "system": [{"type": "text", "text": prompt,
+                        "cache_control": {"type": "ephemeral"}}],
+            "messages": [{"role": "user", "content": [
+                {"type": "text", "text": facts},
+                {"type": "text",
+                 "text": f"Produce the Day-{day_n} security retro."},
+            ]}],
+            "tools": tools,
+            "tool_choice": tool_choice,
+        },
+    }
+
+
 def _render(retro: AnniversaryRetro) -> str:
     lines = [f"# Day-{retro.day_n} security retro", "",
              retro.summary, ""]

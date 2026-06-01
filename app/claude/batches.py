@@ -105,6 +105,14 @@ log = logging.getLogger("tank.batches")
 # Handler registry: kind -> (custom_id, anthropic_message, payload_dict) -> None
 _HANDLERS: dict[str, Callable[[str, Any, dict], None]] = {}
 
+# Finalizer registry: kind -> (payload, stats_dict) -> None
+# Runs AFTER all per-result handlers in a batch have been dispatched.
+# Used by aggregator patterns (e.g. attack_mapping fan-out) where the
+# per-result handler stashes partial state in a scratch table and the
+# finalizer reads the union to produce one combined output. Optional —
+# kinds without an aggregation step don't register one.
+_FINALIZERS: dict[str, Callable[[dict, dict], None]] = {}
+
 # Terminal Anthropic batch processing states. Anything else means
 # in-flight or still queueing.
 _TERMINAL = {"ended", "failed", "cancelled", "expired"}
@@ -114,6 +122,21 @@ def register(kind: str) -> Callable:
     """Decorator: bind a post-processing function to a batch kind."""
     def deco(fn: Callable[[str, Any, dict], None]) -> Callable:
         _HANDLERS[kind] = fn
+        return fn
+    return deco
+
+
+def register_finalizer(kind: str) -> Callable:
+    """Decorator: bind a finalizer to a batch kind.
+
+    Finalizers run once per batch after every per-result handler has
+    been dispatched. Signature: `(payload: dict, stats: dict) -> None`
+    where stats is `{"succeeded": N, "errored": M, "batch_job_id": id}`.
+    Errors in finalizers are caught and logged; they don't roll back
+    the per-result handlers' writes.
+    """
+    def deco(fn: Callable[[dict, dict], None]) -> Callable:
+        _FINALIZERS[kind] = fn
         return fn
     return deco
 
@@ -244,5 +267,19 @@ def _process_results(row: dict, client) -> None:
             "UPDATE batch_jobs SET completed_at=?, result_summary=? WHERE id=?",
             (time.time(), summary, row["id"]),
         )
+
+    # Aggregator step: per-result handlers may have stashed partial state
+    # in a scratch table; the finalizer assembles it into a final output
+    # (one report, one event, etc.). Runs after the per-result loop so
+    # all writes are visible.
+    finalizer = _FINALIZERS.get(row["kind"])
+    if finalizer is not None:
+        try:
+            finalizer(payload, {"succeeded": succeeded, "errored": errored,
+                                "batch_job_id": row["id"]})
+        except Exception as exc:
+            log.warning("finalizer kind=%s batch=%s failed: %s",
+                        row["kind"], row["id"], exc)
+
     publish("batches.global", "batch_completed",
             {"id": row["id"], "kind": row["kind"], "summary": summary})
