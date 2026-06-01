@@ -59,7 +59,7 @@
   </table>
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function saveRow(category, idx) {
   const row = document.getElementById("row-" + idx);
   const tool = row.querySelector("[data-field=tool_name]").value.trim() || null;

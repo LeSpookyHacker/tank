@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app.claude.reports import REPORT_REGISTRY
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.role import get_state
 from app.storage import reports_store
 
@@ -54,7 +55,8 @@ async def report_detail(request: Request, report_id: str):
 # ---------------- API ----------------
 
 @router.post("/api/reports/{kind}")
-async def generate_report(kind: str, body: GenerateRequest) -> dict:
+@limiter.limit("10/hour")
+async def generate_report(request: Request, kind: str, body: GenerateRequest) -> dict:
     gen = REPORT_REGISTRY.get(kind)
     if gen is None:
         raise HTTPException(404, f"unknown report kind: {kind}")

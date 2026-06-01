@@ -55,7 +55,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   var raw = {{ runbook.runbook_md | tojson }};
   var el = document.getElementById("runbook-body");

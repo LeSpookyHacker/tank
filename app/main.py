@@ -21,14 +21,17 @@ import secrets as _secrets
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.claude import scheduler
 from app.config import STATIC_DIR
 from app.db import get_conn
+from app.rate_limiter import limiter
 from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
     discovery, dfd, entities, followups, glossary, iam, ingest, integrations,
@@ -57,24 +60,28 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tank", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        nonce = _secrets.token_urlsafe(16)
+        request.state.csp_nonce = nonce
         response = await call_next(request)
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Strict-Transport-Security"] = (
-            "max-age=63072000; includeSubDomains"
+            "max-age=63072000; includeSubDomains; preload"
         )
         response.headers["Permissions-Policy"] = (
             "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
         )
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; "
+            f"script-src 'self' 'nonce-{nonce}' cdn.jsdelivr.net unpkg.com; "
             "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "
             "font-src fonts.gstatic.com; "
             "img-src 'self' data:;"

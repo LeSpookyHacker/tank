@@ -627,6 +627,20 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_backup_log_created
             ON backup_log(created_at);
+
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id            TEXT PRIMARY KEY,
+            action        TEXT NOT NULL,
+            resource_type TEXT,
+            resource_id   TEXT,
+            detail_json   TEXT,
+            remote_addr   TEXT,
+            created_at    REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_audit_log_created
+            ON audit_log(created_at);
+        CREATE INDEX IF NOT EXISTS idx_audit_log_action
+            ON audit_log(action);
         """
     )
     # ── Migrations (additive only, idempotent, run-on-every-boot) ──

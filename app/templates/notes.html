@@ -35,7 +35,7 @@
   </ul>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 let currentNoteId = null;
 let currentDiff = null;
 

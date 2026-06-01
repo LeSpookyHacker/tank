@@ -112,7 +112,7 @@
   </table>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function submitDecision(e) {
   e.preventDefault();
   const f = e.target;

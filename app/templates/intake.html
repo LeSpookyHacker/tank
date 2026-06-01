@@ -82,7 +82,7 @@
   </div>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 const QUESTIONS = {{ questions | tojson }};
 let interviewId = null;
 let currentIndex = 0;

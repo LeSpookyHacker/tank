@@ -256,7 +256,7 @@
 .history-table th { font-size: .7rem; text-transform: uppercase; color: var(--text-muted); }
 </style>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function escHtml(s) {
   const d = document.createElement("div");
   d.textContent = String(s);

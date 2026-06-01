@@ -14,6 +14,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.claude.chat import run_turn
 from app.claude.event_bus import drain, subscribe, unsubscribe
 from app.config import MODEL, TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.role import get_state
 from app.storage import conversations_store, messages_store
 
@@ -69,10 +70,13 @@ async def create_conversation(body: CreateConversation) -> dict:
 
 
 @router.delete("/api/conversations/{conv_id}")
-async def delete_conversation(conv_id: str) -> dict:
+async def delete_conversation(request: Request, conv_id: str) -> dict:
     if not conversations_store.get(conv_id):
         raise HTTPException(status_code=404, detail="Conversation not found")
     conversations_store.delete(conv_id)
+    from app.storage.audit_log_store import log_action
+    log_action("delete_conversation", resource_type="conversation", resource_id=conv_id,
+               remote_addr=request.client.host if request.client else None)
     return {"ok": True}
 
 
@@ -107,7 +111,8 @@ async def get_conversation(conv_id: str) -> dict:
 
 
 @router.post("/api/conversations/{conv_id}/messages")
-async def post_message(conv_id: str, body: PostMessage) -> dict:
+@limiter.limit("20/minute")
+async def post_message(request: Request, conv_id: str, body: PostMessage) -> dict:
     conv = conversations_store.get(conv_id)
     if not conv:
         raise HTTPException(404, "no such conversation")

@@ -45,7 +45,7 @@
   </details>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   var raw = {{ tm.body_md | tojson }};
   var el = document.getElementById("tm-body-md");

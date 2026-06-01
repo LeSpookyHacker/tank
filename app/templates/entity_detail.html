@@ -75,7 +75,7 @@
   </div>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function genThreatReport(id) {
   const r = await fetch("/api/reports/threat_landscape", {
     method: "POST", headers: {"Content-Type": "application/json"},

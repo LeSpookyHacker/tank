@@ -45,7 +45,7 @@
   {% endif %}
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 {% if policy %}
 const policyId = "{{ policy.id }}";
 const initialMd = {{ policy.content_md | tojson }};

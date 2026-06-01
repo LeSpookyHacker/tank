@@ -172,7 +172,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function escHtml(s) {
   var d = document.createElement("div");
   d.textContent = String(s);

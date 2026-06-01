@@ -173,7 +173,7 @@
   font-size: .875rem; color: var(--text-muted); }
 </style>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function submitRisk(e) {
   e.preventDefault();
   const f = e.target;

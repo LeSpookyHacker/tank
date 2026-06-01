@@ -28,6 +28,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.claude.event_bus import drain, publish, subscribe, unsubscribe
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.storage import dfd_store
 
 router = APIRouter()
@@ -166,7 +167,8 @@ class StartAnalysisRequest(BaseModel):
 
 
 @router.post("/api/dfd/start-analysis")
-async def start_analysis(body: StartAnalysisRequest) -> dict:
+@limiter.limit("20/hour")
+async def start_analysis(request: Request, body: StartAnalysisRequest) -> dict:
     """Start a background STRIDE analysis task. Returns task_id for SSE stream."""
     if not body.mermaid_src.strip():
         raise HTTPException(status_code=400, detail="mermaid_src is required")

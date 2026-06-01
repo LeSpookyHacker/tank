@@ -53,7 +53,7 @@
   {% endif %}
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function generatePlan() {
   const btn = document.getElementById("gen-btn");
   btn.disabled = true; btn.textContent = "Generating…";

@@ -288,7 +288,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 /* ── DFD workspace — Stage 3 ── */
 var SEV_COLORS = {Critical:'#DC2626', High:'#EA580C', Medium:'#D97706', Low:'#4F46E5'};
 var SEV_LABELS = {Critical:'C', High:'H', Medium:'M', Low:'L'};

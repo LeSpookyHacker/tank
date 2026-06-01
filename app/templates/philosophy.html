@@ -36,7 +36,7 @@
 </section>
 
 {% if doc and not doc.get('empty') %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   var raw = {{ doc.content_md | tojson }};
   var el = document.getElementById("phil-body-md");

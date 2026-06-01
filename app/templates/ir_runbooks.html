@@ -105,7 +105,7 @@
 .empty-state { text-align: center; padding: 3rem 1rem; }
 </style>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function generateRunbook(e) {
   e.preventDefault();
   const f = e.target;

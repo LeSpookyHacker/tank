@@ -172,7 +172,7 @@
 
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function nudgeAct(id, action) {
   await fetch(`/api/nudges/${id}/${action}`, {method: "POST"});
   window.location.reload();
@@ -227,7 +227,7 @@ function dismissBanner(id) {
   </ul>
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   const HINTS_KEY = "tank-hints-v1";
   const dot = document.getElementById("hints-dot");

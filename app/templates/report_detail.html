@@ -34,7 +34,7 @@
   </details>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
   (function () {
     var raw = {{ report.content_md | tojson }};
     var el = document.getElementById("report-md-output");

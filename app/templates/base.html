@@ -6,7 +6,7 @@
   <title>{% block title %}Tank{% endblock %}</title>
 
   {# Synchronous init: theme + API key. Both read from localStorage before body renders. #}
-  <script>
+  <script nonce="{{ request.state.csp_nonce }}">
     (function () {
       try {
         var t = localStorage.getItem("tank-theme");
@@ -204,7 +204,7 @@
     <span class="privacy-badge">redaction map stays on this machine</span>
   </footer>
 
-  <script>
+  <script nonce="{{ request.state.csp_nonce }}">
     // ── Theme ──
     function tankToggleTheme() {
       var root = document.documentElement;
@@ -342,7 +342,7 @@
       });
     })();
   </script>
-  <script>
+  <script nonce="{{ request.state.csp_nonce }}">
     // ── Left navigation ──
     (function () {
       var COLLAPSED_KEY = "tank-sidenav-collapsed";

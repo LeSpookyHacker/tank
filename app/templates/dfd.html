@@ -165,7 +165,7 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 /* ── DFD input page ── */
 var SEV_COLORS = {Critical:'#DC2626', High:'#EA580C', Medium:'#D97706', Low:'#4F46E5'};
 

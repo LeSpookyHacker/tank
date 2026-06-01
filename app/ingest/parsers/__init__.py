@@ -17,6 +17,40 @@ from app.ingest.parsers.pdf import PDFParser
 from app.ingest.parsers.sigma import SigmaParser
 
 
+# Magic byte → extension family. Used to detect declared-extension mismatches.
+# Text-based formats (.txt, .md, .csv, .json, .yaml) have no fixed magic bytes
+# and are intentionally omitted — only binary formats are checked.
+_MAGIC_FAMILIES: list[tuple[bytes, set[str]]] = [
+    (b"%PDF",             {".pdf"}),
+    (b"PK\x03\x04",      {".docx", ".xlsx", ".pptx", ".zip"}),
+    (b"\xff\xd8\xff",    {".jpg", ".jpeg"}),
+    (b"\x89PNG\r\n\x1a\n", {".png"}),
+    (b"GIF87a",          {".gif"}),
+    (b"GIF89a",          {".gif"}),
+    (b"\xd0\xcf\x11\xe0", {".doc", ".xls", ".ppt"}),
+]
+
+
+def _check_magic(path: Path, declared_ext: str) -> None:
+    """Raise ValueError if the file's magic bytes contradict the declared extension.
+
+    Only blocks obvious mismatches (e.g., a PDF masquerading as .txt).
+    Text-based formats are skipped because they have no reliable magic bytes.
+    """
+    try:
+        first_bytes = path.read_bytes()[:8]
+    except Exception:
+        return  # can't read → let the parser handle it
+    for magic, family in _MAGIC_FAMILIES:
+        if first_bytes.startswith(magic):
+            if declared_ext not in family:
+                raise ValueError(
+                    f"file magic ({magic!r}) does not match declared extension "
+                    f"{declared_ext!r} — refusing to parse"
+                )
+            return  # magic matches declared ext → ok
+
+
 _BY_EXT = {
     ".md": MarkdownParser,
     ".markdown": MarkdownParser,
@@ -44,6 +78,10 @@ def dispatch(path: Path):
     generic CMDB-shaped data.
     """
     ext = path.suffix.lower()
+
+    # Magic byte validation: reject files whose binary header contradicts
+    # the declared extension (e.g. a PDF renamed to .txt).
+    _check_magic(path, ext)
 
     # JSON / YAML: content-sniff to disambiguate.
     if ext in (".json", ".yaml", ".yml"):
