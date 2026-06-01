@@ -139,7 +139,7 @@
   </div>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function setStatus(id, msg, cls) {
   const el = document.getElementById(id);
   el.textContent = msg;

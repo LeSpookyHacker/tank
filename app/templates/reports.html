@@ -47,7 +47,7 @@
   {% endfor %}
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function genReport(kind) {
   let scope = {};
   if (kind === "threat_landscape") {

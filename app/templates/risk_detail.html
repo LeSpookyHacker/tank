@@ -120,7 +120,7 @@
 .actions { display: flex; flex-direction: column; gap: .5rem; }
 </style>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function() {
   var ra = {{ risk.review_at or 'null' }};
   if (!ra) return;

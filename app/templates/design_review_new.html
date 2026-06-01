@@ -29,7 +29,7 @@ you're worried about. Plain English is fine."></textarea>
   </form>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function submitReview(e) {
   e.preventDefault();
   const f = e.target;

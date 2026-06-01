@@ -288,7 +288,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 /* ── DFD workspace — Stage 3 ── */
 var SEV_COLORS = {Critical:'#DC2626', High:'#EA580C', Medium:'#D97706', Low:'#4F46E5'};
 var SEV_LABELS = {Critical:'C', High:'H', Medium:'M', Low:'L'};
@@ -322,7 +322,7 @@ mermaid.initialize({
     primaryBorderColor: '#3d2e6b', lineColor: '#6c5ce7',
     fontFamily: 'Inter, sans-serif', fontSize: '14px',
   },
-  securityLevel: 'loose',
+  securityLevel: 'strict',
 });
 
 // ── Build element → threat count map from server-rendered threat cards ──
@@ -347,7 +347,7 @@ async function initDiagram() {
   try {
     var result = await mermaid.render('dfd-main-svg', src);
     var inner = document.getElementById('diagram-inner');
-    inner.innerHTML = result.svg;
+    inner.innerHTML = DOMPurify.sanitize(result.svg, {USE_PROFILES: {svg: true, svgFilters: true}});
 
     document.getElementById('diagram-skeleton').hidden = true;
     document.getElementById('zoom-controls').hidden = false;
@@ -365,7 +365,7 @@ async function initDiagram() {
     try {
       var pr = await mermaid.render('dfd-print-svg', _annotatedSrc);
       var pd = document.getElementById('print-diagram');
-      if (pd) pd.innerHTML = pr.svg;
+      if (pd) pd.innerHTML = DOMPurify.sanitize(pr.svg, {USE_PROFILES: {svg: true, svgFilters: true}});
     } catch (_) {}
   }
 

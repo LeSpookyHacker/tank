@@ -16,6 +16,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import os
 import time
 from datetime import datetime, timezone
 
@@ -43,7 +44,6 @@ _90_DAYS_SECS = 90 * 86400
 
 class GithubScanBody(BaseModel):
     org: str
-    token: str
 
 
 class ConfirmSelections(BaseModel):
@@ -68,7 +68,18 @@ def discovery_page(request: Request):
 
 @router.post("/api/discovery/github-scan")
 async def github_scan(body: GithubScanBody) -> JSONResponse:
-    """Enumerate repositories in a GitHub org using a personal access token."""
+    """Enumerate repositories in a GitHub org.
+
+    Reads the GitHub token from the TANK_GITHUB_TOKEN environment variable.
+    Never accepts tokens in the request body.
+    """
+    token = os.environ.get("TANK_GITHUB_TOKEN", "").strip()
+    if not token:
+        return JSONResponse(
+            {"error": "TANK_GITHUB_TOKEN is not set. Add it to your .env file."},
+            status_code=422,
+        )
+
     try:
         import httpx
     except ImportError:
@@ -87,7 +98,7 @@ async def github_scan(body: GithubScanBody) -> JSONResponse:
             resp = await client.get(
                 f"https://api.github.com/orgs/{org}/repos",
                 headers={
-                    "Authorization": f"Bearer {body.token}",
+                    "Authorization": f"Bearer {token}",
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
                 },
@@ -142,10 +153,15 @@ async def github_scan(body: GithubScanBody) -> JSONResponse:
     return JSONResponse({"repos": repos, "total": len(repos)})
 
 
+_MAX_CSV_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
 @router.post("/api/discovery/team-import")
 async def team_import(file: UploadFile = File(...)) -> JSONResponse:
     """Parse a CSV file (columns: name, email, team, role) and return a preview."""
-    content = await file.read()
+    content = await file.read(_MAX_CSV_BYTES + 1)
+    if len(content) > _MAX_CSV_BYTES:
+        return JSONResponse({"error": "CSV too large (max 5 MB)"}, status_code=413)
     try:
         text = content.decode("utf-8-sig")  # handle BOM
     except UnicodeDecodeError:

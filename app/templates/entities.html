@@ -51,7 +51,7 @@
     <h2>Graph view</h2>
     <div id="entity-graph" class="entity-graph"></div>
     <script src="/static/graph.js"></script>
-    <script>renderGraph("Service", 2);</script>
+    <script nonce="{{ request.state.csp_nonce }}">renderGraph("Service", 2);</script>
   {% endif %}
 </section>
 {% endblock %}

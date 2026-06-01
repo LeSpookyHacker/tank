@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.role import get_state, tenure_day as get_tenure_day
 from app.storage import plan_store
 
@@ -47,7 +48,8 @@ def plan_page(request: Request):
 
 
 @router.post("/api/plan/generate")
-async def generate_plan(background_tasks: BackgroundTasks) -> JSONResponse:
+@limiter.limit("5/hour")
+async def generate_plan(request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
     background_tasks.add_task(_generate_bg)
     return JSONResponse({"ok": True,
                          "message": "Plan generation started. Refresh in ~30 seconds."})

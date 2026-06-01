@@ -94,7 +94,7 @@
   </details>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function setRole(value) {
   await fetch("/api/role/mode", {
     method: "PUT", headers: {"Content-Type": "application/json"},

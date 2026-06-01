@@ -27,7 +27,7 @@
   </form>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function submitTT(e) {
   e.preventDefault();
   const f = e.target;

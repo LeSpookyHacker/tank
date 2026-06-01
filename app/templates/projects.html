@@ -78,7 +78,7 @@
   {% endif %}
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 // ── Last-opened pinning ──
 (function pinLastOpened() {
   const last = localStorage.getItem("tank_last_opened_project");

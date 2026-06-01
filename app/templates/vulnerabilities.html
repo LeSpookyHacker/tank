@@ -60,7 +60,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 let currentVulnId = null;
 
 function triageVuln(id) {
@@ -129,7 +129,7 @@ function closeVuln(id) {
       <textarea id="close-rationale" class="intake-textarea" rows="2"></textarea>
     </div>
     <button class="btn-primary" onclick="submitClose()" style="margin-top:0.75rem">Close vulnerability</button>
-    <script>document.getElementById("close-reason").onchange = function() {
+    <script nonce="{{ request.state.csp_nonce }}">document.getElementById("close-reason").onchange = function() {
       document.getElementById("rationale-wrap").hidden = this.value !== "accepted";
     };<\/script>`;
   document.getElementById("modal-overlay").hidden = false;

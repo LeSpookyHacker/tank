@@ -38,7 +38,7 @@
   </details>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   var raw = {{ tabletop.scenario_md | tojson }};
   var el = document.getElementById("tt-body-md");

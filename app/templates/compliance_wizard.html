@@ -33,10 +33,16 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 const QUESTIONS = {{ questions | tojson }};
 let currentQ = 0;
 const answers = {};
+
+function escHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
 function startWizard() {
   document.getElementById("wizard-welcome").hidden = true;
@@ -56,17 +62,18 @@ function renderQ(idx) {
   const card = document.getElementById("wizard-question-card");
   card.innerHTML = `
     <div class="intake-q-number">Q${idx+1}</div>
-    <h2 class="intake-q-text">${q.text}</h2>
+    <h2 class="intake-q-text">${escHtml(q.text)}</h2>
     <div class="intake-q-input">
       <div class="intake-chips">
         ${q.options.map(opt =>
           `<button type="button" class="intake-chip ${saved.includes(opt) ? 'selected' : ''}"
-            onclick="toggleChip(this,'${opt.replace(/'/g,"\\'")}')">
-            ${opt}
-          </button>`
+            data-val="${escHtml(opt)}">${escHtml(opt)}</button>`
         ).join("")}
       </div>
     </div>`;
+  card.querySelectorAll(".intake-chip").forEach(btn => {
+    btn.addEventListener("click", () => toggleChip(btn, btn.dataset.val));
+  });
 }
 
 function toggleChip(btn, val) {

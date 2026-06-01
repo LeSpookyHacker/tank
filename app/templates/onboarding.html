@@ -51,7 +51,7 @@
   </p>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 let chosenRole = "both";
 
 function pickRole(role) {

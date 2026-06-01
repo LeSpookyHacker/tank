@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.config import TEMPLATES_DIR
 from app.db import db_path
+from app.rate_limiter import limiter
 from app.redact import config as redact_config
 from app.redact.store import category_summary
 from app.role import RoleMode, get_state, update_state
@@ -107,6 +108,7 @@ async def set_cadence(body: CadencePut) -> dict:
 # ---------------- nuke ----------------
 
 @router.post("/api/wipe")
+@limiter.limit("3/hour")
 async def wipe_all(request: Request, confirm_phrase: str = Form(...)):
     """Delete the SQLite DB. The next request reinitializes.
 
@@ -122,6 +124,9 @@ async def wipe_all(request: Request, confirm_phrase: str = Form(...)):
             400,
             f"refused: must type exactly {WIPE_PHRASE!r} to confirm wipe.",
         )
+
+    from app.storage.audit_log_store import log_action
+    log_action("wipe", remote_addr=request.client.host if request.client else None)
 
     p = db_path()
     if p.exists():

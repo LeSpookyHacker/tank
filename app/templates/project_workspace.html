@@ -412,7 +412,7 @@ graph TD
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 var PROJECT_ID = "{{ project.id }}";
 var TEAM_ID = "{{ team.id }}";
 var BASE_URL = "/teams/" + TEAM_ID + "/projects/" + PROJECT_ID;

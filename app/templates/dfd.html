@@ -165,7 +165,7 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 /* ── DFD input page ── */
 var SEV_COLORS = {Critical:'#DC2626', High:'#EA580C', Medium:'#D97706', Low:'#4F46E5'};
 
@@ -183,7 +183,7 @@ mermaid.initialize({
     primaryBorderColor: '#3d2e6b', lineColor: '#6c5ce7',
     fontFamily: 'Inter, sans-serif', fontSize: '14px',
   },
-  securityLevel: 'loose',
+  securityLevel: 'strict',
 });
 
 // ── Mode switching ──
@@ -244,7 +244,7 @@ async function renderPreview() {
     mermaidPreviewId++;
     var id = 'prev-' + mermaidPreviewId;
     var result = await mermaid.render(id, src);
-    preEl.innerHTML = result.svg;
+    preEl.innerHTML = DOMPurify.sanitize(result.svg, {USE_PROFILES: {svg: true, svgFilters: true}});
     errEl.hidden = true;
   } catch (e) {
     preEl.innerHTML = '';

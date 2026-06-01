@@ -33,7 +33,7 @@ open. Plain English."></textarea>
   </form>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function submitDraft(e) {
   e.preventDefault();
   const f = e.target;

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.storage import projects_store
@@ -90,7 +90,7 @@ def activate_project(project_id: str) -> dict:
 
 
 @router.delete("/api/projects/{project_id}")
-def delete_project(project_id: str) -> dict:
+def delete_project(request: Request, project_id: str) -> dict:
     if project_id in ("default", "imported"):
         raise HTTPException(400, "Cannot delete a system project.")
     if not projects_store.get_project(project_id):
@@ -98,4 +98,7 @@ def delete_project(project_id: str) -> dict:
     projects_store.delete_project(project_id)
     if projects_store.get_active_project_id() == project_id:
         projects_store.set_active_project_id("default")
+    from app.storage.audit_log_store import log_action
+    log_action("delete_project", resource_type="project", resource_id=project_id,
+               remote_addr=request.client.host if request.client else None)
     return {"ok": True}

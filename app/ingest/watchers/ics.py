@@ -40,7 +40,12 @@ def _is_private_addr(ip_str: str) -> bool:
         return False
 
 
-def _validate_url(url: str) -> None:
+def _validate_url(url: str) -> str:
+    """Validate URL for SSRF safety and return the resolved IP to connect to.
+
+    Returns the IP address string so the caller can connect directly to the
+    resolved IP rather than re-resolving the hostname (prevents DNS rebinding).
+    """
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValueError(f"unsupported scheme: {parsed.scheme}")
@@ -54,13 +59,14 @@ def _validate_url(url: str) -> None:
         if _is_private_addr(host):
             raise ValueError(f"blocked private address: {host}")
         ipaddress.ip_address(host)   # raises ValueError if not a valid IP literal
-        return  # valid public IP literal
+        return host  # valid public IP literal — use directly
     except ValueError as exc:
         if "blocked" in str(exc):
             raise
-    # host is a DNS name — resolve every returned address and block privates.
+    # host is a DNS name — resolve once, validate all returned addresses.
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
     try:
-        infos = socket.getaddrinfo(host, None)
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror as exc:
         raise ValueError(f"cannot resolve host {host!r}: {exc}") from exc
     for info in infos:
@@ -69,6 +75,38 @@ def _validate_url(url: str) -> None:
             raise ValueError(
                 f"host {host!r} resolves to blocked private address {ip_str}"
             )
+    # Return the first resolved IP so the caller pins the connection to it,
+    # eliminating the TOCTOU window for DNS rebinding attacks.
+    return infos[0][4][0]
+
+
+def _fetch_ics(url: str, max_bytes: int) -> str:
+    """Fetch ICS content, connecting directly to the pre-resolved IP.
+
+    Resolves DNS once in _validate_url, then connects to the resolved IP with
+    the original Host: header to avoid DNS rebinding.
+    """
+    resolved_ip = _validate_url(url)
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+    # Build a URL that targets the resolved IP directly so urllib won't re-resolve.
+    if ":" in resolved_ip:
+        # IPv6 literal must be bracketed in URLs
+        ip_literal = f"[{resolved_ip}]"
+    else:
+        ip_literal = resolved_ip
+    port_suffix = f":{port}" if parsed.port else ""
+    direct_url = urllib.parse.urlunparse(parsed._replace(
+        netloc=f"{ip_literal}{port_suffix}"
+    ))
+    req = urllib.request.Request(
+        direct_url,
+        headers={"Host": f"{host}{port_suffix}", "User-Agent": "Tank/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return resp.read(max_bytes).decode("utf-8", errors="replace")
 
 
 _EVENT_BLOCK_RE = re.compile(
@@ -121,9 +159,7 @@ class ICSWatcher:
     def scan(self, watcher: dict) -> dict:
         url = watcher["target"]
         try:
-            _validate_url(url)
-            with urllib.request.urlopen(url, timeout=15) as resp:
-                ics_text = resp.read(_MAX_ICS_BYTES).decode("utf-8", errors="replace")
+            ics_text = _fetch_ics(url, _MAX_ICS_BYTES)
         except Exception as exc:
             return {"error": str(exc)}
 

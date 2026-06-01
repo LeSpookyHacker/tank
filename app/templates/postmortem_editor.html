@@ -54,7 +54,7 @@
   </details>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   var raw = {{ pm.body_md | tojson }};
   var el = document.getElementById("pm-body-md");

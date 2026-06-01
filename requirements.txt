@@ -26,6 +26,9 @@ sqlite-vec>=0.1.6
 # Redaction
 detect-secrets>=1.5.0
 
+# Rate limiting
+slowapi>=0.1.9
+
 # Testing
 pytest>=8.3.0
 

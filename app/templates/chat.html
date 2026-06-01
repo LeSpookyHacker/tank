@@ -74,7 +74,7 @@
   </main>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 let _activeConv = {{ (active.id if active else "null") | tojson }};
 
 async function newConversation() {

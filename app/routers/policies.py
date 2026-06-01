@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.role import get_state
 from app.storage import policies_store
 
@@ -69,7 +70,9 @@ def policy_detail(kind: str, request: Request):
 
 
 @router.post("/api/policies/generate")
+@limiter.limit("10/hour")
 async def generate_policy(
+    request: Request,
     body: GeneratePolicyBody,
     background_tasks: BackgroundTasks,
 ) -> JSONResponse:

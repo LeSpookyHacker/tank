@@ -40,7 +40,7 @@
 
 <div class="toast" id="gen-toast" hidden></div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 async function generate(kind, btn) {
   btn.disabled = true;
   btn.textContent = "Generating…";

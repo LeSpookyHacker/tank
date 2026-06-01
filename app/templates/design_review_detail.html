@@ -70,7 +70,7 @@
   </section>
 </section>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   var raw = {{ review.body_md | tojson }};
   var el = document.getElementById("dr-body-md");

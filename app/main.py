@@ -18,16 +18,20 @@ from __future__ import annotations
 import logging
 import os
 import secrets as _secrets
+import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.claude import scheduler
 from app.config import STATIC_DIR
 from app.db import get_conn
+from app.rate_limiter import limiter
 from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
     discovery, dfd, entities, followups, glossary, iam, ingest, integrations,
@@ -56,24 +60,28 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tank", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        nonce = _secrets.token_urlsafe(16)
+        request.state.csp_nonce = nonce
         response = await call_next(request)
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Strict-Transport-Security"] = (
-            "max-age=63072000; includeSubDomains"
+            "max-age=63072000; includeSubDomains; preload"
         )
         response.headers["Permissions-Policy"] = (
             "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
         )
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; "
+            f"script-src 'self' 'nonce-{nonce}' cdn.jsdelivr.net unpkg.com; "
             "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "
             "font-src fonts.gstatic.com; "
             "img-src 'self' data:;"
@@ -84,11 +92,22 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(_SecurityHeadersMiddleware)
 
 
-# ── Optional API-key gate (VULN-001) ──────────────────────────────────────────
-# Set TANK_API_KEY in .env to require the key on every request.
-# Exempted: /healthz, /static/* (no sensitive data served there).
+# ── API-key gate ──────────────────────────────────────────────────────────────
+# TANK_API_KEY is required when the server is not bound to localhost.
+# Set it in .env: TANK_API_KEY=$(openssl rand -hex 32)
 # The browser UI sends the key via the X-Tank-Key header (set in base.html).
+# Exempted: /healthz, /static/* (no sensitive data served there).
 _TANK_API_KEY = os.environ.get("TANK_API_KEY", "").strip()
+_BIND_HOST = os.environ.get("TANK_BIND_HOST", "127.0.0.1").strip()
+
+if not _TANK_API_KEY and _BIND_HOST not in ("127.0.0.1", "::1", "localhost"):
+    print(
+        "FATAL: TANK_API_KEY must be set when TANK_BIND_HOST is not 127.0.0.1.\n"
+        "  Generate one with: openssl rand -hex 32\n"
+        "  Then add TANK_API_KEY=<value> to your .env file.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 _AUTH_EXEMPT_PREFIXES = ("/healthz", "/static/")
 
