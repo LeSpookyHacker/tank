@@ -310,13 +310,10 @@ async function renderPreview() {
     mermaidPreviewId++;
     var id = 'prev-' + mermaidPreviewId;
     var result = await mermaid.render(id, src);
-    // Allow <style> tags so Mermaid's inline CSS (node colors, text colors)
-    // is preserved — without it, text becomes invisible on dark backgrounds.
-    preEl.innerHTML = DOMPurify.sanitize(result.svg, {
-      USE_PROFILES: {svg: true, svgFilters: true},
-      ADD_TAGS: ['style'],
-      ADD_ATTR: ['class'],
-    });
+    // Mermaid securityLevel:'strict' already sanitizes its own output —
+    // running DOMPurify on top strips <foreignObject> (node label text)
+    // and <style> blocks, making all text invisible. Use svg directly.
+    preEl.innerHTML = result.svg;
     errEl.hidden = true;
   } catch (e) {
     preEl.innerHTML = '';

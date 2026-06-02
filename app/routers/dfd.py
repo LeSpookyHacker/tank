@@ -78,23 +78,47 @@ def dfd_from_kb(request: Request, doc_id: str):
 
 @router.get("/api/dfd/kb-doc-bytes/{doc_id}")
 def kb_doc_bytes(doc_id: str):
-    """Serve the raw bytes of an ingested document so the DFD bridge page can submit it."""
+    """Serve the raw bytes of an ingested document.
+
+    Primary: reads from source_path on disk.
+    Fallback: reconstructs text from KB chunks stored in the database,
+    returned as plain text so the bridge page can submit it to generate-from-doc.
+    """
     import mimetypes
     from pathlib import Path
-    from fastapi.responses import FileResponse, Response as _Response
+    from fastapi.responses import FileResponse, PlainTextResponse
+    from app.db import get_conn
 
     doc = documents_store.get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Try primary: serve from original file on disk
     src = doc.get("source_path", "")
     p = Path(src) if src else None
-    if not p or not p.exists():
+    if p and p.exists():
+        mime, _ = mimetypes.guess_type(str(p))
+        return FileResponse(str(p), media_type=mime or "application/octet-stream")
+
+    # Fallback: reassemble from chunks stored in the DB (text docs only)
+    if doc.get("kind") == "image":
         raise HTTPException(
             status_code=404,
-            detail="Source file is no longer on disk. Re-ingest the document to re-enable this flow.",
+            detail="Image file is no longer on disk. Re-ingest from the Ingest page to analyze it.",
         )
-    mime, _ = mimetypes.guess_type(str(p))
-    return FileResponse(str(p), media_type=mime or "application/octet-stream")
+
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT text_original FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC",
+        (doc_id,),
+    ).fetchall()
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail="Source file is gone and no text chunks were found. Re-ingest the document.",
+        )
+    reassembled = "\n\n".join(r["text_original"] or "" for r in rows if r["text_original"])
+    return PlainTextResponse(reassembled, media_type="text/plain")
 
 
 @router.get("/dfd/{dfd_id}")

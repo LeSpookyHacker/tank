@@ -347,7 +347,7 @@ async function initDiagram() {
   try {
     var result = await mermaid.render('dfd-main-svg', src);
     var inner = document.getElementById('diagram-inner');
-    inner.innerHTML = DOMPurify.sanitize(result.svg, {USE_PROFILES: {svg: true, svgFilters: true}});
+    inner.innerHTML = result.svg; // Mermaid strict mode already sanitizes
 
     document.getElementById('diagram-skeleton').hidden = true;
     document.getElementById('zoom-controls').hidden = false;
@@ -365,7 +365,7 @@ async function initDiagram() {
     try {
       var pr = await mermaid.render('dfd-print-svg', _annotatedSrc);
       var pd = document.getElementById('print-diagram');
-      if (pd) pd.innerHTML = DOMPurify.sanitize(pr.svg, {USE_PROFILES: {svg: true, svgFilters: true}});
+      if (pd) pd.innerHTML = pr.svg;
     } catch (_) {}
   }
 

@@ -25,7 +25,7 @@ _EXT_DEFAULTS: dict[str, str] = {
 }
 
 PARSEABLE_EXTS = {
-    ".md", ".markdown", ".pdf", ".docx", ".txt",
+    ".md", ".markdown", ".mmd", ".pdf", ".docx", ".txt",
     ".png", ".jpg", ".jpeg", ".csv", ".json", ".yml", ".yaml",
 }
 
