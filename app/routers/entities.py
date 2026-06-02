@@ -32,6 +32,16 @@ async def entities_page(request: Request, type: str | None = None):
     )
 
 
+@router.get("/knowledge-graph", response_class=HTMLResponse)
+async def knowledge_graph_page(request: Request):
+    state = get_state()
+    counts = entities_store.count_by_type()
+    return templates.TemplateResponse(
+        request=request, name="knowledge_graph.html",
+        context={"state": state, "counts": counts},
+    )
+
+
 @router.get("/entities/{entity_id}", response_class=HTMLResponse)
 async def entity_detail(request: Request, entity_id: str):
     card = kb_entities.get_card(entity_id)
@@ -79,4 +89,6 @@ async def graph_overview(
     type: str = "Service",
     depth: int = Query(default=2, ge=1, le=5),
 ) -> dict:
+    if type == "all":
+        return kb_relationships.graph_for_all_types(depth=depth)
     return kb_relationships.graph_for_type(type, depth=depth)

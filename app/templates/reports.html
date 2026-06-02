@@ -47,30 +47,154 @@
   {% endfor %}
 </section>
 
+{# ── Entity picker modal (replaces window.prompt for threat_landscape and questions_for_team) ── #}
+<dialog id="entity-picker-modal" style="
+  background:var(--surface);color:var(--text);border:1px solid var(--border);
+  border-radius:12px;padding:1.5rem;width:min(480px,90vw);max-height:80vh;
+  display:flex;flex-direction:column;gap:0.75rem;">
+  <h3 id="entity-picker-title" style="margin:0"></h3>
+  <input type="search" id="entity-picker-search" placeholder="Filter…"
+    autocomplete="off"
+    style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:8px;
+           background:var(--surface-2);color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;">
+  <ul id="entity-picker-list" style="
+    list-style:none;padding:0;margin:0;overflow-y:auto;flex:1;
+    max-height:300px;display:flex;flex-direction:column;gap:2px;"></ul>
+  <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.25rem">
+    <button id="entity-picker-cancel" class="btn-secondary">Cancel</button>
+    <button id="entity-picker-confirm" class="btn-primary" disabled>Select</button>
+  </div>
+</dialog>
+
+<style>
+#entity-picker-list li {
+  padding:0.5rem 0.75rem;border-radius:6px;cursor:pointer;
+  border:1px solid transparent;display:flex;flex-direction:column;gap:0.1rem;
+}
+#entity-picker-list li:hover { background:var(--surface-2);border-color:var(--border-soft); }
+#entity-picker-list li.selected { background:rgb(var(--nyx-iris)/0.15);border-color:var(--accent); }
+#entity-picker-list li .ep-name { font-weight:600;font-size:0.9rem; }
+#entity-picker-list li .ep-meta { font-size:0.78rem;color:var(--text-mute); }
+</style>
+
 <script nonce="{{ request.state.csp_nonce }}">
-async function genReport(kind, btn) {
-  let scope = {};
-  if (kind === "threat_landscape") {
-    const id = prompt("Service entity_id to analyze:");
-    if (!id) return;
-    scope.service_id = id;
-  } else if (kind === "questions_for_team") {
-    const who = prompt("Team or person name:");
-    if (!who) return;
-    scope.team_or_person = who;
+(function() {
+
+var _pickerResolve = null;
+var _selected = null;
+
+var modal   = document.getElementById("entity-picker-modal");
+var title   = document.getElementById("entity-picker-title");
+var search  = document.getElementById("entity-picker-search");
+var list    = document.getElementById("entity-picker-list");
+var btnOk   = document.getElementById("entity-picker-confirm");
+var btnCancel = document.getElementById("entity-picker-cancel");
+
+var _allItems = [];
+
+function renderList(filter) {
+  var q = (filter || "").toLowerCase();
+  var shown = q ? _allItems.filter(function(i) { return i.label.toLowerCase().includes(q); }) : _allItems;
+  list.innerHTML = "";
+  shown.forEach(function(item) {
+    var li = document.createElement("li");
+    li.innerHTML =
+      '<span class="ep-name">' + _esc(item.label) + '</span>' +
+      (item.meta ? '<span class="ep-meta">' + _esc(item.meta) + '</span>' : '');
+    li.addEventListener("click", function() {
+      list.querySelectorAll("li.selected").forEach(function(el) { el.classList.remove("selected"); });
+      li.classList.add("selected");
+      _selected = item;
+      btnOk.disabled = false;
+    });
+    list.appendChild(li);
+  });
+}
+
+function _esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+search.addEventListener("input", function() { renderList(search.value); });
+
+btnCancel.addEventListener("click", function() {
+  modal.close();
+  if (_pickerResolve) _pickerResolve(null);
+  _pickerResolve = null;
+});
+
+btnOk.addEventListener("click", function() {
+  if (!_selected) return;
+  modal.close();
+  if (_pickerResolve) _pickerResolve(_selected);
+  _pickerResolve = null;
+});
+
+modal.addEventListener("cancel", function() {
+  if (_pickerResolve) _pickerResolve(null);
+  _pickerResolve = null;
+});
+
+async function openPicker(promptTitle, types) {
+  title.textContent = promptTitle;
+  search.value = "";
+  btnOk.disabled = true;
+  _selected = null;
+  _allItems = [];
+  list.innerHTML = '<li style="color:var(--text-mute);padding:0.5rem 0.75rem">Loading…</li>';
+  modal.showModal();
+
+  var fetched = [];
+  for (var i = 0; i < types.length; i++) {
+    try {
+      var r = await fetch("/api/entities?type=" + encodeURIComponent(types[i]) + "&limit=200");
+      var j = await r.json();
+      (j.entities || []).forEach(function(e) {
+        fetched.push({
+          value: e.id,
+          label: e.name,
+          meta: (types.length > 1 ? e.type + " · " : "") + (e.description ? e.description.slice(0, 80) : ""),
+          name: e.name,
+        });
+      });
+    } catch(_) {}
   }
+
+  if (!fetched.length) {
+    list.innerHTML = '<li style="color:var(--text-mute);padding:0.5rem 0.75rem">No entities found. Ingest some documents first.</li>';
+  } else {
+    _allItems = fetched;
+    renderList("");
+  }
+
+  return new Promise(function(resolve) { _pickerResolve = resolve; });
+}
+
+async function genReport(kind, btn) {
+  var scope = {};
+
+  if (kind === "threat_landscape") {
+    var picked = await openPicker("Select a service to analyze", ["Service"]);
+    if (!picked) return;
+    scope.service_id = picked.value;
+  } else if (kind === "questions_for_team") {
+    var picked = await openPicker("Select a team or person", ["Team", "Person"]);
+    if (!picked) return;
+    scope.team_or_person = picked.name;
+  }
+
   btn.disabled = true;
   btn.textContent = "generating…";
   try {
-    const r = await fetch(`/api/reports/${kind}`, {
+    var r = await fetch("/api/reports/" + kind, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({scope}),
+      body: JSON.stringify({scope: scope}),
     });
     if (!r.ok) throw new Error(await r.text());
-    const j = await r.json();
-    window.location = `/reports/${j.report_id}`;
-  } catch (e) {
+    var j = await r.json();
+    window.location = "/reports/" + j.report_id;
+  } catch(e) {
     alert("Failed: " + e.message);
     btn.disabled = false;
     btn.textContent = "Generate";
@@ -80,5 +204,7 @@ async function genReport(kind, btn) {
 document.querySelectorAll(".gen-report-btn").forEach(function(btn) {
   btn.addEventListener("click", function() { genReport(btn.dataset.kind, btn); });
 });
+
+})();
 </script>
 {% endblock %}

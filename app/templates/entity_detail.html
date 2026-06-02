@@ -14,7 +14,21 @@
      edges: {{ card.edges_count }}</p>
 
   {% if card.description %}
-    <p>{{ card.description }}</p>
+    <div class="markdown-body" id="entity-desc"></div>
+    <script nonce="{{ request.state.csp_nonce }}">
+    (function(){
+      var raw = {{ card.description | tojson }};
+      var el = document.getElementById("entity-desc");
+      function render() {
+        if (window.marked && window.DOMPurify && el)
+          el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+      }
+      if (document.readyState === "loading")
+        document.addEventListener("DOMContentLoaded", render);
+      else
+        render();
+    })();
+    </script>
   {% endif %}
 
   {% if card.attrs %}

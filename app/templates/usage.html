@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Tank — Usage & Cost{% endblock %}
+
+{% block content %}
+<div style="max-width:900px;margin:0 auto;padding:2rem 1.5rem">
+
+  <h1>Usage &amp; Cost</h1>
+  <p class="lede dim">Lifetime Anthropic API spend across chat, reports, and background jobs.
+  Prompt cache savings are shown separately.</p>
+
+  <div id="usage-loading" style="color:var(--text-mute);margin-top:2rem">Loading…</div>
+  <div id="usage-content" hidden>
+
+    <!-- Summary cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin:1.5rem 0">
+      <div class="usage-card">
+        <div class="usage-card-label">Total spend</div>
+        <div class="usage-card-value" id="u-total">—</div>
+      </div>
+      <div class="usage-card">
+        <div class="usage-card-label">Input tokens</div>
+        <div class="usage-card-value" id="u-ti">—</div>
+      </div>
+      <div class="usage-card">
+        <div class="usage-card-label">Output tokens</div>
+        <div class="usage-card-value" id="u-to">—</div>
+      </div>
+      <div class="usage-card">
+        <div class="usage-card-label">Cache saved</div>
+        <div class="usage-card-value" id="u-saved" style="color:#5cd7a0">—</div>
+      </div>
+    </div>
+
+    <!-- By source -->
+    <h2>By source</h2>
+    <table class="usage-table" id="t-source">
+      <thead><tr><th>Source</th><th>USD</th><th>Input tokens</th><th>Output tokens</th><th>Cache read</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <!-- By model -->
+    <h2 style="margin-top:2rem">By model</h2>
+    <table class="usage-table" id="t-model">
+      <thead><tr><th>Model</th><th>USD</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <!-- Top call sites -->
+    <h2 style="margin-top:2rem">Top call sites</h2>
+    <p class="dim" style="font-size:0.85rem;margin-top:-0.5rem">Background jobs and pipeline calls (api_calls table). Chat and reports tracked separately above.</p>
+    <table class="usage-table" id="t-sites">
+      <thead><tr><th>Call site</th><th>USD</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <!-- Last 14 days -->
+    <h2 style="margin-top:2rem">Last 14 days</h2>
+    <table class="usage-table" id="t-days">
+      <thead><tr><th>Date</th><th>USD</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+  </div>
+</div>
+
+<style>
+.usage-card {
+  background:var(--surface-2);border:1px solid var(--border-soft);border-radius:10px;
+  padding:1rem 1.25rem;
+}
+.usage-card-label { font-size:0.78rem;color:var(--text-mute);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem; }
+.usage-card-value { font-size:1.5rem;font-weight:700;color:var(--text); }
+.usage-table { width:100%;border-collapse:collapse;font-size:0.88rem;margin-top:0.5rem; }
+.usage-table th {
+  text-align:left;padding:0.5rem 0.75rem;border-bottom:1px solid var(--border);
+  color:var(--text-mute);font-weight:500;font-size:0.78rem;text-transform:uppercase;
+}
+.usage-table td { padding:0.5rem 0.75rem;border-bottom:1px solid var(--border-soft); }
+.usage-table tr:last-child td { border-bottom:none; }
+.usage-table tr:hover td { background:var(--surface-2); }
+.u-zero { color:var(--text-mute); }
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function() {
+  function fmt(n) { return (n || 0).toLocaleString(); }
+  function fmtUsd(v) {
+    v = v || 0;
+    return '$' + (v < 0.01 ? v.toFixed(4) : v < 1 ? v.toFixed(3) : v.toFixed(2));
+  }
+
+  function fillTable(tableId, rows, cols) {
+    var tb = document.querySelector('#' + tableId + ' tbody');
+    if (!rows || !rows.length) {
+      var colspan = cols.length;
+      tb.innerHTML = '<tr><td colspan="' + colspan + '" class="u-zero">No data yet.</td></tr>';
+      return;
+    }
+    tb.innerHTML = rows.map(function(r) {
+      return '<tr>' + cols.map(function(c) {
+        var v = r[c.key];
+        var txt = c.fmt ? c.fmt(v) : (v === undefined || v === null ? '—' : v);
+        return '<td>' + txt + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+  }
+
+  fetch('/api/usage/breakdown')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      document.getElementById('usage-loading').hidden = true;
+      document.getElementById('usage-content').hidden = false;
+
+      document.getElementById('u-total').textContent = fmtUsd(d.total_usd);
+      document.getElementById('u-ti').textContent = fmt(d.tokens_in);
+      document.getElementById('u-to').textContent = fmt(d.tokens_out);
+      document.getElementById('u-saved').textContent = fmtUsd(d.cache_saved_usd);
+
+      // By source
+      var srcRows = [
+        Object.assign({_name: 'Chat (messages)'}, d.by_source.messages),
+        Object.assign({_name: 'Reports'}, d.by_source.reports),
+        Object.assign({_name: 'Background / pipeline'}, d.by_source.api_calls),
+      ];
+      fillTable('t-source', srcRows, [
+        {key: '_name'},
+        {key: 'usd', fmt: fmtUsd},
+        {key: 'tokens_in', fmt: fmt},
+        {key: 'tokens_out', fmt: fmt},
+        {key: 'cache_read', fmt: fmt},
+      ]);
+
+      // By model
+      fillTable('t-model', d.by_model, [
+        {key: 'model'},
+        {key: 'usd', fmt: fmtUsd},
+        {key: 'tokens_in', fmt: fmt},
+        {key: 'tokens_out', fmt: fmt},
+      ]);
+
+      // Top call sites
+      fillTable('t-sites', d.top_call_sites, [
+        {key: 'call_site'},
+        {key: 'usd', fmt: fmtUsd},
+        {key: 'tokens_in', fmt: fmt},
+        {key: 'tokens_out', fmt: fmt},
+      ]);
+
+      // By day
+      fillTable('t-days', d.by_day, [
+        {key: 'date'},
+        {key: 'usd', fmt: fmtUsd},
+        {key: 'tokens_in', fmt: fmt},
+        {key: 'tokens_out', fmt: fmt},
+      ]);
+    })
+    .catch(function(e) {
+      document.getElementById('usage-loading').textContent = 'Failed to load: ' + e.message;
+    });
+})();
+</script>
+{% endblock %}

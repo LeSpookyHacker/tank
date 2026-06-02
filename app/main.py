@@ -49,6 +49,14 @@ async def lifespan(app: FastAPI):
     # Initialize SQLite schema (and load sqlite-vec if available) on
     # startup so the first request doesn't pay the cost.
     get_conn()
+    # Warm the sentence-transformers model now so HuggingFace Hub's
+    # "unauthenticated requests" warning fires at startup (predictable)
+    # instead of mid-ingest (confusing). No-op if already cached.
+    try:
+        from app.ingest.embedder import _load_model
+        _load_model()
+    except Exception as _e:
+        log.warning("embedder warm-up failed (non-fatal): %s", _e)
     # Start the partner-mode scheduler (digest, reflection, journal
     # prompt, anniversary). Single asyncio.Task; cleanly cancelled on
     # shutdown.

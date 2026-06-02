@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Tank — Knowledge Graph{% endblock %}
+
+{% block content %}
+<div style="padding:1.5rem 1.5rem 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+  <div>
+    <h1 style="margin:0 0 0.25rem">Knowledge Graph</h1>
+    <p class="dim" style="margin:0;font-size:0.88rem">
+      {{ counts.values() | sum }} entities across {{ counts | length }} types.
+      Scroll to zoom · drag to pan · click a node to open its detail page.
+    </p>
+  </div>
+  <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+    <label class="dim" style="font-size:0.82rem">Filter by type:</label>
+    <select id="type-filter" style="
+      background:var(--surface-2);color:var(--text);border:1px solid var(--border);
+      border-radius:6px;padding:0.35rem 0.6rem;font-size:0.85rem;">
+      <option value="all">All types</option>
+      {% for t, c in counts.items() %}
+      <option value="{{ t }}">{{ t }} ({{ c }})</option>
+      {% endfor %}
+    </select>
+    <input id="node-search" type="search" placeholder="Search nodes…" autocomplete="off"
+      style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);
+             border-radius:6px;padding:0.35rem 0.6rem;font-size:0.85rem;width:160px;">
+  </div>
+</div>
+
+<!-- Legend -->
+<div style="padding:0.75rem 1.5rem;display:flex;gap:1.25rem;flex-wrap:wrap;border-bottom:1px solid var(--border-soft)">
+  {% set colors = {'Service':'#5cd7a0','Repo':'#74c0ff','Person':'#f0c674','DataStore':'#ff6e7e','CloudAccount':'#b48eff','Vendor':'#ffa500','Control':'#5cd7a0','Policy':'#9aa1ab','Runbook':'#74c0ff','Endpoint':'#ff6e7e'} %}
+  {% for t, c in counts.items() %}
+  {% set color = colors.get(t, '#9aa1ab') %}
+  <span style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:var(--text-mute)">
+    <span style="width:10px;height:10px;border-radius:50%;background:{{ color }};display:inline-block;flex-shrink:0"></span>
+    {{ t }}
+  </span>
+  {% endfor %}
+</div>
+
+<!-- Graph container -->
+<div id="kg-graph" style="position:relative;padding:0 1.5rem 1.5rem;height:calc(100vh - 200px);min-height:400px">
+  <div id="kg-inner" style="width:100%;height:100%;position:relative"></div>
+</div>
+
+<script src="/static/graph.js"></script>
+<script nonce="{{ request.state.csp_nonce }}">
+var _currentType = 'all';
+var _searchTerm = '';
+
+function loadGraph(type) {
+  _currentType = type;
+  var url = type === 'all'
+    ? '/api/entities-graph?type=all'
+    : '/api/entities-graph?type=' + encodeURIComponent(type) + '&depth=2';
+
+  var container = document.getElementById('kg-inner');
+  var h = container.offsetHeight || 520;
+  renderGraph('kg-inner', url, {
+    heightPx: h,
+    onNodeClick: function(d) {
+      if (_searchTerm) {
+        if (d.name.toLowerCase().includes(_searchTerm.toLowerCase())) {
+          window.location = '/entities/' + d.id;
+        }
+      } else {
+        window.location = '/entities/' + d.id;
+      }
+    }
+  });
+}
+
+document.getElementById('type-filter').addEventListener('change', function() {
+  loadGraph(this.value);
+});
+
+document.getElementById('node-search').addEventListener('input', function() {
+  _searchTerm = this.value.trim().toLowerCase();
+});
+
+// Initial load after D3 is ready
+function _initGraph() {
+  if (window.d3) {
+    loadGraph('all');
+  } else {
+    setTimeout(_initGraph, 100);
+  }
+}
+_initGraph();
+</script>
+{% endblock %}

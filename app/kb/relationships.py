@@ -95,3 +95,39 @@ def graph_for_type(type_: str, depth: int = 2,
         frontier = next_frontier
 
     return {"nodes": list(nodes_by_id.values()), "edges": edges_out}
+
+
+def graph_for_all_types(depth: int = 1, limit_nodes: int = 150) -> dict:
+    """Return a graph slice spanning all entity types for the knowledge graph view."""
+    nodes_by_id: dict[str, dict] = {}
+    edges_out: list[dict] = []
+    seen_edges: set[tuple] = set()
+
+    def _add_node(ent: dict) -> None:
+        nodes_by_id[ent["id"]] = {
+            "id": ent["id"], "type": ent["type"], "name": ent["name"],
+        }
+
+    all_ents = entities_store.list_entities(type_=None, limit=limit_nodes)
+    for ent in all_ents:
+        _add_node(ent)
+
+    for ent_id in list(nodes_by_id.keys()):
+        if len(edges_out) >= limit_nodes * 3:
+            break
+        for edge in relationships_store.list_for_entity(ent_id):
+            key = (edge["src_id"], edge["dst_id"], edge["kind"])
+            if key not in seen_edges:
+                seen_edges.add(key)
+                edges_out.append({
+                    "src_id": edge["src_id"],
+                    "dst_id": edge["dst_id"],
+                    "kind": edge["kind"],
+                })
+                for other_id in (edge["src_id"], edge["dst_id"]):
+                    if other_id not in nodes_by_id and len(nodes_by_id) < limit_nodes:
+                        other = entities_store.get_entity(other_id)
+                        if other:
+                            _add_node(other)
+
+    return {"nodes": list(nodes_by_id.values()), "edges": edges_out}

@@ -1,110 +1,229 @@
-// Minimal entity graph renderer. Uses canvas + plain JS — no external
-// vis library dep (keeps the project lean). Lays nodes out with a
-// quick force-ish iteration, draws nodes + edges, labels.
-
-async function renderGraph(type, depth) {
-  const root = document.getElementById("entity-graph");
+/* D3 v7 force-directed graph renderer.
+ *
+ * Usage:
+ *   renderGraph(containerId, apiUrl, options)
+ *
+ * containerId: id of the container div
+ * apiUrl:      the /api/entities-graph?... URL to fetch
+ * options:     { width, height, onNodeClick }
+ */
+function renderGraph(containerId, apiUrl, options) {
+  options = options || {};
+  var root = document.getElementById(containerId);
   if (!root) return;
-  const r = await fetch(`/api/entities-graph?type=${type}&depth=${depth}`);
-  const g = await r.json();
 
-  const W = root.clientWidth || 800;
-  const H = 480;
-  const c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  c.style.background = "#0c0e12";
-  c.style.border = "1px solid #262b35";
-  c.style.borderRadius = "6px";
-  root.innerHTML = "";
-  root.appendChild(c);
-  const ctx = c.getContext("2d");
-
-  // Initial layout: nodes on a circle.
-  const nodes = g.nodes.map((n, i) => ({
-    ...n,
-    x: W/2 + Math.cos(i * 2 * Math.PI / g.nodes.length) * Math.min(W,H)/3,
-    y: H/2 + Math.sin(i * 2 * Math.PI / g.nodes.length) * Math.min(W,H)/3,
-    vx: 0, vy: 0,
-  }));
-  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
-
-  // Spring-mass-ish iteration. Cheap.
-  for (let step = 0; step < 200; step++) {
-    // Repulsion between all pairs.
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i], b = nodes[j];
-        const dx = a.x - b.x, dy = a.y - b.y;
-        const d2 = dx*dx + dy*dy + 0.01;
-        const f = 800 / d2;
-        const ux = dx / Math.sqrt(d2), uy = dy / Math.sqrt(d2);
-        a.vx += ux * f; a.vy += uy * f;
-        b.vx -= ux * f; b.vy -= uy * f;
-      }
-    }
-    // Spring along edges.
-    for (const e of g.edges) {
-      const a = byId[e.src_id], b = byId[e.dst_id];
-      if (!a || !b) continue;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const d = Math.sqrt(dx*dx + dy*dy) + 0.01;
-      const f = (d - 120) * 0.04;
-      const ux = dx / d, uy = dy / d;
-      a.vx += ux * f; a.vy += uy * f;
-      b.vx -= ux * f; b.vy -= uy * f;
-    }
-    // Integrate.
-    for (const n of nodes) {
-      n.x += n.vx * 0.1; n.y += n.vy * 0.1;
-      n.vx *= 0.8; n.vy *= 0.8;
-      n.x = Math.max(40, Math.min(W - 40, n.x));
-      n.y = Math.max(40, Math.min(H - 40, n.y));
-    }
+  // D3 guard — may still be loading (deferred).
+  if (!window.d3) {
+    setTimeout(function() { renderGraph(containerId, apiUrl, options); }, 50);
+    return;
   }
 
-  // Draw edges.
-  ctx.strokeStyle = "#2f6a51";
-  ctx.lineWidth = 1;
-  for (const e of g.edges) {
-    const a = byId[e.src_id], b = byId[e.dst_id];
-    if (!a || !b) continue;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
+  var W = options.width  || root.clientWidth  || 800;
+  var H = options.height || options.heightPx  || 520;
 
-  // Draw nodes.
-  for (const n of nodes) {
-    const color = typeColor(n.type);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, 8, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.fillStyle = "#e6e8ec";
-    ctx.font = "11px -apple-system, sans-serif";
-    ctx.fillText(n.name.slice(0, 22), n.x + 10, n.y + 4);
-  }
-
-  // Click handler.
-  c.addEventListener("click", (ev) => {
-    const rect = c.getBoundingClientRect();
-    const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
-    for (const n of nodes) {
-      if ((n.x - x)**2 + (n.y - y)**2 < 100) {
-        window.location = `/entities/${n.id}`;
-        return;
-      }
-    }
-  });
-}
-
-function typeColor(t) {
-  const m = {
-    Service: "#5cd7a0", Repo: "#74c0ff", Person: "#f0c674",
-    DataStore: "#ff6e7e", CloudAccount: "#b48eff", Vendor: "#ffa500",
-    Control: "#5cd7a0", Policy: "#9aa1ab", Runbook: "#74c0ff",
-    Endpoint: "#ff6e7e",
+  var TYPE_COLOR = {
+    Service:      '#5cd7a0',
+    Repo:         '#74c0ff',
+    Person:       '#f0c674',
+    DataStore:    '#ff6e7e',
+    CloudAccount: '#b48eff',
+    Vendor:       '#ffa500',
+    Control:      '#5cd7a0',
+    Policy:       '#9aa1ab',
+    Runbook:      '#74c0ff',
+    Endpoint:     '#ff6e7e',
   };
-  return m[t] || "#9aa1ab";
+  function nodeColor(type) { return TYPE_COLOR[type] || '#9aa1ab'; }
+
+  root.innerHTML = '<div style="color:var(--text-mute);padding:1.5rem">Loading graph…</div>';
+
+  fetch(apiUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(g) { _draw(g); })
+    .catch(function(e) {
+      root.innerHTML = '<div style="color:var(--text-mute);padding:1.5rem">Graph unavailable: ' + e.message + '</div>';
+    });
+
+  function _draw(g) {
+    if (!g.nodes || !g.nodes.length) {
+      root.innerHTML = '<div style="color:var(--text-mute);padding:1.5rem">No entities yet. Ingest some documents to populate the knowledge graph.</div>';
+      return;
+    }
+
+    root.innerHTML = '';
+
+    var deg = {};
+    g.nodes.forEach(function(n) { deg[n.id] = 0; });
+    g.edges.forEach(function(e) {
+      deg[e.src_id] = (deg[e.src_id] || 0) + 1;
+      deg[e.dst_id] = (deg[e.dst_id] || 0) + 1;
+    });
+
+    var svg = d3.select(root).append('svg')
+      .attr('width', '100%')
+      .attr('height', H)
+      .style('background', 'var(--surface)')
+      .style('border-radius', '10px')
+      .style('border', '1px solid var(--border-soft)');
+
+    var g_el = svg.append('g');
+
+    // Zoom + pan
+    var zoom = d3.zoom()
+      .scaleExtent([0.1, 6])
+      .on('zoom', function(event) { g_el.attr('transform', event.transform); });
+    svg.call(zoom);
+
+    // Arrow markers for directed edges
+    svg.append('defs').selectAll('marker')
+      .data(['arrow'])
+      .join('marker')
+        .attr('id', 'arrow')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 20)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+      .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', '#3d4455');
+
+    var links = g_el.append('g').attr('class', 'links')
+      .selectAll('line')
+      .data(g.edges)
+      .join('line')
+        .attr('stroke', '#3d4455')
+        .attr('stroke-width', 1.2)
+        .attr('marker-end', 'url(#arrow)');
+
+    var nodeR = function(d) { return Math.max(7, Math.min(18, 7 + Math.sqrt(deg[d.id] || 0) * 2.5)); };
+
+    var nodes = g_el.append('g').attr('class', 'nodes')
+      .selectAll('g')
+      .data(g.nodes)
+      .join('g')
+        .attr('class', 'node')
+        .style('cursor', 'pointer')
+        .call(d3.drag()
+          .on('start', function(event, d) {
+            if (!event.active) sim.alphaTarget(0.3).restart();
+            d.fx = d.x; d.fy = d.y;
+          })
+          .on('drag', function(event, d) {
+            d.fx = event.x; d.fy = event.y;
+          })
+          .on('end', function(event, d) {
+            if (!event.active) sim.alphaTarget(0);
+            d.fx = null; d.fy = null;
+          })
+        );
+
+    nodes.append('circle')
+      .attr('r', nodeR)
+      .attr('fill', function(d) { return nodeColor(d.type); })
+      .attr('fill-opacity', 0.9)
+      .attr('stroke', '#0c0e12')
+      .attr('stroke-width', 1.5);
+
+    nodes.append('text')
+      .attr('x', function(d) { return nodeR(d) + 5; })
+      .attr('y', 4)
+      .attr('font-size', '11px')
+      .attr('fill', '#c8ccd6')
+      .attr('pointer-events', 'none')
+      .text(function(d) { return d.name.length > 24 ? d.name.slice(0, 22) + '…' : d.name; });
+
+    // Hover: highlight connected nodes, dim others
+    nodes.on('mouseover', function(event, d) {
+      var connected = new Set([d.id]);
+      g.edges.forEach(function(e) {
+        if (e.src_id === d.id) connected.add(e.dst_id);
+        if (e.dst_id === d.id) connected.add(e.src_id);
+      });
+      nodes.selectAll('circle').style('opacity', function(n) { return connected.has(n.id) ? 1 : 0.15; });
+      nodes.selectAll('text').style('opacity', function(n) { return connected.has(n.id) ? 1 : 0.1; });
+      links.style('opacity', function(e) {
+        return (e.src_id === d.id || e.dst_id === d.id) ? 1 : 0.05;
+      });
+    });
+    nodes.on('mouseout', function() {
+      nodes.selectAll('circle').style('opacity', 1);
+      nodes.selectAll('text').style('opacity', 1);
+      links.style('opacity', 0.7);
+    });
+
+    // Click: navigate or custom handler
+    nodes.on('click', function(event, d) {
+      if (options.onNodeClick) { options.onNodeClick(d); return; }
+      window.location = '/entities/' + d.id;
+    });
+
+    // Tooltip
+    var tooltip = d3.select(root).append('div')
+      .style('position', 'absolute')
+      .style('background', 'var(--surface-2)')
+      .style('border', '1px solid var(--border)')
+      .style('border-radius', '6px')
+      .style('padding', '0.4rem 0.75rem')
+      .style('font-size', '0.8rem')
+      .style('pointer-events', 'none')
+      .style('display', 'none')
+      .style('z-index', '10');
+
+    nodes.on('mouseover.tip', function(event, d) {
+      tooltip.style('display', 'block')
+        .html('<strong>' + d.name + '</strong> <span style="color:var(--text-mute)">' + d.type + '</span>');
+    }).on('mousemove.tip', function(event) {
+      var rect = root.getBoundingClientRect();
+      tooltip.style('left', (event.clientX - rect.left + 12) + 'px')
+             .style('top',  (event.clientY - rect.top  + 12) + 'px');
+    }).on('mouseout.tip', function() {
+      tooltip.style('display', 'none');
+    });
+
+    var sim = d3.forceSimulation(g.nodes)
+      .force('link', d3.forceLink(g.edges)
+        .id(function(d) { return d.id; })
+        .distance(100).strength(0.4))
+      .force('charge', d3.forceManyBody().strength(-220))
+      .force('center', d3.forceCenter(W / 2, H / 2))
+      .force('collision', d3.forceCollide().radius(function(d) { return nodeR(d) + 6; }))
+      .on('tick', function() {
+        links
+          .attr('x1', function(d) { return d.source.x; })
+          .attr('y1', function(d) { return d.source.y; })
+          .attr('x2', function(d) { return d.target.x; })
+          .attr('y2', function(d) { return d.target.y; });
+        nodes.attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+      });
+
+    links.style('opacity', 0.7);
+
+    // Initial fit-to-view zoom after simulation settles
+    sim.on('end', function() {
+      var bbox = g_el.node().getBBox();
+      if (bbox.width > 0 && bbox.height > 0) {
+        var pad = 40;
+        var scale = Math.min((W - pad*2) / bbox.width, (H - pad*2) / bbox.height, 2);
+        var tx = W/2 - scale * (bbox.x + bbox.width/2);
+        var ty = H/2 - scale * (bbox.y + bbox.height/2);
+        svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      }
+    });
+  }
 }
+
+// Legacy compat shim — the old API was renderGraph(type, depth).
+// entities.html calls renderGraph("Service", 2) — detect and reroute.
+(function() {
+  var _orig = renderGraph;
+  window.renderGraph = function(a, b, c) {
+    if (typeof a === 'string' && typeof b === 'number' && c === undefined) {
+      // Old call: renderGraph("Service", 2)
+      _orig('entity-graph', '/api/entities-graph?type=' + encodeURIComponent(a) + '&depth=' + b, {});
+    } else {
+      _orig(a, b, c);
+    }
+  };
+})();

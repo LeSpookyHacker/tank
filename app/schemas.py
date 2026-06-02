@@ -277,6 +277,22 @@ class PlanReport(BaseModel):
     rationale: str
 
 
+class PlanTask(BaseModel):
+    """One task in the 90-day onboarding plan, matching the prompt's JSON schema."""
+    week: int
+    title: str
+    description: str = ""
+    why_it_matters: str = ""
+    done_condition: str = ""
+    source: str = "milestone"
+    done: bool = False
+
+
+class PlanOutput(BaseModel):
+    """Structured output from plan_generator — replaces fragile regex extraction."""
+    tasks: list[PlanTask]
+
+
 class StakeholderTier(BaseModel):
     name: str
     role: str | None = None
@@ -333,9 +349,15 @@ class Day1BriefMeeting(BaseModel):
     suggested_when: str | None = None    # e.g. "week 1", "week 2"
 
 
+class TopEntity(BaseModel):
+    name: str
+    type: str
+    one_line: str = ""
+
+
 class Day1Brief(BaseModel):
     scope_echo: str
-    top_entities: list[dict]              # [{name, type, one_line}]
+    top_entities: list[TopEntity]
     week1_questions: list[Day1BriefQuestion]
     week1_reading: list[Day1BriefRead]
     week1_meetings: list[Day1BriefMeeting]

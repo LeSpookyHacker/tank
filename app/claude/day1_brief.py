@@ -139,10 +139,7 @@ def _render_day1(brief: Day1Brief, from_intake: bool = False) -> str:
         lines.append("## Top probable risk areas")
         lines.append("")
         for e in brief.top_entities[:5]:
-            name = e.get("name", "?")
-            t = e.get("type", "?")
-            one_line = e.get("one_line", "")
-            lines.append(f"- **{name}** _{t}_ — {one_line}")
+            lines.append(f"- **{e.name}** _{e.type}_ — {e.one_line}")
         lines.append("")
 
     if brief.week1_meetings:

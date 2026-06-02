@@ -7,6 +7,7 @@ import logging
 from app.claude.reports import _build_scope_block
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.role import get_state
+from app.schemas import PlanOutput
 from app.storage import intake_store, plan_store
 
 log = logging.getLogger("tank.plan_gen")
@@ -44,7 +45,7 @@ Reference the actual service names, team names, and compliance targets mentioned
 
     scope_block = _build_scope_block()
     client = get_client()
-    resp = client.messages.create(
+    parsed = client.messages.parse(
         model=MODEL,
         max_tokens=8192,
         thinking={"type": "adaptive"},
@@ -60,28 +61,13 @@ Reference the actual service names, team names, and compliance targets mentioned
                 {"type": "text", "text": user_content},
             ],
         }],
+        output_format=PlanOutput,
     )
-    usage = getattr(resp, "usage", None)
+    usage = getattr(parsed, "usage", None)
     log_token_usage("plan_generator", MODEL, usage)
 
-    raw = ""
-    for block in resp.content or []:
-        t = getattr(block, "text", None)
-        if t:
-            raw += t
-
-    # Parse JSON from response
-    import re
-    json_match = re.search(r'\{.*"tasks".*\}', raw, re.DOTALL)
-    if not json_match:
-        raise RuntimeError("plan generator returned no JSON")
-
-    try:
-        data = json.loads(json_match.group(0))
-        tasks = data.get("tasks", [])
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"plan JSON parse error: {e}") from e
-
+    plan_out: PlanOutput = parsed.output
+    tasks = [t.model_dump() for t in plan_out.tasks]
     plan_id = plan_store.create(tasks)
     log.info("90-day plan generated: id=%s, %d tasks", plan_id, len(tasks))
     return plan_id

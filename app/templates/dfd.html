@@ -13,6 +13,11 @@
 
     <!-- Mode selector tabs -->
     <div class="dfd-mode-tabs" role="tablist">
+      {% if recent %}
+      <button class="dfd-mode-tab" role="tab" data-mode="existing">
+        ◁ Existing
+      </button>
+      {% endif %}
       <button class="dfd-mode-tab active" role="tab" data-mode="mermaid">
         ◈ Paste Mermaid
       </button>
@@ -26,6 +31,42 @@
         ✎ From Description
       </button>
     </div>
+
+    <!-- Mode E: Existing DFDs -->
+    {% if recent %}
+    <div id="mode-existing" class="dfd-mode-panel" hidden>
+      <p class="dim" style="margin-bottom:0.75rem">Click any analysis to open it directly in the workspace.</p>
+      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem;">
+        {% for d in recent %}
+        <li>
+          <a href="/dfd/{{ d.id }}" style="
+            display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;
+            border:1px solid var(--border-soft);border-radius:8px;
+            text-decoration:none;color:var(--text);
+            transition:border-color 0.15s,background 0.15s;"
+            onmouseover="this.style.background='var(--surface-2)';this.style.borderColor='var(--accent)'"
+            onmouseout="this.style.background='';this.style.borderColor='var(--border-soft)'">
+            <span style="font-size:1.5rem">🗺️</span>
+            <span style="flex:1">
+              <strong>
+                {% if d.input_format == 'image' %}Image analysis
+                {% elif d.input_format == 'generated_from_doc' %}From document
+                {% elif d.input_format == 'generated_from_description' %}From description
+                {% else %}Mermaid analysis
+                {% endif %}
+              </strong>
+              <span class="dim" style="margin-left:0.5rem;font-size:0.85rem">{{ d.created_at | int }}</span>
+            </span>
+            <span class="badge" style="background:rgb(var(--nyx-iris)/0.15);color:var(--accent);border:1px solid rgb(var(--nyx-iris)/0.3);border-radius:6px;padding:0.2rem 0.6rem;font-size:0.8rem;white-space:nowrap;">
+              {{ d.analysis.threats | length }} threats
+            </span>
+            <span style="color:var(--accent)">→</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
 
     <!-- Mode A: Paste Mermaid -->
     <div id="mode-mermaid" class="dfd-mode-panel">
@@ -200,7 +241,10 @@ function updateSubmitState() {
   var ready = false;
   var label = '';
 
-  if (activeMode === 'mermaid') {
+  if (activeMode === 'existing') {
+    ready = false;
+    label = 'Click an existing analysis above to open it';
+  } else if (activeMode === 'mermaid') {
     var src = (document.getElementById('mermaid-input').value || '').trim();
     ready = src.length > 10;
     label = ready ? 'Analyzing Mermaid diagram · STRIDE' : 'Paste a Mermaid diagram to continue';

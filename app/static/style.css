@@ -783,11 +783,11 @@ input:focus, textarea:focus, select:focus {
 .report-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
 
 /* ---------- Markdown body renderer (report_detail) ---------- */
-.markdown-body { line-height: 1.7; font-size: 0.95rem; }
+.markdown-body { line-height: 1.5; font-size: 0.95rem; }
 .markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin: 1.5rem 0 0.5rem; color: var(--text); }
 .markdown-body h2 { font-size: 1.2rem; font-weight: 600; margin: 1.25rem 0 0.4rem; color: var(--text); border-bottom: 1px solid var(--border-soft); padding-bottom: 0.25rem; }
 .markdown-body h3 { font-size: 1rem; font-weight: 600; margin: 1rem 0 0.3rem; color: var(--text-dim); }
-.markdown-body p { margin: 0.5rem 0; }
+.markdown-body p { margin: 0.25rem 0; }
 .markdown-body ul, .markdown-body ol { padding-left: 1.5rem; margin: 0.4rem 0; }
 .markdown-body li { margin: 0.2rem 0; }
 .markdown-body code {
@@ -1716,6 +1716,11 @@ form label select {
   white-space: nowrap;
   font-family: var(--mono);
   letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+}
+a.cost-badge:hover {
+  background: rgb(245 158 11 / 0.08);
 }
 html.theme-light .cost-badge {
   color: #b45309;

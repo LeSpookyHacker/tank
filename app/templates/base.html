@@ -34,6 +34,7 @@
     })();
   </script>
 
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230c0e12'/%3E%3Crect x='8' y='8' width='16' height='16' rx='2' fill='%236c5ce7'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet"
@@ -42,6 +43,7 @@
   <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" defer></script>
 </head>
 <body>
   {# ── Global header ── #}
@@ -74,8 +76,8 @@
       <span class="icon-sun"  aria-hidden="true">☀</span>
     </button>
 
-    {# API cost badge #}
-    <span id="cost-badge" class="cost-badge" title="Lifetime API cost">$<span id="cost-value">—</span></span>
+    {# API cost badge — links to /usage breakdown #}
+    <a href="/usage" id="cost-badge" class="cost-badge" title="Lifetime API cost — click for breakdown">$<span id="cost-value">—</span></a>
   </header>
 
   {# ── Left navigation ── #}
@@ -92,6 +94,7 @@
           <span class="lnav-chevron" id="chevron-discover">›</span>
         </button>
         <ul class="lnav-items" id="group-discover">
+          <li><a href="/ingest"><span class="lnav-icon">⇪</span><span class="lnav-label">Ingest Documents</span></a></li>
           <li><a href="/intake"><span class="lnav-icon">📋</span><span class="lnav-label">Intake Interview</span></a></li>
           <li><a href="/discovery"><span class="lnav-icon">🔍</span><span class="lnav-label">Org Discovery</span></a></li>
           <li><a href="/stack-audit"><span class="lnav-icon">🛡️</span><span class="lnav-label">Security Stack Audit</span></a></li>
@@ -155,6 +158,7 @@
         </button>
         <ul class="lnav-items" id="group-knowledge">
           <li><a href="/entities"><span class="lnav-icon">🗺️</span><span class="lnav-label">Entity Graph</span></a></li>
+          <li><a href="/knowledge-graph"><span class="lnav-icon">◎</span><span class="lnav-label">Knowledge Graph</span></a></li>
           <li><a href="/lessons"><span class="lnav-icon">📚</span><span class="lnav-label">Lessons DB</span></a></li>
           <li><a href="/glossary"><span class="lnav-icon">📖</span><span class="lnav-label">Glossary</span></a></li>
         </ul>
@@ -162,6 +166,7 @@
 
       <div class="lnav-divider"></div>
       <a href="/me" class="lnav-link-standalone"><span class="lnav-icon">👤</span><span class="lnav-label">/me</span></a>
+      <a href="/usage" class="lnav-link-standalone"><span class="lnav-icon">$</span><span class="lnav-label">Usage &amp; Cost</span></a>
       <a href="/settings" class="lnav-link-standalone"><span class="lnav-icon">⚙</span><span class="lnav-label">Settings</span></a>
     </div>
 
