@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Tank — ownership &amp; on-call{% endblock %}
+
+{% block breadcrumb %}<span class="crumb">Knowledge</span> › <span class="crumb crumb-current">Ownership &amp; On-Call</span>{% endblock %}
+
+{% block content %}
+<section class="ownership-page">
+  <h1>Ownership &amp; on-call</h1>
+  <p class="lede">Who operates each service, who's on-call, and who you escalate
+  to. Owners proposed from the graph (CODEOWNERS / "manages" edges) are marked
+  <span class="badge">inferred</span> until you confirm them. Risk score reuses
+  the same heuristic as your personal dashboard.</p>
+
+  <table class="ownership-table">
+    <thead>
+      <tr>
+        <th>Service</th><th>Primary</th><th>Secondary</th>
+        <th>On-call</th><th>Escalation</th><th>Risk</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr data-entity-id="{{ r.service.id }}"
+          data-primary="{{ r.ownership.primary_owner_entity_id if r.ownership else '' }}"
+          data-secondary="{{ r.ownership.secondary_owner_entity_id if r.ownership else '' }}"
+          data-oncall="{{ r.ownership.on_call_contact if r.ownership else '' }}"
+          data-slack="{{ r.ownership.slack_channel if r.ownership else '' }}"
+          data-pager="{{ r.ownership.pager_handle if r.ownership else '' }}">
+        <td><a href="/entities/{{ r.service.id }}">{{ r.service.name }}</a></td>
+        <td>{{ r.primary_label or "—" }}
+          {% if r.ownership and r.ownership.provenance == "inferred" %}
+            <span class="badge">inferred</span>{% endif %}</td>
+        <td>{{ r.secondary_label or "—" }}</td>
+        <td>{{ r.ownership.on_call_contact if r.ownership else "—" }}</td>
+        <td>
+          {% if r.ownership and r.ownership.escalation %}
+            {{ r.ownership.escalation | length }} level(s)
+          {% else %}—{% endif %}
+        </td>
+        <td><span class="risk-badge">{{ "%.1f"|format(r.risk_score) }}</span></td>
+        <td><button class="btn-secondary edit-own"
+              data-escalation='{{ (r.ownership.escalation if r.ownership else []) | tojson }}'>edit</button></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="dim">No services in the knowledge base yet.
+        Ingest architecture docs or run org discovery first.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{# ── Edit modal ── #}
+<div class="modal-backdrop" id="own-modal" hidden>
+  <div class="modal">
+    <h2 id="own-modal-title">Edit ownership</h2>
+    <form id="own-form">
+      <input type="hidden" id="own-entity-id">
+      <label>Primary owner
+        <select id="own-primary">
+          <option value="">— none —</option>
+          {% for p in people %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Secondary owner
+        <select id="own-secondary">
+          <option value="">— none —</option>
+          {% for p in people %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>On-call contact
+        <input id="own-oncall" type="text" placeholder="e.g. #sec-oncall rotation, or a name"></label>
+      <label>Slack channel
+        <input id="own-slack" type="text" placeholder="#service-alerts"></label>
+      <label>Pager handle
+        <input id="own-pager" type="text" placeholder="pagerduty service / escalation policy"></label>
+      <label>Escalation path <span class="dim">(one per line, "level: contact")</span>
+        <textarea id="own-escalation" rows="4"
+          placeholder="L1: on-call engineer&#10;L2: team lead&#10;L3: security manager"></textarea></label>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="own-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script nonce="{{ request.state.csp_nonce }}">
+var modal = document.getElementById("own-modal");
+
+function openEdit(tr, escalation) {
+  document.getElementById("own-entity-id").value = tr.dataset.entityId;
+  document.getElementById("own-primary").value = tr.dataset.primary || "";
+  document.getElementById("own-secondary").value = tr.dataset.secondary || "";
+  document.getElementById("own-oncall").value = tr.dataset.oncall || "";
+  document.getElementById("own-slack").value = tr.dataset.slack || "";
+  document.getElementById("own-pager").value = tr.dataset.pager || "";
+  document.getElementById("own-escalation").value =
+    (escalation || []).map(function (e) { return e.level + ": " + e.contact; }).join("\n");
+  modal.hidden = false;
+}
+
+document.querySelectorAll(".edit-own").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var esc = [];
+    try { esc = JSON.parse(btn.dataset.escalation || "[]"); } catch (e) {}
+    openEdit(btn.closest("tr"), esc);
+  });
+});
+document.getElementById("own-cancel").addEventListener("click", function () {
+  modal.hidden = true;
+});
+
+document.getElementById("own-form").addEventListener("submit", async function (ev) {
+  ev.preventDefault();
+  var escalation = document.getElementById("own-escalation").value
+    .split("\n").map(function (l) { return l.trim(); }).filter(Boolean)
+    .map(function (l) {
+      var idx = l.indexOf(":");
+      return idx === -1
+        ? {level: "", contact: l}
+        : {level: l.slice(0, idx).trim(), contact: l.slice(idx + 1).trim()};
+    });
+  await fetch("/api/ownership", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      entity_id: document.getElementById("own-entity-id").value,
+      primary_owner_entity_id: document.getElementById("own-primary").value || null,
+      secondary_owner_entity_id: document.getElementById("own-secondary").value || null,
+      on_call_contact: document.getElementById("own-oncall").value || null,
+      slack_channel: document.getElementById("own-slack").value || null,
+      pager_handle: document.getElementById("own-pager").value || null,
+      escalation: escalation,
+    }),
+  });
+  window.location.reload();
+});
+</script>
+{% endblock %}

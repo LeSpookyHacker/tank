@@ -36,6 +36,28 @@
     <pre class="attrs">{{ card.attrs }}</pre>
   {% endif %}
 
+  {% if card.type == "Service" %}
+    <h2>Ownership &amp; on-call
+      <a class="dim" href="/ownership" style="font-size:0.8rem;font-weight:400;">Edit roster →</a></h2>
+    {% if ownership %}
+      <ul class="ownership-summary">
+        <li>Primary owner: <strong>{{ ownership.primary_label or "—" }}</strong>
+          {% if ownership.provenance == "inferred" %}<span class="badge">inferred</span>{% endif %}</li>
+        {% if ownership.secondary_label %}<li>Secondary: {{ ownership.secondary_label }}</li>{% endif %}
+        <li>On-call: {{ ownership.on_call_contact or "—" }}</li>
+        {% if ownership.slack_channel %}<li>Slack: {{ ownership.slack_channel }}</li>{% endif %}
+        {% if ownership.pager_handle %}<li>Pager: {{ ownership.pager_handle }}</li>{% endif %}
+        {% if ownership.escalation %}
+          <li>Escalation:
+            <ol>{% for e in ownership.escalation %}<li>{{ e.level }}: {{ e.contact }}</li>{% endfor %}</ol>
+          </li>
+        {% endif %}
+      </ul>
+    {% else %}
+      <p class="dim">No owner or on-call set. <a href="/ownership">Set one →</a></p>
+    {% endif %}
+  {% endif %}
+
   <h2>Linked chunks ({{ card.linked_chunks | length }})</h2>
   {% if card.linked_chunks %}
     <ul class="chunk-list">

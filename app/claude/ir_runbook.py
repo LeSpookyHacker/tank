@@ -175,6 +175,26 @@ def _build_context(
                     parts.append(f"  chunk: {(ch.get('snippet') or '')[:300]}")
                 parts.append("")
 
+            # Operational ownership / on-call roster — anchors the
+            # escalation path to the real contacts the user set.
+            from app.storage import ownership_store
+            own = ownership_store.get(service_entity_id)
+            if own:
+                from app.kb.entities import get_card as _gc
+                parts.append("## Operational ownership / on-call")
+                prim = _gc(own["primary_owner_entity_id"]) if own.get("primary_owner_entity_id") else None
+                if prim:
+                    parts.append(f"- Primary owner: {prim['name']}")
+                if own.get("on_call_contact"):
+                    parts.append(f"- On-call: {own['on_call_contact']}")
+                if own.get("slack_channel"):
+                    parts.append(f"- Slack: {own['slack_channel']}")
+                if own.get("pager_handle"):
+                    parts.append(f"- Pager: {own['pager_handle']}")
+                for lvl in (own.get("escalation") or []):
+                    parts.append(f"- Escalation {lvl.get('level','?')}: {lvl.get('contact','?')}")
+                parts.append("")
+
             tm = threat_models_store.latest_for_service(service_entity_id)
             if tm:
                 threats = tm.get("threats") or []

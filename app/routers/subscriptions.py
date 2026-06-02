@@ -1,13 +1,33 @@
 """Report-subscription endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from app.claude.reports import REPORT_REGISTRY
+from app.config import TEMPLATES_DIR
 from app.role import get_state
 from app.storage import subscriptions_store
 
 router = APIRouter(prefix="/api/subscriptions")
+
+# Page router (no prefix) — wired separately in app/main.py.
+page = APIRouter()
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+@page.get("/cadence", response_class=HTMLResponse)
+async def cadence_page(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="cadence.html",
+        context={
+            "state": get_state(),
+            "subscriptions": subscriptions_store.list_all(),
+            "report_kinds": sorted(REPORT_REGISTRY.keys()),
+        },
+    )
 
 
 class CreateSubscription(BaseModel):

@@ -1,12 +1,33 @@
 """Follow-up endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from app.config import TEMPLATES_DIR
+from app.role import get_state
 from app.storage import followups_store
 
 router = APIRouter(prefix="/api/followups")
+
+# Page router (no prefix) — wired separately in app/main.py.
+page = APIRouter()
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+@page.get("/followups", response_class=HTMLResponse)
+async def followups_page(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="followups.html",
+        context={
+            "state": get_state(),
+            "open": followups_store.list_by_status("open", limit=200),
+            "snoozed": followups_store.list_by_status("snoozed", limit=200),
+            "done": followups_store.list_by_status("done", limit=50),
+        },
+    )
 
 
 class CreateFollowup(BaseModel):

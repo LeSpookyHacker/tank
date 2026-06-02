@@ -13,6 +13,49 @@ of work, in chronological order.
 
 ---
 
+## 2026-06-02 — Flow rework (one front door + companion home) + on-call/ownership
+
+A UX-first pass plus one new capability. Motivation: the foundation was
+sound, but the experience wasn't intuitive — `/` redirected to the
+org/team/project console (`/dashboard`), so the personal **"Today"**
+companion home (`index.html`) was effectively dead code; the entire
+daily-companion half (journal, follow-ups, recurring reports) was
+API-only with no pages or nav; and threat modeling was scattered.
+
+**Flow rework (Part A):**
+- **One front door.** Removed the `/` → `/dashboard` redirect in
+  `dashboard.py`; `/` is now served by `pages.py::home` (the Today
+  companion). `/dashboard` stays as the **Workspaces** console. Brand
+  logo + "Today"/"Workspaces" nav links make the split explicit.
+- **Daily nav group + real pages.** New left-nav "Daily" group
+  (`base.html`). Built the previously headless pages: `/journal`
+  (`journal.html`), `/followups` (`followups.html`), and `/cadence`
+  (`cadence.html`, recurring report subscriptions). Surfaced the
+  orphaned pages (Meeting Prep, Notes, Philosophy, Detections) in nav.
+  Today home gained Journal/Follow-ups/Workspaces quick-actions.
+- **Threat-modeling consolidation.** Added the orphaned `/threat-models`
+  to nav next to `/dfd` ("DFD Analyzer" + "Living Threat Models") with
+  cross-links between the two pages.
+
+**Service ownership + on-call (Part B):** new `service_ownership` table
+(`_migrate_service_ownership`), `ownership_store.py` (CRUD +
+`seed_from_graph` that proposes a `manages/owns/operates` owner as
+`inferred`), `ownership.py` router + `/ownership` roster page + edit
+modal, an ownership/on-call panel on Service `entity_detail.html`, a
+"Services you own" pane on the Today home, the `get_service_ownership`
+chat tool (+ `find_control_gaps` `on_call` now consults the roster),
+IR-runbook escalation seeded from the roster, and an `ownership_gap`
+nudge for high/high services with no confirmed owner/on-call. Reuses
+the unused `OnCallHandoff` schema and `me._risk_score_for`.
+
+Tests: `tests/test_ownership.py` (store CRUD, graph seeding, on-call
+gap, companion pages render, front-door = Today). 53 passing.
+
+Deferred to backlog: metrics/board-reporting depth, vendor/third-party
+risk, a watcher/integrations UI.
+
+---
+
 ## 2026-05-31 — Sample-data recast → MedScribe-R-Us
 
 The sample-data pack was fully replaced. It previously modeled a fictional B2B

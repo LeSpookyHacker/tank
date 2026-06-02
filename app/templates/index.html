@@ -45,9 +45,11 @@
     <h2>Quick actions</h2>
     <ul class="quick-actions">
       <li><a href="/chat">Open chat</a></li>
+      <li><a href="/journal">Write journal</a></li>
       <li><a href="/meeting-prep">Prep for a meeting</a></li>
       <li><a href="/notes">Capture notes</a></li>
-      <li><a href="/reports">Reports library</a></li>
+      <li><a href="/followups">Follow-ups</a></li>
+      <li><a href="/dashboard">Workspaces</a></li>
     </ul>
   </article>
 </div>
@@ -152,6 +154,25 @@
       <p class="dim">No open follow-ups.</p>
     {% endif %}
     <a class="dim" href="/notes">Add notes →</a>
+  </article>
+
+  <article class="today-pane">
+    <h2>Services you own
+      <a class="dim" href="/ownership" style="font-size:0.8rem;font-weight:400;">Roster →</a></h2>
+    {% if owned_services %}
+      <ul class="owned-services-list">
+        {% for s in owned_services %}
+          <li>
+            <a href="/entities/{{ s.id }}"><strong>{{ s.name }}</strong></a>
+            <span class="dim">· {{ s.role }}</span>
+            <span class="risk-badge" title="risk score">{{ "%.1f"|format(s.risk_score) }}</span>
+            <div class="dim">on-call: {{ s.on_call or "not set" }}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="dim">Claim services on <a href="/me">/me</a> to track what's on you.</p>
+    {% endif %}
   </article>
 
   <article class="today-pane">

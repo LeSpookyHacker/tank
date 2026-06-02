@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Tank — follow-ups{% endblock %}
+
+{% block breadcrumb %}<span class="crumb">Daily</span> › <span class="crumb crumb-current">Follow-ups</span>{% endblock %}
+
+{% block content %}
+<section class="followups-page">
+  <h1>Follow-ups</h1>
+  <p class="lede">Open threads that need an action from you — spawned by
+  postmortems, design reviews, notes, or added by hand.</p>
+
+  <form class="followup-add" id="followup-add">
+    <input id="fu-title" type="text" placeholder="Add a follow-up…" autocomplete="off">
+    <button type="submit" class="btn-primary">Add</button>
+  </form>
+
+  <h2>Open <span class="dim">({{ open|length }})</span></h2>
+  <ul class="followup-list">
+    {% for f in open %}
+      <li class="followup-row" data-id="{{ f.id }}">
+        <span class="followup-source badge">{{ f.source_kind }}</span>
+        <span class="followup-title">{{ f.title }}</span>
+        <span class="followup-actions">
+          <button class="btn-secondary fu-act" data-action="done">done</button>
+          <button class="btn-secondary fu-act" data-action="snooze">snooze</button>
+          <button class="btn-secondary fu-act" data-action="cancel">cancel</button>
+        </span>
+      </li>
+    {% else %}
+      <li class="dim">Nothing open. Nice.</li>
+    {% endfor %}
+  </ul>
+
+  {% if snoozed %}
+  <h2>Snoozed <span class="dim">({{ snoozed|length }})</span></h2>
+  <ul class="followup-list">
+    {% for f in snoozed %}
+      <li class="followup-row" data-id="{{ f.id }}">
+        <span class="followup-source badge">{{ f.source_kind }}</span>
+        <span class="followup-title">{{ f.title }}</span>
+        <span class="followup-actions">
+          <button class="btn-secondary fu-act" data-action="done">done</button>
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if done %}
+  <h2 class="dim">Recently done</h2>
+  <ul class="followup-list followup-done">
+    {% for f in done %}
+      <li class="dim">{{ f.title }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<script nonce="{{ request.state.csp_nonce }}">
+async function addFollowup(ev) {
+  ev.preventDefault();
+  const input = document.getElementById("fu-title");
+  const title = input.value.trim();
+  if (!title) return false;
+  await fetch("/api/followups", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({title}),
+  });
+  window.location.reload();
+  return false;
+}
+document.getElementById("followup-add").addEventListener("submit", addFollowup);
+
+document.querySelectorAll(".fu-act").forEach(function (btn) {
+  btn.addEventListener("click", async function () {
+    const row = btn.closest(".followup-row");
+    const id = row.dataset.id;
+    const action = btn.dataset.action;
+    await fetch(`/api/followups/${id}/${action}`, {method: "POST"});
+    window.location.reload();
+  });
+});
+</script>
+{% endblock %}
