@@ -48,7 +48,7 @@
 <body>
   {# ── Global header ── #}
   <header class="global-header" id="global-header">
-    <a class="brand" href="/dashboard">
+    <a class="brand" href="/">
       <span class="brand-mark">▰</span>
       <span class="brand-name">Tank</span>
     </a>
@@ -85,8 +85,26 @@
     <div class="left-nav-inner">
 
       <a class="left-nav-home" href="/">
-        <span class="lnav-icon">⌂</span><span class="lnav-label">Home</span>
+        <span class="lnav-icon">⌂</span><span class="lnav-label">Today</span>
       </a>
+      <a class="left-nav-home" href="/dashboard">
+        <span class="lnav-icon">▦</span><span class="lnav-label">Workspaces</span>
+      </a>
+
+      <div class="lnav-group">
+        <button class="lnav-group-header" data-section="daily">
+          <span class="lnav-group-label">Daily</span>
+          <span class="lnav-chevron" id="chevron-daily">›</span>
+        </button>
+        <ul class="lnav-items" id="group-daily">
+          <li><a href="/"><span class="lnav-icon">☀</span><span class="lnav-label">Today</span></a></li>
+          <li><a href="/journal"><span class="lnav-icon">📓</span><span class="lnav-label">Journal</span></a></li>
+          <li><a href="/followups"><span class="lnav-icon">✔</span><span class="lnav-label">Follow-ups</span></a></li>
+          <li><a href="/meeting-prep"><span class="lnav-icon">🗣️</span><span class="lnav-label">Meeting Prep</span></a></li>
+          <li><a href="/notes"><span class="lnav-icon">🗒️</span><span class="lnav-label">Notes</span></a></li>
+          <li><a href="/cadence"><span class="lnav-icon">🔁</span><span class="lnav-label">Cadence</span></a></li>
+        </ul>
+      </div>
 
       <div class="lnav-group">
         <button class="lnav-group-header" data-section="discover">
@@ -108,7 +126,8 @@
         </button>
         <ul class="lnav-items" id="group-analyze">
           <li><a href="/chat"><span class="lnav-icon">💬</span><span class="lnav-label">Chat</span></a></li>
-          <li><a href="/dfd"><span class="lnav-icon">🗺️</span><span class="lnav-label">Threat Models (DFD)</span></a></li>
+          <li><a href="/dfd"><span class="lnav-icon">🗺️</span><span class="lnav-label">DFD Analyzer</span></a></li>
+          <li><a href="/threat-models"><span class="lnav-icon">🛡️</span><span class="lnav-label">Living Threat Models</span></a></li>
           <li><a href="/design-reviews"><span class="lnav-icon">📐</span><span class="lnav-label">Design Reviews</span></a></li>
         </ul>
       </div>
@@ -148,6 +167,7 @@
           <li><a href="/reports"><span class="lnav-icon">📊</span><span class="lnav-label">Reports</span></a></li>
           <li><a href="/security-program"><span class="lnav-icon">🏛️</span><span class="lnav-label">Program Dashboard</span></a></li>
           <li><a href="/compliance"><span class="lnav-icon">✅</span><span class="lnav-label">Compliance</span></a></li>
+          <li><a href="/detections"><span class="lnav-icon">📡</span><span class="lnav-label">Detections</span></a></li>
         </ul>
       </div>
 
@@ -159,8 +179,10 @@
         <ul class="lnav-items" id="group-knowledge">
           <li><a href="/entities"><span class="lnav-icon">🗺️</span><span class="lnav-label">Entity Graph</span></a></li>
           <li><a href="/knowledge-graph"><span class="lnav-icon">◎</span><span class="lnav-label">Knowledge Graph</span></a></li>
+          <li><a href="/ownership"><span class="lnav-icon">🧭</span><span class="lnav-label">Ownership &amp; On-Call</span></a></li>
           <li><a href="/lessons"><span class="lnav-icon">📚</span><span class="lnav-label">Lessons DB</span></a></li>
           <li><a href="/glossary"><span class="lnav-icon">📖</span><span class="lnav-label">Glossary</span></a></li>
+          <li><a href="/philosophy"><span class="lnav-icon">🧠</span><span class="lnav-label">Philosophy</span></a></li>
         </ul>
       </div>
 
@@ -383,7 +405,7 @@
       var groupState = {};
       try { groupState = JSON.parse(localStorage.getItem(GROUP_KEY) || "{}"); } catch(e) {}
 
-      var allGroups = ["discover", "analyze", "track", "build", "report", "knowledge"];
+      var allGroups = ["daily", "discover", "analyze", "track", "build", "report", "knowledge"];
       allGroups.forEach(function(g) {
         var items   = document.getElementById("group-" + g);
         var chevron = document.getElementById("chevron-" + g);

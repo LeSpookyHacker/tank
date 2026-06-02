@@ -36,7 +36,7 @@ from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
     discovery, dfd, entities, followups, glossary, iam, ingest, integrations,
     intake, ir_runbooks, journal, lessons, me, meeting_prep, notes, nudges,
-    onboarding, pages, philosophy, plan, policies, postmortems, projects,
+    onboarding, ownership, pages, philosophy, plan, policies, postmortems, projects,
     reports, risks, security_program, settings, stack_audit, subscriptions,
     tabletops, teams, threat_models, vulnerabilities, dashboard,
 )
@@ -191,8 +191,11 @@ app.include_router(nudges.router)
 app.include_router(meeting_prep.router)
 app.include_router(notes.router)
 app.include_router(journal.router)
+app.include_router(journal.page)
 app.include_router(followups.router)
+app.include_router(followups.page)
 app.include_router(subscriptions.router)
+app.include_router(subscriptions.page)
 
 # UI polish
 app.include_router(entities.router)
@@ -220,6 +223,7 @@ app.include_router(iam.router)
 app.include_router(lessons.router)
 app.include_router(glossary.router)
 app.include_router(me.router)
+app.include_router(ownership.router)
 app.include_router(philosophy.router)
 
 # Phase 16 + redesign: project compartmentalization + team hierarchy

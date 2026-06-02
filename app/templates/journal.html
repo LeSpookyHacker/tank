@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Tank — journal{% endblock %}
+
+{% block breadcrumb %}<span class="crumb">Daily</span> › <span class="crumb crumb-current">Journal</span>{% endblock %}
+
+{% block content %}
+<section class="journal-page">
+  <h1>Journal</h1>
+  <p class="lede">A daily log of what you learned, decided, or worried about.
+  Tank reads it lightly to surface themes over time — it never leaves this
+  machine in cleartext.{% if tenure %} <span class="dim">Day {{ tenure }}.</span>{% endif %}</p>
+
+  <form class="journal-form" id="journal-form">
+    <textarea id="journal-body" rows="6"
+      placeholder="What did today teach you? Anything you want to remember or follow up on?">{{ (today.body if today else "") or "" }}</textarea>
+    <button type="submit" class="btn-primary" id="journal-save">
+      {{ "Update today's entry" if today else "Save today's entry" }}
+    </button>
+    <span class="dim" id="journal-status"></span>
+  </form>
+
+  <h2>Recent entries</h2>
+  <ul class="journal-list">
+    {% for e in recent %}
+      <li class="journal-entry">
+        <header><strong>{{ e.date_label }}</strong>
+          {% if e.tenure_day is not none %}<span class="dim">· day {{ e.tenure_day }}</span>{% endif %}
+        </header>
+        <p>{{ (e.body or "")[:400] }}{% if (e.body or "")|length > 400 %}…{% endif %}</p>
+      </li>
+    {% else %}
+      <li class="dim">No entries yet. Today is a good day to start.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<script nonce="{{ request.state.csp_nonce }}">
+async function saveJournal(ev) {
+  ev.preventDefault();
+  const body = document.getElementById("journal-body").value.trim();
+  if (!body) return false;
+  const btn = document.getElementById("journal-save");
+  const status = document.getElementById("journal-status");
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = "saving…";
+  try {
+    await fetch("/api/journal", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({body}),
+    });
+    status.textContent = "saved ✓";
+    setTimeout(function () { window.location.reload(); }, 600);
+  } catch (e) {
+    status.textContent = "failed — try again";
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+  return false;
+}
+document.getElementById("journal-form").addEventListener("submit", saveJournal);
+</script>
+{% endblock %}

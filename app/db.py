@@ -684,6 +684,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_batch_jobs(conn)
     _migrate_meeting_briefs(conn)
     _migrate_attack_mapping_scratch(conn)
+    _migrate_service_ownership(conn)
 
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -761,6 +762,32 @@ def _migrate_attack_mapping_scratch(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_attack_mapping_scratch_batch "
         "ON attack_mapping_scratch (batch_job_id)"
+    )
+
+
+def _migrate_service_ownership(conn: sqlite3.Connection) -> None:
+    """Operational ownership + on-call roster, keyed by Service entity.
+
+    Distinct from `owned_entities` (the *user's* personal RACI claims):
+    this answers "who operates this service, who's on-call, who do I
+    escalate to?" Person references are entity ids so they ride the
+    existing graph; on-call / pager / slack are free-text handles.
+    `escalation_json` is a list of {level, contact} dicts. `provenance`
+    follows the entity convention (inferred = seeded from CODEOWNERS /
+    graph edges; user = entered/edited by hand — never overwrite `user`).
+    """
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS service_ownership ("
+        " entity_id TEXT PRIMARY KEY REFERENCES entities(id) ON DELETE CASCADE,"
+        " primary_owner_entity_id TEXT REFERENCES entities(id),"
+        " secondary_owner_entity_id TEXT REFERENCES entities(id),"
+        " on_call_contact TEXT,"
+        " escalation_json TEXT NOT NULL DEFAULT '[]',"
+        " slack_channel TEXT,"
+        " pager_handle TEXT,"
+        " provenance TEXT NOT NULL DEFAULT 'user',"
+        " updated_at REAL NOT NULL"
+        ")"
     )
 
 

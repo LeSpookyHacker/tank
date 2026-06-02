@@ -25,12 +25,12 @@ _TABS = ("overview", "ingest", "reports", "threats", "chat")
 
 # ── HTML routes ──────────────────────────────────────────────────────────────
 
-@router.get("/", response_class=HTMLResponse)
-def root(request: Request):
-    state = get_state()
-    if not state.onboarded:
-        return RedirectResponse(url="/onboarding", status_code=302)
-    return RedirectResponse(url="/dashboard", status_code=302)
+#
+# NOTE: `/` is intentionally NOT defined here. It is served by
+# `pages.py::home` (the personal "Today" companion home). `/dashboard`
+# below is the org→team→project "Workspaces" console. Keeping the two
+# distinct — and routing the front door to Today — is the deliberate
+# front-door decision; do not re-add a `/` → `/dashboard` redirect.
 
 
 @router.get("/dashboard", response_class=HTMLResponse)

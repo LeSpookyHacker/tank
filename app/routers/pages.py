@@ -11,8 +11,31 @@ from fastapi.templating import Jinja2Templates
 from app.config import TEMPLATES_DIR
 from app.db import LOCK, get_conn
 from app.role import current_lens, get_state, tenure_day
-from app.storage import followups_store, nudges_store, usage_store
+from app.storage import (entities_store, followups_store, nudges_store,
+                         owned_store, ownership_store, usage_store)
 from app.storage.projects_store import get_active_project_id, get_project, set_active_project_id
+
+
+def _owned_services() -> list[dict]:
+    """Services the user owns/reviews, with on-call + risk for the Today
+    home. Joins the personal RACI claims (`owned_store`) with the
+    operational roster (`ownership_store`)."""
+    from app.routers.me import _risk_score_for
+    out = []
+    for claim in owned_store.list_owned():
+        ent = entities_store.get_entity(claim["entity_id"])
+        if not ent or (ent.get("type") or "").lower() != "service":
+            continue
+        own = ownership_store.get(claim["entity_id"])
+        out.append({
+            "id": ent["id"],
+            "name": ent["name"],
+            "role": claim["role"],
+            "on_call": (own or {}).get("on_call_contact"),
+            "risk_score": _risk_score_for(claim["entity_id"]),
+        })
+    out.sort(key=lambda x: x["risk_score"], reverse=True)
+    return out[:6]
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -146,6 +169,7 @@ def home(request: Request):
             "tenure": tday,
             "nudges": nudges_store.list_open(limit=5),
             "followups": followups_store.list_by_status("open", limit=5),
+            "owned_services": _owned_services(),
             "hot_entities": usage_store.hot_entities(days=7, k=5),
             "hints": hints,
             "active_project": active_project,

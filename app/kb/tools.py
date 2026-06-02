@@ -5,7 +5,7 @@ passed verbatim to `messages.stream(tools=...)`. The chat loop in
 `app/claude/chat.py` dispatches `tool_use` blocks back into this module
 via `execute_tool(name, args)`.
 
-Tools available to the chat assistant (15 total, grouped by purpose):
+Tools available to the chat assistant (16 total, grouped by purpose):
 
   Retrieval / lookup
     - search_kb                 — hybrid (vector + BM25) chunk search
@@ -26,6 +26,7 @@ Tools available to the chat assistant (15 total, grouped by purpose):
     - get_recent_decisions      — N most recent decisions
     - find_ir_runbooks          — runbooks for a service/scenario
     - get_risk_register         — open risks (filterable)
+    - get_service_ownership     — operational owner / on-call / escalation
 
   Memory
     - search_lessons            — lessons-learned DB search
@@ -305,6 +306,22 @@ TOOL_SCHEMAS: list[dict] = [
             },
         },
     },
+    {
+        "name": "get_service_ownership",
+        "description": (
+            "Return the operational owner, on-call contact, and escalation "
+            "path for a service. Use when the user asks 'who owns X', "
+            "'who's on-call for Y', or 'who do I escalate to'. Supply "
+            "service_id or service_name."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "service_name": {"type": "string"},
+                "service_id": {"type": "string"},
+            },
+        },
+    },
 ]
 
 
@@ -502,7 +519,37 @@ def execute_tool(name: str, args: dict[str, Any]) -> dict | list:
             })
         return {"risks": out, "count": len(out)}
 
+    if name == "get_service_ownership":
+        from app.storage import ownership_store
+        sid = args.get("service_id")
+        if not sid and args.get("service_name"):
+            card = kb_entities.find_by_name("Service", args["service_name"])
+            if card:
+                sid = card["id"]
+        if not sid:
+            return {"error": "must supply service_id or service_name"}
+        own = ownership_store.get(sid) or ownership_store.seed_from_graph(sid)
+        if not own:
+            return {"ownership": None, "note": "no ownership set for this service"}
+        return {
+            "service_id": sid,
+            "primary_owner": _entity_name(own.get("primary_owner_entity_id")),
+            "secondary_owner": _entity_name(own.get("secondary_owner_entity_id")),
+            "on_call_contact": own.get("on_call_contact"),
+            "slack_channel": own.get("slack_channel"),
+            "pager_handle": own.get("pager_handle"),
+            "escalation": own.get("escalation") or [],
+            "provenance": own.get("provenance"),
+        }
+
     return {"error": f"unknown tool: {name}"}
+
+
+def _entity_name(entity_id: str | None) -> str | None:
+    if not entity_id:
+        return None
+    ent = entities_store.get_entity(entity_id)
+    return ent["name"] if ent else None
 
 
 def _find_control_gaps(control: str, scope: list[str] | None) -> dict:
@@ -513,6 +560,17 @@ def _find_control_gaps(control: str, scope: list[str] | None) -> dict:
     services = entities_store.list_entities(type_="Service", limit=500)
     if scope:
         services = [s for s in services if s["id"] in set(scope)]
+
+    # `on_call` lives in the operational ownership roster, not the control
+    # graph — a service "has" on-call if a contact or escalation is set.
+    if control_norm == "on_call":
+        from app.storage import ownership_store
+        gaps = []
+        for s in services:
+            own = ownership_store.get(s["id"])
+            if not own or not (own.get("on_call_contact") or own.get("escalation")):
+                gaps.append({"id": s["id"], "name": s["name"]})
+        return {"control": control, "gap_count": len(gaps), "services": gaps}
 
     gaps = []
     for s in services:

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Tank — cadence{% endblock %}
+
+{% block breadcrumb %}<span class="crumb">Daily</span> › <span class="crumb crumb-current">Cadence</span>{% endblock %}
+
+{% block content %}
+<section class="cadence-page">
+  <h1>Cadence</h1>
+  <p class="lede">Recurring reports Tank generates for you on a schedule. The
+  scheduler runs them in the background (batched, 50% cheaper) and drops the
+  result in your Reports library.</p>
+  <p class="dim">Daily digest time is set in
+    <a href="/settings#cadence">Settings → Cadence</a> (currently
+    {{ state.digest_time }}).</p>
+
+  <form class="cadence-add" id="cadence-add">
+    <select id="sub-kind">
+      {% for k in report_kinds %}
+        <option value="{{ k }}">{{ k.replace("_", " ").title() }}</option>
+      {% endfor %}
+    </select>
+    <select id="sub-cadence">
+      <option value="weekly">Weekly</option>
+      <option value="daily">Daily</option>
+      <option value="monthly">Monthly</option>
+      <option value="quarterly">Quarterly</option>
+    </select>
+    <button type="submit" class="btn-primary">Subscribe</button>
+  </form>
+
+  <h2>Active subscriptions</h2>
+  <ul class="cadence-list">
+    {% for s in subscriptions %}
+      <li class="cadence-row" data-id="{{ s.id }}">
+        <span class="cadence-kind">{{ s.kind.replace("_", " ").title() }}</span>
+        <span class="badge">{{ s.cadence }}</span>
+        {% if s.enabled %}
+          <span class="badge badge-source">enabled</span>
+        {% else %}
+          <span class="badge">paused</span>
+        {% endif %}
+        <span class="cadence-actions">
+          {% if s.enabled %}
+            <button class="btn-secondary sub-act" data-action="disable">pause</button>
+          {% else %}
+            <button class="btn-secondary sub-act" data-action="enable">resume</button>
+          {% endif %}
+          <button class="btn-secondary sub-del">delete</button>
+        </span>
+      </li>
+    {% else %}
+      <li class="dim">No recurring reports yet. Subscribe to one above.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<script nonce="{{ request.state.csp_nonce }}">
+async function addSub(ev) {
+  ev.preventDefault();
+  const kind = document.getElementById("sub-kind").value;
+  const cadence = document.getElementById("sub-cadence").value;
+  await fetch("/api/subscriptions", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({kind, cadence}),
+  });
+  window.location.reload();
+  return false;
+}
+document.getElementById("cadence-add").addEventListener("submit", addSub);
+
+document.querySelectorAll(".sub-act").forEach(function (btn) {
+  btn.addEventListener("click", async function () {
+    const id = btn.closest(".cadence-row").dataset.id;
+    await fetch(`/api/subscriptions/${id}/${btn.dataset.action}`, {method: "POST"});
+    window.location.reload();
+  });
+});
+document.querySelectorAll(".sub-del").forEach(function (btn) {
+  btn.addEventListener("click", async function () {
+    const id = btn.closest(".cadence-row").dataset.id;
+    await fetch(`/api/subscriptions/${id}`, {method: "DELETE"});
+    window.location.reload();
+  });
+});
+</script>
+{% endblock %}

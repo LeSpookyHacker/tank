@@ -49,9 +49,23 @@ async def entity_detail(request: Request, entity_id: str):
         raise HTTPException(404, "no such entity")
     edges = kb_relationships.traverse(entity_id, direction="both")
     state = get_state()
+
+    # Operational ownership / on-call panel (Service entities only).
+    ownership = None
+    if (card.get("type") or "").lower() == "service":
+        from app.storage import ownership_store
+        ownership = ownership_store.get(entity_id) or ownership_store.seed_from_graph(entity_id)
+        if ownership:
+            def _nm(eid):
+                e = entities_store.get_entity(eid) if eid else None
+                return e["name"] if e else None
+            ownership["primary_label"] = _nm(ownership.get("primary_owner_entity_id"))
+            ownership["secondary_label"] = _nm(ownership.get("secondary_owner_entity_id"))
+
     return templates.TemplateResponse(
         request=request, name="entity_detail.html",
-        context={"state": state, "card": card, "graph": edges},
+        context={"state": state, "card": card, "graph": edges,
+                 "ownership": ownership},
     )
 
 

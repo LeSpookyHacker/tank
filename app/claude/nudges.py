@@ -35,7 +35,7 @@ def generate_nudges() -> list[str]:
                _question_of_week, _journal_followup_suggestion,
                _architecture_drift, _decision_expiring,
                _unaddressed_threat, _risk_review_due,
-               _missing_ir_runbook,
+               _missing_ir_runbook, _ownership_gap,
                # First-hire nudges
                _intake_incomplete, _stack_audit_incomplete,
                _first_hire_team_meeting, _first_hire_top_service_tm,
@@ -344,6 +344,41 @@ def _missing_ir_runbook() -> str | None:
                 payload={"service_entity_id": sid, "tm_id": tm["id"]},
                 priority=72,
             )
+    return None
+
+
+def _ownership_gap() -> str | None:
+    """A service with a high/high threat in its TM has no operational
+    owner or on-call contact in the ownership roster."""
+    try:
+        from app.storage import threat_models_store, ownership_store
+    except Exception:
+        return None
+    tms = threat_models_store.list_all_latest()
+    for tm in tms:
+        sid = tm.get("service_entity_id")
+        if not sid:
+            continue
+        threats = tm.get("threats") or []
+        has_critical = any(
+            t.get("likelihood") == "high" and t.get("impact") == "high"
+            for t in threats
+        )
+        if not has_critical:
+            continue
+        own = ownership_store.get(sid)
+        if own and own.get("provenance") == "user" and (
+                own.get("on_call_contact") or own.get("escalation")):
+            continue
+        return nudges_store.insert(
+            kind="ownership_gap",
+            title=f"No on-call owner for {tm['title']!r}",
+            body=f"{tm['title']} has high-impact threats but no confirmed "
+                 f"operational owner or on-call contact. Set one on the "
+                 f"Ownership & On-Call page so escalation is clear.",
+            payload={"service_entity_id": sid},
+            priority=68,
+        )
     return None
 
 
