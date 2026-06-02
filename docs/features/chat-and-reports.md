@@ -104,6 +104,20 @@ tables, code blocks, lists) via `marked.js`. From any report detail page:
 | ↓ PDF | `window.print()` — browser print dialog with nav/sidebar hidden via `@media print` |
 | ↓ Markdown | Downloads the raw `.md` source |
 
+### Scoped reports — entity picker
+
+`threat_landscape` and `questions_for_team` require a scope selection.
+Clicking **Generate** opens a searchable `<dialog>` modal that fetches
+entities from `/api/entities`:
+
+- **Threat landscape** — lists `Service` entities; the selected entity's
+  `id` is sent as `scope.service_id`.
+- **Questions for team** — lists `Person` and `Team` entities combined;
+  the selected entity's `name` is sent as `scope.team_or_person`.
+
+The modal can be dismissed with the **×** button, clicking the backdrop,
+or pressing **Escape**.
+
 ### `threat_landscape` — STRIDE per service
 
 One-shot threat list for a single service. Superseded by the Phase-12

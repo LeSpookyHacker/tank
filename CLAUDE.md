@@ -224,6 +224,8 @@ lens.**
 | Add a new nudge kind | `app/claude/nudges.py::generate_nudges()` (add a gate function), call `nudges_store.insert(kind=...)` |
 | Add a SQL table | `app/db.py::_init_schema` (CREATE TABLE IF NOT EXISTS) + an additive migration in `_migrate_app_state_columns` if you're adding columns to an existing table |
 | Change the home dashboard / top-nav | `app/routers/dashboard.py` — handles `/`, `/dashboard`, `/teams/*`, `/search`; the Org→Team→Project hierarchy lives here |
+| Change the token usage / cost breakdown page | `app/routers/pages.py::usage_page` (`GET /usage`) + `usage_breakdown` (`GET /api/usage/breakdown`). Queries all three token tables (messages, reports, api_calls) and returns breakdowns by source, model, call site, and day. Template: `app/templates/usage.html`. The cost badge in the global header is a link to this page. |
+| Change the D3 knowledge graph | `app/static/graph.js` (D3 v7 force simulation; `renderGraph(containerId, apiUrl, options)`) + `app/templates/knowledge_graph.html` (`/knowledge-graph` full-page route). The `GET /api/entities-graph?type=all` route calls `app/kb/relationships.py::graph_for_all_types()`. The legacy call shape `renderGraph("Service", 2)` is handled by a compat shim at the bottom of `graph.js`. |
 | Add a versioned artifact (TM-style) | Mirror `app/storage/threat_models_store.py` (version per scope) + `app/claude/threat_modeling.py` (delta-aware regen with prior in prompt) |
 | Author a workstream artifact | Mirror Phase 13: `<artifact>s_store.py` + `app/claude/<artifact>.py` (seed via Sonnet from freewrite) + `prompts/<artifact>_draft.md` + 2 templates (`<artifact>s.html` list, `<artifact>_<new\|detail>.html`) |
 | Add a coverage / visibility analysis | Pattern in Phase 14: `app/kb/<kind>.py` for in-process queries + `app/claude/<analysis>.py` for Sonnet-driven synthesis + dedicated parser if the artifact is a new ingest type |
@@ -232,7 +234,7 @@ lens.**
 | Add a continuous-ingestion connector | `app/ingest/watchers/<kind>.py` implementing `scan(watcher_row) -> ScanResult` + register in `watchers/__init__.py::dispatch`. Kinds: `folder`, `ics_url`, `cve_feed`, `github_repo`. Users enable via Settings → Integrations. |
 | Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt, 1h TTL), `build_kb_block(hits, entity_cards)` (per-turn retrieved context, 5m TTL), `build_scope_block(service_id=None)` (canonical KB-scope, 1h TTL, shared across reports + anniversaries + day1 + plan + meeting prep + policy + compliance wizard). Use the `CACHE_5M` / `CACHE_1H` constants from the same module instead of inlining the dict. |
 | Add a batched background job (50% off) | `app/claude/batches.py` — declare a handler with `@batches.register("<kind>")` (and optionally `@batches.register_finalizer("<kind>")` for N→1 aggregation patterns). Build each request via `app/claude/batch_helpers.py::tool_params_for(cls)` (Pydantic-class JSON schema as the forced tool's `input_schema`) and `extract_validated(msg, cls)` in the handler. Submit via `batches.submit(kind, requests, payload)`; scheduler `_tick` polls every minute. The synchronous `messages.parse` path stays for HTTP / user-waiting call sites. |
-| Change smart auto-categorization rules | `app/ingest/auto_categorize.py` — `suggest_category(path)` (path-keyword + content-sniff heuristics) and `walk_directory(root)` (returns `(path, category)` pairs, skipping hidden/.git/node_modules). Mirrors these heuristics in `app/templates/ingest.html` JS (`guessCategory`). |
+| Change smart auto-categorization rules | `app/ingest/auto_categorize.py` — `suggest_category(path)` (path-keyword + content-sniff heuristics) and `walk_directory(root)` (returns `(path, category)` pairs, skipping hidden/.git/node_modules). `PARSEABLE_EXTS` controls which extensions `walk_directory` includes (currently includes `.mmd`). Mirrors heuristics in `app/templates/ingest.html` JS (`guessCategory`). |
 | Add or switch projects | `app/storage/projects_store.py` + `app/routers/projects.py`. `project_id TEXT` FK added to 7 tables (documents, chunks, entities, relationships, reports, conversations, messages). Active project set in `app_state`; the project switcher in the topnav reads it from `/api/projects`. Projects belong to Teams (`team_id`); Teams belong to an Org (`org_id`). The full 3-level hierarchy (Org→Team→Project) is navigated via `app/routers/dashboard.py`. |
 | Change the side-panel chat UI | `app/templates/base.html` — the entire panel markup + ~180-line JS IIFE lives at the bottom of the `<script>` block. Panel is suppressed on `/chat` and `/onboarding` via `SUPPRESS_PATHS`. Width (240–600px), open/closed state, and `panelConvId` persist in `localStorage`. `--topbar-h` and `--footer-h` are set at runtime so the panel height fits exactly between them. CSS in `app/static/style.css` under `/* ── Side panel layout ──`. |
 | Add/modify IR runbooks | `app/claude/ir_runbook.py::generate(service_id, threat_scenario, severity)` → `app/storage/ir_runbooks_store.py` → `app/routers/ir_runbooks.py`; prompt in `prompts/ir_runbook.md`. Runbook is KB-contextual (pulls service TM, postmortems, IAM). |
@@ -367,7 +369,7 @@ pattern — reuse `_build_scope_block()` idiom for KB injection.
 
 ## Token cost tracking (three tables)
 
-`/api/usage/cost` aggregates from all three sources:
+`/api/usage/cost` (simple total) and `/api/usage/breakdown` (full breakdown) aggregate from all three sources:
 
 1. **`messages`** — chat turns; all 4 token fields (`tokens_in`, `tokens_out`, `cache_read_in`, `cache_create_in`).
 2. **`reports`** — generated reports; `cache_read_in`/`cache_create_in` columns added by `_migrate_reports_cache_columns` in `app/db.py`.
@@ -376,6 +378,8 @@ pattern — reuse `_build_scope_block()` idiom for KB injection.
 `app/config.py::log_token_usage(call_site, model, usage)` is the single function every Claude call must invoke after getting a response. It writes to `api_calls` and, when `TANK_DEBUG_TOKENS=1`, logs per-call counts to the console. If a new module makes a Claude call without calling `log_token_usage()`, that spend is invisible to the cost counter.
 
 `reports_store.insert()` additionally takes `cache_read_in` / `cache_create_in` — pass them or the reports table will undercount cache savings.
+
+The **`/usage`** page (`app/routers/pages.py::usage_page` + `app/templates/usage.html`) renders the breakdown by source, model, call site, and last-14-days timeline. The global header cost badge (`$—`) is a link to this page. `GET /api/usage/breakdown` is the JSON endpoint it consumes.
 
 ## Prompt-cache TTL helpers
 
@@ -407,7 +411,7 @@ Three-stage pipeline: Stage 1 (4-mode input) → Stage 2 (SSE progress) → Stag
 
 - **`app/schemas.py`** — `DFDThreat` (renamed from old `STRIDEThreat` to fix naming collision with reports `STRIDEThreat`); added `threat_id`, `element_label`, `title`, `cvss_estimate: float | None`, `references: list[str]`; `DFDMermaidGeneration` schema for generate flows.
 - **`app/claude/dfd_analyzer.py`** — `analyze_mermaid(src, force, project_id, project_notes, input_format)` → `(dfd_id, analysis, from_cache)`; `analyze_image(bytes, media_type, project_id, project_notes)` → same tuple; `generate_from_description(text, project_notes)` → `DFDMermaidGeneration`; `generate_from_document(file_bytes, filename, project_notes)` → `DFDMermaidGeneration`. Uses `pypdf`/`python-docx` for document text extraction.
-- **`app/routers/dfd.py`** — `POST /api/dfd/generate-from-description` and `POST /api/dfd/generate-from-doc` (return `{mermaid, notes}`); `POST /api/dfd/start-analysis` (returns `{task_id}`); `POST /api/dfd/start-analysis-image` (image variant); `GET /api/dfd/task/{task_id}/stream` (SSE drain, reuses `event_bus.py` pattern); `GET /api/dfd/{id}/export?format=mmd|original_mmd|json`. Legacy `POST /api/dfd/analyze` retained for backward compat.
+- **`app/routers/dfd.py`** — `POST /api/dfd/generate-from-description` and `POST /api/dfd/generate-from-doc` (return `{mermaid, notes}`); `POST /api/dfd/start-analysis` (returns `{task_id}`); `POST /api/dfd/start-analysis-image` (image variant); `GET /api/dfd/task/{task_id}/stream` (SSE drain, reuses `event_bus.py` pattern); `GET /api/dfd/{id}/export?format=mmd|original_mmd|json`. Legacy `POST /api/dfd/analyze` retained for backward compat. `GET /dfd/from-kb/{doc_id}` bridge page auto-starts analysis from a KB-ingested document (image → start-analysis-image; text → generate-from-doc). `GET /api/dfd/kb-doc-bytes/{doc_id}` serves the raw file; falls back to DB-chunk reassembly if `source_path` is gone.
 - **`app/storage/dfd_store.py`** — `insert()` accepts `input_format`, `project_id`, `cached`; `list_recent()` accepts optional `project_id` filter.
 - **`app/db.py`** — `_migrate_dfd_columns()` adds `input_format TEXT`, `project_id TEXT`, `cached INTEGER NOT NULL DEFAULT 0` columns to `dfd_analyses` (idempotent via `_add_col_safe()`).
 - **`prompts/dfd_stride.md`** — STRIDE analysis prompt; updated for new threat fields; Low severity color `#4F46E5` (was `#2563eb`); severity indicator on node labels (`⚠ H`); project context injection.
@@ -424,6 +428,12 @@ Three-stage pipeline: Stage 1 (4-mode input) → Stage 2 (SSE progress) → Stag
 **PDF export:** CSS `@media print` only — no jsPDF/html2canvas. Produces cover page, full-width diagram SVG, threat table, STRIDE coverage matrix (6×4), Mermaid appendix.
 
 The `improve_mermaid` endpoint pulls KB context using `hybrid_search("data flow architecture services trust boundary", k=10)` and sends it alongside the diagram.
+
+**`.mmd` ingest:** `.mmd` is registered in `parsers/__init__.py::_BY_EXT` (→ MarkdownParser) and in `auto_categorize.py::PARSEABLE_EXTS`. Users can ingest Mermaid source files via `/ingest` and then open them from the DFD "← Existing" tab's "From your knowledge base" section.
+
+**DFD "← Existing" tab:** The tab appears when either `dfd_analyses` rows exist OR ingested documents are present. It shows two sections: analyzed DFDs (from `dfd_analyses`) and architecture/image KB documents (filtered from `documents` table). The router (`dfd_page`) filters `kb_docs` to `kind='image'`, `category='architecture'`, or path keyword matches (dfd/diagram/flow/architect).
+
+**Mermaid SVG rendering:** Mermaid v10+ renders node labels inside `<foreignObject>` elements. Never pass `mermaid.render()` output through DOMPurify — `USE_PROFILES:{svg:true}` strips `<foreignObject>` and `<style>` blocks, making all text invisible. Use `element.innerHTML = result.svg` directly; Mermaid's own `securityLevel:'strict'` already sanitizes the output.
 
 ## Operations layer (the always-on-VM additions)
 

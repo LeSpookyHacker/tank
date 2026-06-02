@@ -7,15 +7,33 @@ four input modes → 4-step progress tracker → split-panel interactive workspa
 
 ## Getting started
 
-- **Sidebar** → Pipeline → **DFD Analysis**
-- **Ingest page** → scroll to the bottom → *"Have a Data Flow Diagram? Analyze
-  it with STRIDE threat modeling →"*
+- **Sidebar** → Discover → **Ingest Documents** → ingest `.mmd`, `.png`, or
+  architecture docs → **Analyze** → **DFD Analysis** → "← Existing" tab
+- **Sidebar** → Analyze → **DFD Analysis** → pick an input tab
 
 ---
 
 ## Stage 1 — Input
 
-Four tabs let you get a diagram into Tank in whichever way fits your workflow.
+Five tabs let you get a diagram into Tank in whichever way fits your workflow.
+
+### Tab ←: Existing (prior analyses + KB documents)
+
+Appears whenever you have prior DFD analyses **or** ingested documents. Two sections:
+
+**Analyzed DFDs** — previous STRIDE results from the `dfd_analyses` table. Click
+any card to jump directly into Stage 3 (the interactive workspace).
+
+**From your knowledge base** — architecture-category and image documents already
+ingested via `/ingest`. Includes `.mmd` files, architecture diagrams, and PDFs
+with "diagram/dfd/flow/architecture" in their path. Click a card to auto-start
+analysis: images go to Claude Vision (`start-analysis-image`); text documents
+are processed through `generate-from-doc` then analyzed. If the original file
+was cleaned up after ingest, Tank reassembles the text from the stored DB chunks.
+
+**Ingesting `.mmd` files:** `.mmd` (Mermaid source) is now a supported ingest
+format. Drag-drop into the Ingest page or use the path-based ingest, and the
+files will appear in the "From your knowledge base" section here.
 
 ### Tab A: Paste Mermaid
 
@@ -36,6 +54,9 @@ Drag-and-drop or click to browse:
 | `.mmd`, `.txt` | Content placed in Tab A; switches to Tab A automatically |
 | `.png`, `.jpg`, `.jpeg`, `.svg` | Thumbnail preview; submitted as image for Claude Vision analysis |
 | `.json` | Formatted preview shown inline |
+
+`.mmd` files can also be **ingested permanently** via the Ingest page, making
+them available via the "← Existing" tab without re-uploading.
 
 Images are analyzed by Claude Vision — results may vary with low-resolution or
 stylized diagrams. **Maximum file size: 20 MB.** Larger files are rejected with

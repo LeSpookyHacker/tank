@@ -12,7 +12,8 @@ Everything you use in the first two weeks to build your initial picture of the o
 before you have documents.
 
 - [discover.md](discover.md) — **Intake Interview**, **Org Discovery Wizard**,
-  **Security Stack Audit**
+  **Security Stack Audit**, **Ingest Documents** (`/ingest` — drag-drop or path-based;
+  supports `.md`, `.mmd`, `.pdf`, `.docx`, `.png`, `.jpg`, `.csv`, `.json`, `.yml`)
 
 ---
 
@@ -75,8 +76,10 @@ Reports and program-level visibility.
 
 The living knowledge base and memory layer.
 
-- [concepts.md](../concepts.md) — **Entity Graph** (14 entity types, 9 relationship
-  kinds, provenance badges, entity stubs)
+- [concepts.md](../concepts.md) — **Entity Graph** (`/entities` — tabular browser,
+  14 entity types, 9 relationship kinds, provenance badges) + **Knowledge Graph**
+  (`/knowledge-graph` — D3.js force-directed view across all entity types; pan/zoom,
+  hover highlighting, draggable nodes, click to navigate to entity detail)
 - [second-brain.md](second-brain.md) — **Lessons-learned DB**, **Glossary builder**,
   **Personal ownership dashboard**, **Security philosophy doc**
 - [projects.md](projects.md) — **Projects** (scoped workspaces, starter templates,
@@ -91,6 +94,14 @@ The daily companion: digest, nudges, journal, meeting prep, anniversaries.
 - [using-tank.md](../using-tank.md) — day-to-day workflows that tie all features together
 - [workstreams.md](workstreams.md) — pre-meeting briefs, weekly security digest,
   on-call handoff brief
+
+---
+
+## Token usage
+
+- `/usage` — per-source (chat / reports / background), per-model (Sonnet / Haiku),
+  per-call-site, and last-14-days spend breakdown. The `$—` cost badge in the global
+  header is a link to this page.
 
 ---
 
@@ -112,5 +123,10 @@ The daily companion: digest, nudges, journal, meeting prep, anniversaries.
 - **Redesign** — First-hire pivot: intake interview, org discovery wizard, security
   stack audit, chat discovery mode, vulnerability triage, policy scaffolding, 90-day
   plan, prioritization engine, compliance wizard, persistent left nav.
+- **3.5** — D3.js knowledge graph (`/knowledge-graph`), token usage dashboard
+  (`/usage`), entity-picker modal on reports page (replaces `window.prompt`), DFD
+  "← Existing" tab + KB doc bridge, `.mmd` ingest support, Mermaid SVG rendering
+  fix (removed double-DOMPurify pass), 90-day plan via `messages.parse()`, Day-1
+  brief `TopEntity` schema, HF Hub model warm-up at startup, favicon.
 
 </details>

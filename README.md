@@ -15,11 +15,13 @@ A local-first security engineering partner for the first security hire. Tank ask
 - **Intake Interview** — 20 questions seed your entity graph and generate a Day-1 Brief with no documents needed
 - **Org Discovery Wizard** — GitHub org scan, CSV team import, and manual service entry to build your asset inventory
 - **Chat over your KB** — streaming chat with 15 tools; discovery mode when KB is sparse
-- **Threat models + DFD analysis** — per-service STRIDE threat models with drift detection; 4-mode DFD input
+- **Threat models + DFD analysis** — per-service STRIDE threat models with drift detection; 4-mode DFD input (paste Mermaid, upload `.mmd`/image, from document, from description); analyze ingested diagrams directly from the KB
+- **Knowledge graph** — D3.js force-directed interactive graph across all entity types; pan/zoom, hover highlighting, click to navigate
 - **Risk register + Prioritization Engine** — formal risk tracking with a concrete quarterly top-5 action plan
 - **Security policies** — first-draft policies (AUP, IR, SDL, vuln management, data classification) using your actual stack
 - **90-Day Plan** — week-by-week task list generated from your intake answers and KB
-- **Leadership reports** — State of Security, Initial Assessment, Program Roadmap in plain business language
+- **Leadership reports** — State of Security, Initial Assessment, Program Roadmap in plain business language; entity picker for scoped reports
+- **Token usage dashboard** — per-source, per-model, per-call-site spend breakdown with 14-day history at `/usage`
 - **Daily companion** — morning digest, nudges, journal, meeting prep, anniversary retros
 
 ---
