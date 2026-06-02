@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Tank — Analyze KB document{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:3rem auto;padding:0 1.5rem;text-align:center">
+
+  <div style="font-size:2.5rem;margin-bottom:1rem">
+    {% if doc.kind == 'image' %}🖼️{% elif doc.kind == 'pdf' %}📄{% elif doc.kind == 'docx' %}📝{% else %}📋{% endif %}
+  </div>
+
+  <h1 style="margin-bottom:0.5rem">{{ doc.title or "Untitled document" }}</h1>
+  <p class="dim">{{ doc.kind }} · {{ doc.category }} · ingested from KB</p>
+
+  <div id="status-msg" style="margin:2rem 0;color:var(--text-mute)">
+    Preparing to analyze…
+  </div>
+
+  <div id="progress-wrap" hidden style="margin:1.5rem auto;max-width:360px">
+    <ol class="dfd-steps" id="dfd-steps">
+      <li class="dfd-step" id="step-1" data-status="pending">
+        <span class="step-icon"></span>
+        <span class="step-label">Parsing diagram</span>
+      </li>
+      <li class="dfd-step" id="step-2" data-status="pending">
+        <span class="step-icon"></span>
+        <span class="step-label">Identifying system components</span>
+      </li>
+      <li class="dfd-step" id="step-3" data-status="pending">
+        <span class="step-icon"></span>
+        <span class="step-label">Mapping attack surfaces</span>
+      </li>
+      <li class="dfd-step" id="step-4" data-status="pending">
+        <span class="step-icon"></span>
+        <span class="step-label">Generating threat model</span>
+      </li>
+    </ol>
+  </div>
+
+  <div id="error-wrap" hidden style="margin:1.5rem 0">
+    <p id="error-msg" style="color:var(--danger)"></p>
+    <a href="/dfd" class="btn-secondary" style="margin-top:0.75rem">← Back to DFD</a>
+  </div>
+
+</div>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function() {
+  var kind       = {{ doc.kind | tojson }};
+  var sourcePath = {{ doc.source_path | tojson }};
+  var title      = {{ (doc.title or '') | tojson }};
+
+  function setStatus(msg) {
+    document.getElementById('status-msg').textContent = msg;
+  }
+
+  function setStepStatus(stepId, status) {
+    var el = document.getElementById(stepId);
+    if (!el) return;
+    el.dataset.status = status;
+    var icon = el.querySelector('.step-icon');
+    if (status === 'complete') icon.textContent = '✓';
+    else if (status === 'active') icon.textContent = '⟳';
+    else if (status === 'error')  icon.textContent = '✗';
+    else icon.textContent = '';
+  }
+
+  function showError(msg) {
+    document.getElementById('status-msg').hidden = true;
+    document.getElementById('progress-wrap').hidden = true;
+    document.getElementById('error-msg').textContent = msg;
+    document.getElementById('error-wrap').hidden = false;
+  }
+
+  function subscribeToProgress(taskId) {
+    document.getElementById('progress-wrap').hidden = false;
+    var es = new EventSource('/api/dfd/task/' + taskId + '/stream');
+
+    es.addEventListener('step', function(e) {
+      var data = JSON.parse(e.data);
+      var stepId = 'step-' + data.step;
+      if (data.status === 'complete') {
+        setStepStatus(stepId, 'complete');
+        for (var i = 1; i < data.step; i++) setStepStatus('step-' + i, 'complete');
+      } else if (data.status === 'active') {
+        setStepStatus(stepId, 'active');
+      }
+    });
+
+    es.addEventListener('done', function(e) {
+      es.close();
+      var data = JSON.parse(e.data);
+      ['step-1','step-2','step-3','step-4'].forEach(function(id) { setStepStatus(id, 'complete'); });
+      setTimeout(function() {
+        window.location.href = '/dfd/' + data.dfd_id + (data.cached ? '?cached=1' : '');
+      }, 400);
+    });
+
+    es.addEventListener('error', function(e) {
+      es.close();
+      var msg = 'Analysis failed';
+      try { msg = JSON.parse(e.data).error || msg; } catch (_) {}
+      showError(msg);
+    });
+
+    es.onerror = function() {
+      es.close();
+      showError('Connection lost. Please try again.');
+    };
+  }
+
+  async function startFromFile() {
+    // Fetch the file from its source path via a dedicated KB-doc endpoint,
+    // then submit to the appropriate analysis endpoint.
+    setStatus('Reading document from knowledge base…');
+
+    try {
+      // Fetch raw bytes from the source path via a helper endpoint.
+      var fetchResp = await fetch('/api/dfd/kb-doc-bytes/{{ doc.id }}');
+      if (!fetchResp.ok) {
+        var err = await fetchResp.json().catch(function() { return {detail: fetchResp.status}; });
+        throw new Error(err.detail || fetchResp.status);
+      }
+      var blob = await fetchResp.blob();
+      var contentType = fetchResp.headers.get('Content-Type') || 'application/octet-stream';
+
+      if (kind === 'image') {
+        setStatus('Submitting image for STRIDE analysis…');
+        var fd = new FormData();
+        fd.append('image', blob, title || 'diagram');
+        var r = await fetch('/api/dfd/start-analysis-image', {method: 'POST', body: fd});
+        var d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.status);
+        subscribeToProgress(d.task_id);
+      } else {
+        // For text-based docs, generate Mermaid first then start analysis
+        setStatus('Extracting architecture diagram from document…');
+        var fd2 = new FormData();
+        fd2.append('file', blob, title || 'document');
+        var r2 = await fetch('/api/dfd/generate-from-doc', {method: 'POST', body: fd2});
+        var d2 = await r2.json();
+        if (!r2.ok) throw new Error(d2.detail || r2.status);
+        var mermaidSrc = d2.mermaid;
+        if (!mermaidSrc || mermaidSrc.trim().length < 5) {
+          throw new Error('Could not extract a diagram from this document. Try opening it in the DFD editor directly.');
+        }
+        setStatus('Starting STRIDE threat analysis…');
+        var r3 = await fetch('/api/dfd/start-analysis', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({mermaid_src: mermaidSrc, input_format: 'generated_from_doc'}),
+        });
+        var d3 = await r3.json();
+        if (!r3.ok) throw new Error(d3.detail || r3.status);
+        subscribeToProgress(d3.task_id);
+      }
+    } catch(e) {
+      showError(e.message || String(e));
+    }
+  }
+
+  // Auto-start on load
+  startFromFile();
+})();
+</script>
+{% endblock %}

@@ -47,22 +47,28 @@
   {% endfor %}
 </section>
 
-{# ── Entity picker modal (replaces window.prompt for threat_landscape and questions_for_team) ── #}
+{# ── Entity picker modal — display:none when closed; no display:flex on <dialog> itself ── #}
 <dialog id="entity-picker-modal" style="
-  background:var(--surface);color:var(--text);border:1px solid var(--border);
-  border-radius:12px;padding:1.5rem;width:min(480px,90vw);max-height:80vh;
-  display:flex;flex-direction:column;gap:0.75rem;">
-  <h3 id="entity-picker-title" style="margin:0"></h3>
-  <input type="search" id="entity-picker-search" placeholder="Filter…"
-    autocomplete="off"
-    style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:8px;
-           background:var(--surface-2);color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;">
-  <ul id="entity-picker-list" style="
-    list-style:none;padding:0;margin:0;overflow-y:auto;flex:1;
-    max-height:300px;display:flex;flex-direction:column;gap:2px;"></ul>
-  <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.25rem">
-    <button id="entity-picker-cancel" class="btn-secondary">Cancel</button>
-    <button id="entity-picker-confirm" class="btn-primary" disabled>Select</button>
+  background:var(--bg-card);color:var(--text);border:1px solid var(--border);
+  border-radius:12px;padding:0;width:min(480px,90vw);max-height:80vh;">
+  <div style="display:flex;flex-direction:column;gap:0.75rem;padding:1.5rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
+      <h3 id="entity-picker-title" style="margin:0;flex:1"></h3>
+      <button id="entity-picker-close" aria-label="Close"
+        style="background:none;border:none;color:var(--text-mute);font-size:1.2rem;
+               cursor:pointer;padding:0.1rem 0.4rem;border-radius:4px;line-height:1;">✕</button>
+    </div>
+    <input type="search" id="entity-picker-search" placeholder="Filter…"
+      autocomplete="off"
+      style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:8px;
+             background:var(--bg-elevated);color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;">
+    <ul id="entity-picker-list" style="
+      list-style:none;padding:0;margin:0;overflow-y:auto;flex:1;
+      max-height:300px;display:flex;flex-direction:column;gap:2px;"></ul>
+    <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.25rem">
+      <button id="entity-picker-cancel" class="btn-secondary">Cancel</button>
+      <button id="entity-picker-confirm" class="btn-primary" disabled>Select</button>
+    </div>
   </div>
 </dialog>
 
@@ -71,10 +77,11 @@
   padding:0.5rem 0.75rem;border-radius:6px;cursor:pointer;
   border:1px solid transparent;display:flex;flex-direction:column;gap:0.1rem;
 }
-#entity-picker-list li:hover { background:var(--surface-2);border-color:var(--border-soft); }
+#entity-picker-list li:hover { background:var(--bg-elevated);border-color:var(--border-soft); }
 #entity-picker-list li.selected { background:rgb(var(--nyx-iris)/0.15);border-color:var(--accent); }
 #entity-picker-list li .ep-name { font-weight:600;font-size:0.9rem; }
 #entity-picker-list li .ep-meta { font-size:0.78rem;color:var(--text-mute); }
+#entity-picker-modal::backdrop { background:rgba(0,0,0,0.6);backdrop-filter:blur(2px); }
 </style>
 
 <script nonce="{{ request.state.csp_nonce }}">
@@ -83,14 +90,21 @@
 var _pickerResolve = null;
 var _selected = null;
 
-var modal   = document.getElementById("entity-picker-modal");
-var title   = document.getElementById("entity-picker-title");
-var search  = document.getElementById("entity-picker-search");
-var list    = document.getElementById("entity-picker-list");
-var btnOk   = document.getElementById("entity-picker-confirm");
+var modal     = document.getElementById("entity-picker-modal");
+var title     = document.getElementById("entity-picker-title");
+var search    = document.getElementById("entity-picker-search");
+var list      = document.getElementById("entity-picker-list");
+var btnOk     = document.getElementById("entity-picker-confirm");
 var btnCancel = document.getElementById("entity-picker-cancel");
+var btnClose  = document.getElementById("entity-picker-close");
 
 var _allItems = [];
+
+function closeModal() {
+  modal.close();
+  if (_pickerResolve) _pickerResolve(null);
+  _pickerResolve = null;
+}
 
 function renderList(filter) {
   var q = (filter || "").toLowerCase();
@@ -117,10 +131,15 @@ function _esc(s) {
 
 search.addEventListener("input", function() { renderList(search.value); });
 
-btnCancel.addEventListener("click", function() {
-  modal.close();
-  if (_pickerResolve) _pickerResolve(null);
-  _pickerResolve = null;
+// Close via × button
+btnClose.addEventListener("click", closeModal);
+
+// Close via Cancel button
+btnCancel.addEventListener("click", closeModal);
+
+// Close via click on backdrop (event.target is the <dialog> element itself)
+modal.addEventListener("click", function(e) {
+  if (e.target === modal) closeModal();
 });
 
 btnOk.addEventListener("click", function() {
@@ -130,6 +149,7 @@ btnOk.addEventListener("click", function() {
   _pickerResolve = null;
 });
 
+// Close via ESC key (native dialog "cancel" event)
 modal.addEventListener("cancel", function() {
   if (_pickerResolve) _pickerResolve(null);
   _pickerResolve = null;

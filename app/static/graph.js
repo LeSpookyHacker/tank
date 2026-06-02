@@ -62,7 +62,7 @@ function renderGraph(containerId, apiUrl, options) {
     var svg = d3.select(root).append('svg')
       .attr('width', '100%')
       .attr('height', H)
-      .style('background', 'var(--surface)')
+      .style('background', 'var(--bg)')
       .style('border-radius', '10px')
       .style('border', '1px solid var(--border-soft)');
 
@@ -89,9 +89,14 @@ function renderGraph(containerId, apiUrl, options) {
         .attr('d', 'M0,-5L10,0L0,5')
         .attr('fill', '#3d4455');
 
+    // D3 forceLink needs source/target keys; API returns src_id/dst_id — map them.
+    var simLinks = g.edges.map(function(e) {
+      return { source: e.src_id, target: e.dst_id, kind: e.kind };
+    });
+
     var links = g_el.append('g').attr('class', 'links')
       .selectAll('line')
-      .data(g.edges)
+      .data(simLinks)
       .join('line')
         .attr('stroke', '#3d4455')
         .attr('stroke-width', 1.2)
@@ -144,7 +149,9 @@ function renderGraph(containerId, apiUrl, options) {
       nodes.selectAll('circle').style('opacity', function(n) { return connected.has(n.id) ? 1 : 0.15; });
       nodes.selectAll('text').style('opacity', function(n) { return connected.has(n.id) ? 1 : 0.1; });
       links.style('opacity', function(e) {
-        return (e.src_id === d.id || e.dst_id === d.id) ? 1 : 0.05;
+        var sid = (e.source && e.source.id) ? e.source.id : e.source;
+        var tid = (e.target && e.target.id) ? e.target.id : e.target;
+        return (sid === d.id || tid === d.id) ? 1 : 0.05;
       });
     });
     nodes.on('mouseout', function() {
@@ -162,7 +169,7 @@ function renderGraph(containerId, apiUrl, options) {
     // Tooltip
     var tooltip = d3.select(root).append('div')
       .style('position', 'absolute')
-      .style('background', 'var(--surface-2)')
+      .style('background', 'var(--bg-elevated)')
       .style('border', '1px solid var(--border)')
       .style('border-radius', '6px')
       .style('padding', '0.4rem 0.75rem')
@@ -183,7 +190,7 @@ function renderGraph(containerId, apiUrl, options) {
     });
 
     var sim = d3.forceSimulation(g.nodes)
-      .force('link', d3.forceLink(g.edges)
+      .force('link', d3.forceLink(simLinks)
         .id(function(d) { return d.id; })
         .distance(100).strength(0.4))
       .force('charge', d3.forceManyBody().strength(-220))

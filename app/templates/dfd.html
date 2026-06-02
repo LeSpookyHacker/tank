@@ -13,7 +13,7 @@
 
     <!-- Mode selector tabs -->
     <div class="dfd-mode-tabs" role="tablist">
-      {% if recent %}
+      {% if recent or kb_docs %}
       <button class="dfd-mode-tab" role="tab" data-mode="existing">
         ◁ Existing
       </button>
@@ -32,21 +32,18 @@
       </button>
     </div>
 
-    <!-- Mode E: Existing DFDs -->
-    {% if recent %}
+    <!-- Mode E: Existing DFDs + KB documents -->
+    {% if recent or kb_docs %}
     <div id="mode-existing" class="dfd-mode-panel" hidden>
-      <p class="dim" style="margin-bottom:0.75rem">Click any analysis to open it directly in the workspace.</p>
-      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem;">
+
+      {# ── Analyzed DFDs ── #}
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-mute);text-transform:uppercase;letter-spacing:0.06em">Analyzed DFDs</h3>
+      {% if recent %}
+      <ul style="list-style:none;padding:0;margin:0 0 1.5rem;display:flex;flex-direction:column;gap:0.5rem;">
         {% for d in recent %}
         <li>
-          <a href="/dfd/{{ d.id }}" style="
-            display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;
-            border:1px solid var(--border-soft);border-radius:8px;
-            text-decoration:none;color:var(--text);
-            transition:border-color 0.15s,background 0.15s;"
-            onmouseover="this.style.background='var(--surface-2)';this.style.borderColor='var(--accent)'"
-            onmouseout="this.style.background='';this.style.borderColor='var(--border-soft)'">
-            <span style="font-size:1.5rem">🗺️</span>
+          <a href="/dfd/{{ d.id }}" class="dfd-kb-card">
+            <span style="font-size:1.4rem">🗺️</span>
             <span style="flex:1">
               <strong>
                 {% if d.input_format == 'image' %}Image analysis
@@ -57,7 +54,7 @@
               </strong>
               <span class="dim" style="margin-left:0.5rem;font-size:0.85rem">{{ d.created_at | int }}</span>
             </span>
-            <span class="badge" style="background:rgb(var(--nyx-iris)/0.15);color:var(--accent);border:1px solid rgb(var(--nyx-iris)/0.3);border-radius:6px;padding:0.2rem 0.6rem;font-size:0.8rem;white-space:nowrap;">
+            <span style="background:rgb(var(--nyx-iris)/0.15);color:var(--accent);border:1px solid rgb(var(--nyx-iris)/0.3);border-radius:6px;padding:0.2rem 0.6rem;font-size:0.8rem;white-space:nowrap;">
               {{ d.analysis.threats | length }} threats
             </span>
             <span style="color:var(--accent)">→</span>
@@ -65,6 +62,37 @@
         </li>
         {% endfor %}
       </ul>
+      {% else %}
+      <p class="dim" style="margin:0 0 1.5rem;font-size:0.88rem">None yet — use the tabs above to analyze a diagram.</p>
+      {% endif %}
+
+      {# ── From Knowledge Base ── #}
+      {% if kb_docs %}
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-mute);text-transform:uppercase;letter-spacing:0.06em">From your knowledge base</h3>
+      <p class="dim" style="margin:0 0 0.75rem;font-size:0.82rem">Documents ingested via the Ingest page. Click to load and analyze as a DFD.</p>
+      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem;">
+        {% for doc in kb_docs %}
+        <li>
+          <a href="/dfd/from-kb/{{ doc.id }}" class="dfd-kb-card">
+            <span style="font-size:1.4rem">
+              {% if doc.kind == 'image' %}🖼️
+              {% elif doc.kind == 'pdf' %}📄
+              {% elif doc.kind == 'docx' %}📝
+              {% else %}📋
+              {% endif %}
+            </span>
+            <span style="flex:1">
+              <strong>{{ doc.title or doc.id[:12] }}</strong>
+            </span>
+            <span style="background:var(--bg-elevated);color:var(--text-mute);border:1px solid var(--border-soft);border-radius:6px;padding:0.2rem 0.5rem;font-size:0.75rem;white-space:nowrap;">{{ doc.kind }}</span>
+            <span style="background:var(--bg-elevated);color:var(--text-mute);border:1px solid var(--border-soft);border-radius:6px;padding:0.2rem 0.5rem;font-size:0.75rem;white-space:nowrap;">{{ doc.category }}</span>
+            <span style="color:var(--accent)">→</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
     </div>
     {% endif %}
 

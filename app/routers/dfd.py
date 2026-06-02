@@ -30,6 +30,7 @@ from app.claude.event_bus import drain, publish, subscribe, unsubscribe
 from app.config import TEMPLATES_DIR
 from app.rate_limiter import limiter
 from app.storage import dfd_store
+from app.storage import documents_store
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -45,11 +46,46 @@ _MAX_DFD_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 @router.get("/dfd")
 def dfd_page(request: Request):
     recent = dfd_store.list_recent(limit=10)
+    kb_docs = documents_store.list_documents(limit=20)
     return templates.TemplateResponse(
         request=request,
         name="dfd.html",
-        context={"recent": recent},
+        context={"recent": recent, "kb_docs": kb_docs},
     )
+
+
+@router.get("/dfd/from-kb/{doc_id}")
+def dfd_from_kb(request: Request, doc_id: str):
+    """Bridge page: loads a KB document and pre-stages it for DFD analysis."""
+    doc = documents_store.get_document(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return templates.TemplateResponse(
+        request=request,
+        name="dfd_from_kb.html",
+        context={"doc": doc},
+    )
+
+
+@router.get("/api/dfd/kb-doc-bytes/{doc_id}")
+def kb_doc_bytes(doc_id: str):
+    """Serve the raw bytes of an ingested document so the DFD bridge page can submit it."""
+    import mimetypes
+    from pathlib import Path
+    from fastapi.responses import FileResponse, Response as _Response
+
+    doc = documents_store.get_document(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    src = doc.get("source_path", "")
+    p = Path(src) if src else None
+    if not p or not p.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Source file is no longer on disk. Re-ingest the document to re-enable this flow.",
+        )
+    mime, _ = mimetypes.guess_type(str(p))
+    return FileResponse(str(p), media_type=mime or "application/octet-stream")
 
 
 @router.get("/dfd/{dfd_id}")
