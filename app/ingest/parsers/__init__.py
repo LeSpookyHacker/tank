@@ -54,6 +54,7 @@ def _check_magic(path: Path, declared_ext: str) -> None:
 _BY_EXT = {
     ".md": MarkdownParser,
     ".markdown": MarkdownParser,
+    ".mmd": MarkdownParser,   # Mermaid diagram source — treated as structured text
     ".txt": MarkdownParser,
     ".pdf": PDFParser,
     ".docx": DocxParser,

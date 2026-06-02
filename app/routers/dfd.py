@@ -46,7 +46,16 @@ _MAX_DFD_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 @router.get("/dfd")
 def dfd_page(request: Request):
     recent = dfd_store.list_recent(limit=10)
-    kb_docs = documents_store.list_documents(limit=20)
+    # Show only architecture-category docs and image files — most likely to
+    # contain actual diagrams. Runbooks/policies/etc. are excluded.
+    all_docs = documents_store.list_documents(limit=100)
+    kb_docs = [
+        d for d in all_docs
+        if d.get("kind") == "image"
+        or d.get("category") == "architecture"
+        or any(kw in (d.get("source_path") or "").lower()
+               for kw in ("dfd", "diagram", "flow", "architect"))
+    ][:20]
     return templates.TemplateResponse(
         request=request,
         name="dfd.html",

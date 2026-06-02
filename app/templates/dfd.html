@@ -310,7 +310,13 @@ async function renderPreview() {
     mermaidPreviewId++;
     var id = 'prev-' + mermaidPreviewId;
     var result = await mermaid.render(id, src);
-    preEl.innerHTML = DOMPurify.sanitize(result.svg, {USE_PROFILES: {svg: true, svgFilters: true}});
+    // Allow <style> tags so Mermaid's inline CSS (node colors, text colors)
+    // is preserved — without it, text becomes invisible on dark backgrounds.
+    preEl.innerHTML = DOMPurify.sanitize(result.svg, {
+      USE_PROFILES: {svg: true, svgFilters: true},
+      ADD_TAGS: ['style'],
+      ADD_ATTR: ['class'],
+    });
     errEl.hidden = true;
   } catch (e) {
     preEl.innerHTML = '';
