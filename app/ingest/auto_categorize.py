@@ -21,6 +21,7 @@ _PATH_RULES: list[tuple[str, str]] = [
 _EXT_DEFAULTS: dict[str, str] = {
     ".pdf": "architecture",
     ".png": "architecture", ".jpg": "architecture", ".jpeg": "architecture",
+    ".mmd": "architecture",
     ".docx": "people_process", ".csv": "cmdb",
 }
 

@@ -123,7 +123,7 @@
           <td>{{ d.title or d.id[:12] + "…" }}</td>
           <td><code>{{ d.kind }}</code></td>
           <td><code>{{ d.category }}</code></td>
-          <td>{{ (d.size_bytes // 1024) if d.size_bytes else "—" }}{% if d.size_bytes %} KB{% endif %}</td>
+          <td>{% if not d.size_bytes %}—{% elif d.size_bytes < 1024 %}< 1 KB{% else %}{{ d.size_bytes // 1024 }} KB{% endif %}</td>
           <td class="dim" title="{{ d.ingested_at }}">{{ d.ingested_at | int }}</td>
         </tr>
         {% endfor %}
@@ -155,7 +155,7 @@ const _PATH_RULES = [
   ["onboard","people_process"],
 ];
 const _EXT_DEFAULTS = {
-  pdf:"architecture",png:"architecture",jpg:"architecture",jpeg:"architecture",
+  pdf:"architecture",png:"architecture",jpg:"architecture",jpeg:"architecture",mmd:"architecture",
   docx:"people_process",csv:"cmdb",
 };
 

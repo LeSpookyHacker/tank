@@ -57,8 +57,8 @@
     </div>
 
     <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
-      <button class="btn-primary" data-step="3">Next →</button>
-      <button class="btn-secondary" data-step="1">← Back</button>
+      <button type="button" class="btn-primary" data-step="3">Next →</button>
+      <button type="button" class="btn-secondary" data-step="1">← Back</button>
     </div>
   </div>
 
@@ -71,8 +71,8 @@
     <button class="btn-secondary" id="btn-add-service" style="margin-top:0.5rem">+ Add another</button>
 
     <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
-      <button class="btn-primary" data-step="4">Next →</button>
-      <button class="btn-secondary" data-step="2">← Back</button>
+      <button type="button" class="btn-primary" data-step="4">Next →</button>
+      <button type="button" class="btn-secondary" data-step="2">← Back</button>
     </div>
   </div>
 
@@ -82,7 +82,7 @@
     <div id="summary-counts" style="margin-bottom:1.5rem"></div>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap">
       <button class="btn-primary" id="confirm-btn">Create entity stubs →</button>
-      <button class="btn-secondary" data-step="3">← Back</button>
+      <button type="button" class="btn-secondary" data-step="3">← Back</button>
       <a href="/" class="btn-secondary">Skip for now</a>
     </div>
     <div id="confirm-result" hidden style="margin-top:1.5rem"></div>
@@ -108,6 +108,7 @@ function gotoStep(n) {
     if (btn) btn.classList.toggle("active", i === n);
   }
   currentStep = n;
+  document.querySelector('.wizard-shell').scrollIntoView({behavior: 'smooth'});
   if (n === 4) updateSummary();
 }
 

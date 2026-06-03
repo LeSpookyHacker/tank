@@ -87,7 +87,7 @@ def _call_claude(batch_text: str) -> ChunkExtraction:
             try:
                 resp = client.messages.parse(
                     model=HAIKU_MODEL,
-                    max_tokens=4096,
+                    max_tokens=8192,
                     system=[_system_prompt()],
                     messages=[{
                         "role": "user",
