@@ -90,9 +90,11 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}' cdn.jsdelivr.net unpkg.com; "
-            "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "
-            "font-src fonts.gstatic.com; "
-            "img-src 'self' data:;"
+            "style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net; "
+            "font-src fonts.gstatic.com cdn.jsdelivr.net; "
+            "img-src 'self' data: blob: cdn.jsdelivr.net; "
+            "connect-src 'self' cdn.jsdelivr.net; "
+            "worker-src 'self' blob:;"
         )
         return response
 

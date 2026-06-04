@@ -14,7 +14,7 @@ def _today_label() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def upsert_for_today(*, body: str, body_redacted: str) -> str:
+def upsert_for_today(*, body: str, body_redacted: str, title: str | None = None) -> str:
     """Insert or update today's journal entry."""
     label = _today_label()
     conn = get_conn()
@@ -30,17 +30,17 @@ def upsert_for_today(*, body: str, body_redacted: str) -> str:
         if existing:
             conn.execute(
                 "UPDATE journal_entries SET body = ?, body_redacted = ?, "
-                "    created_at = ? WHERE id = ?",
-                (body, body_redacted, now, existing["id"]),
+                "    title = ?, created_at = ? WHERE id = ?",
+                (body, body_redacted, title, now, existing["id"]),
             )
             return existing["id"]
         jid = uuid.uuid4().hex
         conn.execute(
             "INSERT INTO journal_entries "
             "(id, body, body_redacted, date_label, tenure_day, "
-            " extracted_json, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (jid, body, body_redacted, label, td, "{}", now),
+            " extracted_json, title, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (jid, body, body_redacted, label, td, "{}", title, now),
         )
     return jid
 
@@ -51,6 +51,24 @@ def get_today() -> dict | None:
         (_today_label(),),
     ).fetchone()
     return dict(row) if row else None
+
+
+def get_by_id(entry_id: str) -> dict | None:
+    row = get_conn().execute(
+        "SELECT * FROM journal_entries WHERE id = ?", (entry_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def update_by_id(entry_id: str, *, body: str, body_redacted: str,
+                 title: str | None = None) -> None:
+    """Update body, redacted body, and title for any existing entry."""
+    with LOCK:
+        get_conn().execute(
+            "UPDATE journal_entries SET body = ?, body_redacted = ?, "
+            "    title = ?, created_at = ? WHERE id = ?",
+            (body, body_redacted, title, time.time(), entry_id),
+        )
 
 
 def list_recent(days: int = 14) -> list[dict]:

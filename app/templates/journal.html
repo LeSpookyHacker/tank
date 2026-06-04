@@ -5,60 +5,103 @@
 
 {% block content %}
 <section class="journal-page">
-  <h1>Journal</h1>
-  <p class="lede">A daily log of what you learned, decided, or worried about.
-  Tank reads it lightly to surface themes over time — it never leaves this
-  machine in cleartext.{% if tenure %} <span class="dim">Day {{ tenure }}.</span>{% endif %}</p>
+  <div class="journal-header">
+    <div>
+      <h1>Journal</h1>
+      <p class="lede">A daily log of what you learned, decided, or worried about.
+      Entries are processed locally to extract follow-ups, which surface as nudges
+      on your Today page — nothing leaves this machine in cleartext.{% if tenure %} <span class="dim">Day {{ tenure }}.</span>{% endif %}</p>
+    </div>
+    <a href="/journal/today" class="btn-primary journal-new-btn">{% if today %}Today's entry{% else %}+ New entry{% endif %}</a>
+  </div>
 
-  <form class="journal-form" id="journal-form">
-    <textarea id="journal-body" rows="6"
-      placeholder="What did today teach you? Anything you want to remember or follow up on?">{{ (today.body if today else "") or "" }}</textarea>
-    <button type="submit" class="btn-primary" id="journal-save">
-      {{ "Update today's entry" if today else "Save today's entry" }}
-    </button>
-    <span class="dim" id="journal-status"></span>
-  </form>
-
-  <h2>Recent entries</h2>
-  <ul class="journal-list">
-    {% for e in recent %}
-      <li class="journal-entry">
-        <header><strong>{{ e.date_label }}</strong>
-          {% if e.tenure_day is not none %}<span class="dim">· day {{ e.tenure_day }}</span>{% endif %}
-        </header>
-        <p>{{ (e.body or "")[:400] }}{% if (e.body or "")|length > 400 %}…{% endif %}</p>
-      </li>
-    {% else %}
-      <li class="dim">No entries yet. Today is a good day to start.</li>
-    {% endfor %}
-  </ul>
+  {% if not recent %}
+    <p class="dim journal-empty">No entries yet. <a href="/journal/today">Write your first one.</a></p>
+  {% else %}
+    <ul class="journal-list">
+      {% for e in recent %}
+        <li>
+          <a href="/journal/{{ e.id }}" class="journal-card{% if today_id and e.id == today_id %} journal-card--today{% endif %}">
+            <div class="journal-card-meta">
+              <span class="journal-card-date">{{ e.date_label }}</span>
+              {% if e.tenure_day is not none %}<span class="dim journal-card-day">Day {{ e.tenure_day }}</span>{% endif %}
+              {% if today_id and e.id == today_id %}<span class="journal-card-badge">Today</span>{% endif %}
+            </div>
+            <div class="journal-card-title">
+              {{ e.title if e.title else "(untitled)" }}
+            </div>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 </section>
 
-<script nonce="{{ request.state.csp_nonce }}">
-async function saveJournal(ev) {
-  ev.preventDefault();
-  const body = document.getElementById("journal-body").value.trim();
-  if (!body) return false;
-  const btn = document.getElementById("journal-save");
-  const status = document.getElementById("journal-status");
-  btn.disabled = true;
-  const prev = btn.textContent;
-  btn.textContent = "saving…";
-  try {
-    await fetch("/api/journal", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({body}),
-    });
-    status.textContent = "saved ✓";
-    setTimeout(function () { window.location.reload(); }, 600);
-  } catch (e) {
-    status.textContent = "failed — try again";
-    btn.disabled = false;
-    btn.textContent = prev;
-  }
-  return false;
+<style nonce="{{ request.state.csp_nonce }}">
+.journal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
-document.getElementById("journal-form").addEventListener("submit", saveJournal);
-</script>
+.journal-new-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.journal-empty {
+  margin-top: 2rem;
+}
+.journal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.journal-card {
+  display: block;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.journal-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.journal-card--today {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.journal-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+}
+.journal-card-date {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.journal-card-day {
+  font-size: 0.75rem;
+}
+.journal-card-badge {
+  font-size: 0.7rem;
+  padding: 0.1em 0.5em;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.journal-card-title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+
+</style>
 {% endblock %}

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Tank — {% if entry and entry.title %}{{ entry.title }}{% elif entry %}{{ entry.date_label }}{% else %}New entry{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+  <span class="crumb">Daily</span> ›
+  <a href="/journal" class="crumb">Journal</a> ›
+  <span class="crumb crumb-current">{% if entry and entry.title %}{{ entry.title }}{% elif entry %}{{ entry.date_label }}{% else %}New entry{% endif %}</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor/dist/index.css" />
+{% endblock %}
+
+{% block content %}
+<section class="journal-entry-page">
+  <div class="journal-entry-toolbar">
+    <div class="journal-entry-meta">
+      {% if entry %}
+        <span class="dim journal-entry-date">{{ entry.date_label }}</span>
+        {% if entry.tenure_day is not none %}<span class="dim">· Day {{ entry.tenure_day }}</span>{% endif %}
+        {% if is_today %}<span class="journal-card-badge">Today</span>{% endif %}
+      {% else %}
+        <span class="dim journal-entry-date">Today</span>
+        {% if tenure %}<span class="dim">· Day {{ tenure }}</span>{% endif %}
+        <span class="journal-card-badge">New</span>
+      {% endif %}
+    </div>
+    <div class="journal-entry-actions">
+      <span class="dim" id="save-status"></span>
+      <button class="btn-primary" id="save-btn">Save</button>
+    </div>
+  </div>
+
+  <input
+    type="text"
+    id="entry-title"
+    class="journal-title-input"
+    placeholder="Entry title (optional)"
+    value="{{ entry.title if entry and entry.title else '' }}"
+    autocomplete="off"
+  />
+
+  <!-- Custom toolbar: replaces Vditor's built-in one whose icons never render -->
+  <div class="je-toolbar" id="je-toolbar">
+    <button class="je-tb-btn" data-action="bold"   title="Bold (Ctrl+B)"><b>B</b></button>
+    <button class="je-tb-btn" data-action="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+    <button class="je-tb-btn" data-action="strike" title="Strikethrough"><s>S</s></button>
+    <span class="je-tb-sep"></span>
+    <button class="je-tb-btn" data-action="h1" title="Heading 1">H1</button>
+    <button class="je-tb-btn" data-action="h2" title="Heading 2">H2</button>
+    <button class="je-tb-btn" data-action="h3" title="Heading 3">H3</button>
+    <span class="je-tb-sep"></span>
+    <button class="je-tb-btn" data-action="ul"    title="Bullet list">&#8801;</button>
+    <button class="je-tb-btn" data-action="ol"    title="Numbered list">1.</button>
+    <button class="je-tb-btn" data-action="quote" title="Blockquote">&#10099;</button>
+    <span class="je-tb-sep"></span>
+    <button class="je-tb-btn je-tb-mono" data-action="icode" title="Inline code">ab</button>
+    <button class="je-tb-btn je-tb-mono" data-action="code"  title="Code block">{}</button>
+    <button class="je-tb-btn je-tb-mono" data-action="link"  title="Link">&#128279;</button>
+    <span class="je-tb-sep"></span>
+    <button class="je-tb-btn" data-action="hr"   title="Horizontal rule">&#8213;</button>
+  </div>
+
+  <div id="vditor"></div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/vditor/dist/index.min.js"></script>
+
+<style nonce="{{ request.state.csp_nonce }}">
+.journal-entry-page { max-width: 860px; }
+.journal-entry-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1rem; gap: 1rem;
+}
+.journal-entry-meta { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.journal-entry-date { font-family: var(--font-mono); }
+.journal-entry-actions { display: flex; align-items: center; gap: 0.75rem; }
+.journal-card-badge {
+  font-size: 0.7rem; padding: 0.1em 0.5em; border-radius: 99px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent); font-weight: 600;
+}
+.journal-title-input {
+  width: 100%; font-size: 1.5rem; font-weight: 700;
+  background: transparent; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text); padding: 0.4rem 0; margin-bottom: 1rem;
+  outline: none; transition: border-color 0.15s;
+}
+.journal-title-input:focus { border-bottom-color: var(--accent); }
+.journal-title-input::placeholder { color: var(--text-muted); font-weight: 400; }
+
+/* ── Custom toolbar ── */
+.je-toolbar {
+  display: flex; align-items: center; gap: 1px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.je-tb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--text-dim); cursor: pointer; font-size: 0.85rem;
+  font-family: inherit; transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+.je-tb-btn:hover { background: var(--bg-card); color: var(--text); }
+.je-tb-btn b, .je-tb-btn em, .je-tb-btn s { font-size: 0.9rem; }
+.je-tb-mono { font-family: var(--font-mono); font-size: 0.78rem; }
+.je-tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+
+/* Hide Vditor's built-in (broken) toolbar; keep its border radius */
+#vditor .vditor-toolbar { display: none !important; }
+.vditor { border-radius: 0 0 8px 8px !important; border-color: var(--border) !important; }
+
+/* Content text color */
+#vditor .vditor-reset,
+#vditor .vditor-ir pre.vditor-reset,
+#vditor .vditor-ir .vditor-reset {
+  color: var(--text) !important;
+}
+#vditor .vditor-reset a { color: var(--accent); }
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  const ENTRY_ID    = {{ entry.id | tojson if entry else 'null' }};
+  const INITIAL_BODY = {{ (entry.body or '') | tojson if entry else '""' }};
+
+  const isDark = !document.documentElement.classList.contains('theme-light');
+
+  let currentBody = INITIAL_BODY;
+  let savedOnce   = ENTRY_ID !== null;
+
+  const vditor = new Vditor('vditor', {
+    mode: 'ir',
+    lang: 'en_US',
+    theme: isDark ? 'dark' : 'classic',
+    value: INITIAL_BODY,
+    minHeight: 480,
+    toolbar: [],   // disabled — we use our own toolbar above
+    cache: { enable: false },
+    placeholder: 'What did today teach you? Anything you want to remember or follow up on?\n\nUse **bold**, *italics*, # headings, - lists, `code`, and more…',
+    input(val) { currentBody = val; },
+  });
+
+  // ── Custom toolbar ──────────────────────────────────────────────────────
+  // mousedown + e.preventDefault() keeps focus (and the text selection) in
+  // the editor while the button is being pressed, so insertValue can wrap
+  // whatever the user had selected.
+  document.getElementById('je-toolbar').addEventListener('mousedown', function (e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    e.preventDefault();   // don't steal focus from the editor
+
+    const action = btn.dataset.action;
+    const sel    = window.getSelection();
+    const s      = (sel && sel.rangeCount > 0) ? sel.toString() : '';
+
+    const wrap = (l, r) => vditor.insertValue(s ? l + s + r : l + r);
+
+    switch (action) {
+      case 'bold':   wrap('**', '**');          break;
+      case 'italic': wrap('*', '*');            break;
+      case 'strike': wrap('~~', '~~');          break;
+      case 'h1':     vditor.insertValue('\n# '   + (s || 'Heading') + '\n'); break;
+      case 'h2':     vditor.insertValue('\n## '  + (s || 'Heading') + '\n'); break;
+      case 'h3':     vditor.insertValue('\n### ' + (s || 'Heading') + '\n'); break;
+      case 'ul':     vditor.insertValue('\n- '   + (s || 'item') + '\n');    break;
+      case 'ol':     vditor.insertValue('\n1. '  + (s || 'item') + '\n');    break;
+      case 'quote':  vditor.insertValue('\n> '   + (s || 'quote') + '\n');   break;
+      case 'icode':  wrap('`', '`');            break;
+      case 'code':   vditor.insertValue('\n```\n' + (s || 'code') + '\n```\n'); break;
+      case 'link':   vditor.insertValue('[' + (s || 'link text') + '](url)'); break;
+      case 'hr':     vditor.insertValue('\n---\n'); break;
+    }
+  });
+
+  // ── Save ────────────────────────────────────────────────────────────────
+  const saveBtn   = document.getElementById('save-btn');
+  const statusEl  = document.getElementById('save-status');
+  const titleInput = document.getElementById('entry-title');
+
+  async function doSave() {
+    const body  = currentBody;
+    const title = titleInput.value.trim() || null;
+    if (!body.trim() && !title) return;
+    saveBtn.disabled = true;
+    statusEl.textContent = 'saving…';
+    try {
+      let resp, data;
+      if (!savedOnce || !ENTRY_ID) {
+        resp = await fetch('/api/journal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body, title }),
+        });
+        data = await resp.json();
+        if (data.journal_id && !savedOnce) {
+          savedOnce = true;
+          history.replaceState(null, '', '/journal/' + data.journal_id);
+        }
+      } else {
+        resp = await fetch('/api/journal/' + ENTRY_ID, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body, title }),
+        });
+        data = await resp.json();
+      }
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      statusEl.textContent = 'saved ✓';
+      setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    } catch (_) {
+      statusEl.textContent = 'failed — try again';
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  saveBtn.addEventListener('click', doSave);
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); doSave(); }
+  });
+})();
+</script>
+{% endblock %}

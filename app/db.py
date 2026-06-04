@@ -686,6 +686,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_attack_mapping_scratch(conn)
     _migrate_service_ownership(conn)
 
+    # Journal redesign: optional title per entry.
+    _migrate_journal_title(conn)
+
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -789,6 +792,11 @@ def _migrate_service_ownership(conn: sqlite3.Connection) -> None:
         " updated_at REAL NOT NULL"
         ")"
     )
+
+
+def _migrate_journal_title(conn: sqlite3.Connection) -> None:
+    """Add optional title column to journal_entries (journal redesign)."""
+    _add_col_safe(conn, "journal_entries", "title TEXT")
 
 
 def _add_col_safe(conn: sqlite3.Connection, table: str, col_def: str) -> None:

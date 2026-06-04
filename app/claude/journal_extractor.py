@@ -19,11 +19,11 @@ from app.storage import journal_store
 log = logging.getLogger("tank.journal_extractor")
 
 
-def submit(body: str) -> dict:
+def submit(body: str, title: str | None = None) -> dict:
     """Persist today's journal entry; extract any follow-ups."""
     redacted = apply_redactions(body)
     journal_id = journal_store.upsert_for_today(
-        body=body, body_redacted=redacted.redacted_text,
+        body=body, body_redacted=redacted.redacted_text, title=title,
     )
     diff = _extract(redacted.redacted_text)
     journal_store.set_extracted(
