@@ -91,6 +91,9 @@ The living knowledge base and memory layer.
 
 The daily companion: digest, nudges, journal, kanban, meeting prep, anniversaries.
 
+- **Journal** (`/journal`) — per-entry Markdown editor (Vditor) with optional title; entries
+  list at `/journal`, individual entries at `/journal/{entry_id}`. Evening 18:00 nudge fires
+  if no entry today. Extraction runs locally to surface follow-ups as nudges.
 - **Kanban boards** (`/kanban`) — create multiple boards (one per project or workstream);
   drag cards between TODO / Doing / Done columns; inline title + note editing; delete
   boards and cards. Boards and API at `app/routers/kanban.py` + `app/storage/kanban_store.py`.

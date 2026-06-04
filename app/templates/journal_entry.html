@@ -8,7 +8,9 @@
 {% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor/dist/index.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css"
+      integrity="sha384-Y64ixq0sw4ASbzOXI0H86SHuTR4D9yoVMPq+2w/jVU3AOvf7l9pNZuWYmrAHVIhd"
+      crossorigin="anonymous" />
 {% endblock %}
 
 {% block content %}
@@ -64,7 +66,9 @@
   <div id="vditor"></div>
 </section>
 
-<script src="https://cdn.jsdelivr.net/npm/vditor/dist/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"
+        integrity="sha384-eJNPL+l6x8h5j+uopxmlvvDeNRwWkSYtv5vIn4ksoqY3sgQ3vsDWLGQXwz1IU6j7"
+        crossorigin="anonymous"></script>
 
 <style nonce="{{ request.state.csp_nonce }}">
 .journal-entry-page { max-width: 860px; }

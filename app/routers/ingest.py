@@ -18,9 +18,11 @@ import uuid
 from collections import Counter
 from pathlib import Path, PurePosixPath
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
+
+from app.rate_limiter import limiter
 
 from app.claude.event_bus import drain, publish, subscribe, unsubscribe
 from app.ingest.bulk import WorkItem, plan_bulk
@@ -78,7 +80,9 @@ _MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
 
 
 @router.post("/ingest/file")
-async def ingest_file(background_tasks: BackgroundTasks,
+@limiter.limit("30/minute")
+async def ingest_file(request: Request,
+                      background_tasks: BackgroundTasks,
                       file: UploadFile = File(...),
                       category: str = Form(...),
                       project_id: str = Form(default="")) -> dict:
@@ -104,7 +108,9 @@ _ALLOWED_INGEST_ROOTS: list[Path] = [Path.home()]
 
 
 @router.post("/ingest/path")
-async def ingest_path(req: IngestPathRequest,
+@limiter.limit("30/minute")
+async def ingest_path(request: Request,
+                      req: IngestPathRequest,
                       background_tasks: BackgroundTasks) -> dict:
     p = Path(req.path).expanduser().resolve()
     if not any(p == r or str(p).startswith(str(r) + os.sep)
@@ -137,7 +143,9 @@ async def ingest_path(req: IngestPathRequest,
 
 
 @router.post("/ingest/repo")
-async def ingest_repo_endpoint(req: IngestRepoRequest,
+@limiter.limit("10/minute")
+async def ingest_repo_endpoint(request: Request,
+                               req: IngestRepoRequest,
                                background_tasks: BackgroundTasks) -> dict:
     p = Path(req.path).expanduser().resolve()
     if not any(p == r or str(p).startswith(str(r) + os.sep)
@@ -168,7 +176,8 @@ def _safe_rel(rel: str) -> Path:
 
 
 @router.post("/ingest/bulk-path")
-async def ingest_bulk_path(req: BulkPathRequest) -> dict:
+@limiter.limit("10/minute")
+async def ingest_bulk_path(request: Request, req: BulkPathRequest) -> dict:
     """Plan a mixed-path bulk ingest (files / folders / repos) from local
     filesystem paths. Returns a task_id to stream progress from."""
     validated: list[Path] = []
@@ -195,7 +204,9 @@ async def ingest_bulk_path(req: BulkPathRequest) -> dict:
 
 
 @router.post("/ingest/bulk-upload")
+@limiter.limit("10/minute")
 async def ingest_bulk_upload(
+    request: Request,
     files: list[UploadFile] = File(...),
     rel_paths: str = Form(default="[]"),
     project_id: str = Form(default=""),

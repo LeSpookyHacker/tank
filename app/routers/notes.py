@@ -6,7 +6,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.claude.notes import commit_diff, create_note
 from app.config import TEMPLATES_DIR
@@ -18,7 +18,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 class CreateNote(BaseModel):
-    body: str
+    body: str = Field(max_length=50_000)
     meeting_with_entity_id: str | None = None
 
 

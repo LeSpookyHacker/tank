@@ -33,7 +33,7 @@ from app.config import STATIC_DIR
 from app.db import get_conn
 from app.rate_limiter import limiter
 from app.routers import (
-    attack_surface, chat, compliance, decisions, design_reviews, detections,
+    attack_surface, auth, chat, compliance, decisions, design_reviews, detections,
     discovery, dfd, entities, followups, glossary, iam, ingest, integrations,
     intake, ir_runbooks, journal, kanban, lessons, me, meeting_prep, notes, nudges,
     onboarding, ownership, pages, philosophy, plan, policies, postmortems, projects,
@@ -90,10 +90,12 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}' cdn.jsdelivr.net unpkg.com; "
-            "style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net; "
+            # 'unsafe-inline' kept for inline style= attributes; nonce covers <style> blocks.
+            # Removing 'unsafe-inline' requires migrating all style= attrs to CSS classes.
+            f"style-src 'self' 'unsafe-inline' 'nonce-{nonce}' fonts.googleapis.com cdn.jsdelivr.net; "
             "font-src fonts.gstatic.com cdn.jsdelivr.net; "
             "img-src 'self' data: blob: cdn.jsdelivr.net; "
-            "connect-src 'self' cdn.jsdelivr.net; "
+            "connect-src 'self'; "
             "worker-src 'self' blob:;"
         )
         return response
@@ -105,8 +107,10 @@ app.add_middleware(_SecurityHeadersMiddleware)
 # ── API-key gate ──────────────────────────────────────────────────────────────
 # TANK_API_KEY is required when the server is not bound to localhost.
 # Set it in .env: TANK_API_KEY=$(openssl rand -hex 32)
-# The browser UI sends the key via the X-Tank-Key header (set in base.html).
-# Exempted: /healthz, /static/* (no sensitive data served there).
+# Clients authenticate via:
+#   1. HttpOnly session cookie (preferred — set by POST /api/auth/session)
+#   2. X-Tank-Key header (legacy / programmatic use)
+# Exempted: /healthz, /static/*, /api/auth/* (bootstrap + probes).
 _TANK_API_KEY = os.environ.get("TANK_API_KEY", "").strip()
 _BIND_HOST = os.environ.get("TANK_BIND_HOST", "").strip() or "127.0.0.1"
 
@@ -119,7 +123,7 @@ if not _TANK_API_KEY and _BIND_HOST not in ("127.0.0.1", "::1", "localhost"):
     )
     sys.exit(1)
 
-_AUTH_EXEMPT_PREFIXES = ("/healthz", "/static/")
+_AUTH_EXEMPT_PREFIXES = ("/healthz", "/static/", "/api/auth/")
 
 
 class _APIKeyMiddleware(BaseHTTPMiddleware):
@@ -129,8 +133,28 @@ class _APIKeyMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if any(path == p or path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES):
             return await call_next(request)
-        provided = request.headers.get("X-Tank-Key", "")
-        if not _secrets.compare_digest(provided, _TANK_API_KEY):
+
+        # Accept either a valid session cookie or the raw key header.
+        from app.routers.auth import _COOKIE_NAME, is_valid_session
+        session_token = request.cookies.get(_COOKIE_NAME, "")
+        provided_key = request.headers.get("X-Tank-Key", "")
+
+        key_ok = bool(provided_key) and _secrets.compare_digest(
+            provided_key, _TANK_API_KEY
+        )
+        session_ok = bool(session_token) and is_valid_session(session_token)
+
+        if not (key_ok or session_ok):
+            try:
+                from app.storage.audit_log_store import record as _audit
+                _audit(
+                    action="failed_auth",
+                    detail={"remote": str(
+                        request.client.host if request.client else "unknown"
+                    )},
+                )
+            except Exception:
+                pass
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
         return await call_next(request)
 
@@ -242,3 +266,6 @@ app.include_router(security_program.router)
 
 # Gap 5: IR runbooks
 app.include_router(ir_runbooks.router)
+
+# Auth session management (SEC-001)
+app.include_router(auth.router)

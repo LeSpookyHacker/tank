@@ -26,6 +26,9 @@ class CreateWatcher(BaseModel):
     config: dict | None = None
 
 
+_GITHUB_REPO_RE = __import__("re").compile(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$")
+
+
 def _validate_watcher_target(kind: str, target: str) -> None:
     """Reject obviously dangerous targets at creation time."""
     if kind == "folder":
@@ -36,6 +39,13 @@ def _validate_watcher_target(kind: str, target: str) -> None:
         blocked = is_blocked_path(p)
         if blocked:
             raise HTTPException(400, f"folder target not allowed: {blocked}")
+    elif kind == "github_repo":
+        if not _GITHUB_REPO_RE.match(target):
+            raise HTTPException(
+                400,
+                "github_repo target must be 'owner/repo' "
+                "(alphanumeric, hyphens, underscores, and dots only)",
+            )
 
 
 @router.get("/watchers")

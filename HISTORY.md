@@ -13,6 +13,31 @@ of work, in chronological order.
 
 ---
 
+## 2026-06-04 — Journal redesign (rich editor, per-entry pages, titles)
+
+Replaced the plain textarea with a Vditor Markdown editor (headings, lists, code blocks,
+inline formatting) and a custom toolbar. Journal entries now have their own pages at
+`/journal/{entry_id}`; `/journal/today` redirects to the current day's page; `/journal` is
+now an entry-list index.
+
+Optional `title TEXT` column added to `journal_entries` via `_migrate_journal_title` in
+`app/db.py`. Entry list cards show the title or "(untitled)" fallback.
+
+---
+
+## 2026-06-03 — Kanban board generator (replaces flat follow-ups list)
+
+Multi-board drag-and-drop task tracking at `/kanban`. Landing page shows a grid of board
+tiles; per-board view has TODO / Doing / Done columns with SortableJS reorder. Inline card
+title + note editing; board-level delete. New tables `kanban_boards` / `kanban_cards`;
+router `app/routers/kanban.py`; storage `app/storage/kanban_store.py`.
+
+`followups` table and `/api/followups` endpoints preserved — postmortem action items, Today
+widget, and security-program metrics still read from `followups`. Nav label "Follow-ups" →
+"Kanban" in the UI.
+
+---
+
 ## 2026-06-02 — Flow rework (one front door + companion home) + on-call/ownership
 
 A UX-first pass plus one new capability. Motivation: the foundation was

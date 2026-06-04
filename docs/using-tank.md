@@ -101,13 +101,14 @@ Freewrite what happened. Don't worry about structure. Sonnet drafts:
 - Why (mechanism)
 - Contributing factors
 - Mitigations applied during the incident
-- Action items (each will become a kanban card)
+- Action items (each will become a followup item)
 - Services affected (linked to entity IDs)
 - Severity guess (sev1/2/3)
 
 Edit before publishing. **On publish**:
 
-- Each action item → a kanban card you can track to completion.
+- Each action item → an open item in the followups system, visible on the Today dashboard
+  and in the security-program metrics. Use `/kanban` boards for broader workstream tracking.
 - Each service-affected → linked to its entity.
 - Sonnet extracts 1-4 **lessons** that go into `/lessons` (your
   team's queryable lessons-learned DB).
@@ -156,8 +157,9 @@ At 16:00 on your reflection day:
    - Threat models updated
    - Postmortems published
    - Coverage gaps spotted
-3. Optionally write a one-line journal entry. The evening journal
-   prompt fires at 18:00 if you haven't.
+3. Optionally write a journal entry — the editor supports Markdown
+   (headings, lists, code). Per-entry pages live at `/journal/{entry_id}`.
+   The evening journal prompt fires at 18:00 if you haven't.
 
 ---
 

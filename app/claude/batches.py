@@ -141,6 +141,9 @@ def register_finalizer(kind: str) -> Callable:
     return deco
 
 
+_MAX_BATCH_REQUESTS = 100  # hard cap per submission to limit runaway spend
+
+
 def submit(*, kind: str, requests: list[dict],
            payload: dict | None = None) -> str | None:
     """Submit a batch and persist a tracking row.
@@ -154,6 +157,12 @@ def submit(*, kind: str, requests: list[dict],
     """
     if not requests:
         return None
+    if len(requests) > _MAX_BATCH_REQUESTS:
+        log.warning(
+            "batch submit (kind=%s) truncated %d → %d (max %d)",
+            kind, len(requests), _MAX_BATCH_REQUESTS, _MAX_BATCH_REQUESTS,
+        )
+        requests = requests[:_MAX_BATCH_REQUESTS]
     if kind not in _HANDLERS:
         raise ValueError(f"no batch handler registered for kind={kind!r}")
     client = get_client()
@@ -249,9 +258,9 @@ def _process_results(row: dict, client) -> None:
                 try:
                     handler(result.custom_id, msg, payload)
                     succeeded += 1
-                except Exception as exc:
-                    log.warning("handler kind=%s custom_id=%s failed: %s",
-                                row["kind"], result.custom_id, exc)
+                except Exception:
+                    log.exception("handler kind=%s custom_id=%s failed",
+                                  row["kind"], result.custom_id)
                     errored += 1
             else:
                 log.warning("batch result custom_id=%s type=%s",

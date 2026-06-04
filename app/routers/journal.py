@@ -6,7 +6,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.claude.journal_extractor import submit
 from app.config import TEMPLATES_DIR
@@ -22,13 +22,13 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 class JournalIn(BaseModel):
-    body: str
-    title: str | None = None
+    body: str = Field(max_length=100_000)
+    title: str | None = Field(None, max_length=500)
 
 
 class JournalUpdateIn(BaseModel):
-    body: str
-    title: str | None = None
+    body: str = Field(max_length=100_000)
+    title: str | None = Field(None, max_length=500)
 
 
 @page.get("/journal", response_class=HTMLResponse)

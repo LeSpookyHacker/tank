@@ -28,6 +28,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.claude.event_bus import drain, publish, subscribe, unsubscribe
 from app.config import TEMPLATES_DIR
+from app.ingest.path_guard import is_blocked_path
 from app.rate_limiter import limiter
 from app.storage import dfd_store
 from app.storage import documents_store
@@ -97,6 +98,10 @@ def kb_doc_bytes(doc_id: str):
     src = doc.get("source_path", "")
     p = Path(src) if src else None
     if p and p.exists():
+        # Re-validate at serve time — the path_guard runs at ingest but this
+        # is a defense-in-depth check against DB tampering.
+        if is_blocked_path(p.resolve()):
+            raise HTTPException(status_code=403, detail="access denied")
         mime, _ = mimetypes.guess_type(str(p))
         return FileResponse(str(p), media_type=mime or "application/octet-stream")
 

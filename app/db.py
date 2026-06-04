@@ -692,6 +692,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     # Kanban board generator (replaces the follow-ups page UI).
     _migrate_kanban(conn)
 
+    # Security audit: backup checksum column.
+    _migrate_backup_checksum(conn)
+
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -800,6 +803,11 @@ def _migrate_service_ownership(conn: sqlite3.Connection) -> None:
 def _migrate_journal_title(conn: sqlite3.Connection) -> None:
     """Add optional title column to journal_entries (journal redesign)."""
     _add_col_safe(conn, "journal_entries", "title TEXT")
+
+
+def _migrate_backup_checksum(conn: sqlite3.Connection) -> None:
+    """Add SHA-256 checksum column to backup_log (SEC-015)."""
+    _add_col_safe(conn, "backup_log", "checksum TEXT")
 
 
 def _migrate_kanban(conn: sqlite3.Connection) -> None:

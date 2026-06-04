@@ -56,7 +56,7 @@ class GitHubWatcher:
 
         # Recently-merged PRs.
         prs = _gh_request(
-            f"/repos/{urllib.parse.quote(repo)}/pulls"
+            f"/repos/{urllib.parse.quote(repo, safe='')}/pulls"
             f"?state=closed&sort=updated&direction=desc&per_page=30",
             token,
         ) or []

@@ -464,7 +464,7 @@ async function ingestRepo() {
   <a href="/dfd">Analyze it with STRIDE threat modeling →</a>
 </div>
 
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .bulk-zone { margin: 1.25rem 0 2rem; }
 .bulk-drop {
   border: 2px dashed var(--border); border-radius: 14px;

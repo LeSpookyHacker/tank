@@ -12,6 +12,21 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-06-04] — Journal redesign (rich editor, per-entry pages, titles)
+
+### Changed
+
+- **Rich Markdown editor** (Vditor) replaces the previous plain textarea on the journal entry page.
+  Supports headings, bold/italic/strikethrough, bullet/ordered lists, blockquotes, inline code,
+  code blocks, and links via a custom toolbar.
+- **Per-entry pages** at `/journal/{entry_id}` with breadcrumb navigation.
+  `GET /journal/today` redirects to today's entry page; `GET /journal` is now an entry-list index.
+- **Optional title per entry** — new `title TEXT` column in `journal_entries`
+  (added by `_migrate_journal_title` in `app/db.py`); shown in the list and in the page `<title>`.
+- Entry list cards show the title (or "(untitled)" fallback) and link directly to the entry page.
+
+---
+
 ## [2026-06-03] — Kanban board generator (replaces flat follow-ups list)
 
 ### Added

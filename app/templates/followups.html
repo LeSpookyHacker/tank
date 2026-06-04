@@ -48,7 +48,7 @@
   {% endif %}
 </section>
 
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .kanban-landing { max-width: 900px; }
 .kanban-landing-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
 .kanban-landing-header h1 { margin: 0; }

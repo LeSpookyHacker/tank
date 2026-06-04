@@ -3,6 +3,7 @@ scheduler. Used to enforce retention (keep N most recent).
 """
 from __future__ import annotations
 
+import hashlib
 import time
 import uuid
 from pathlib import Path
@@ -10,14 +11,27 @@ from pathlib import Path
 from app.db import LOCK, get_conn
 
 
+def compute_checksum(path: Path) -> str | None:
+    """Return hex SHA-256 of the file, or None on read error."""
+    try:
+        h = hashlib.sha256()
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
 def record(path: Path, size_bytes: int, status: str = "ok") -> str:
+    checksum = compute_checksum(path) if status == "ok" else None
     bid = uuid.uuid4().hex
     conn = get_conn()
     with LOCK:
         conn.execute(
-            "INSERT INTO backup_log (id, path, size_bytes, created_at, status) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (bid, str(path), size_bytes, time.time(), status),
+            "INSERT INTO backup_log (id, path, size_bytes, created_at, status, checksum) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (bid, str(path), size_bytes, time.time(), status, checksum),
         )
     return bid
 

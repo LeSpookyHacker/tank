@@ -4,9 +4,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.storage import kanban_store
 
 router = APIRouter(prefix="/api/kanban")
@@ -39,13 +40,13 @@ async def kanban_board_page(request: Request, board_id: str):
 # ── Board API ─────────────────────────────────────────────────────────────────
 
 class CreateBoard(BaseModel):
-    title: str
-    description: str | None = None
+    title: str = Field(max_length=200)
+    description: str | None = Field(None, max_length=1000)
 
 
 class UpdateBoard(BaseModel):
-    title: str
-    description: str | None = None
+    title: str = Field(max_length=200)
+    description: str | None = Field(None, max_length=1000)
 
 
 @router.get("/boards")
@@ -54,7 +55,8 @@ async def list_boards() -> dict:
 
 
 @router.post("/boards")
-async def create_board(body: CreateBoard) -> dict:
+@limiter.limit("60/minute")
+async def create_board(request: Request, body: CreateBoard) -> dict:
     bid = kanban_store.create_board(title=body.title, description=body.description)
     return {"id": bid}
 
@@ -99,18 +101,19 @@ async def reorder_board(board_id: str, body: ReorderBody) -> dict:
 # ── Card API ──────────────────────────────────────────────────────────────────
 
 class CreateCard(BaseModel):
-    title: str
-    body: str | None = None
+    title: str = Field(max_length=200)
+    body: str | None = Field(None, max_length=2000)
     column: str = "todo"
 
 
 class UpdateCard(BaseModel):
-    title: str
-    body: str | None = None
+    title: str = Field(max_length=200)
+    body: str | None = Field(None, max_length=2000)
 
 
 @router.post("/boards/{board_id}/cards")
-async def create_card(board_id: str, body: CreateCard) -> dict:
+@limiter.limit("120/minute")
+async def create_card(request: Request, board_id: str, body: CreateCard) -> dict:
     if not kanban_store.get_board(board_id):
         raise HTTPException(status_code=404, detail="Board not found")
     cid = kanban_store.create_card(
