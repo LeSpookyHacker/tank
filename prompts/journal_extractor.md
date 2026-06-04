@@ -25,7 +25,7 @@ A `NotesDiff` JSON object — same shape as the meeting-notes extractor:
 }
 ```
 
-Follow-ups are emitted as facts with a `claim` field framed as a
+Kanban action items are emitted as facts with a `claim` field framed as a
 to-do (e.g., `"claim": "follow up with Marcus about JWT rotation"`).
 The nudge generator picks these up as suggestions.
 

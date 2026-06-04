@@ -72,7 +72,7 @@ def test_on_call_control_gap_consults_roster(fresh_db):
     assert res2["gap_count"] == 0
 
 
-@pytest.mark.parametrize("path", ["/journal", "/followups", "/cadence",
+@pytest.mark.parametrize("path", ["/journal", "/kanban", "/cadence",
                                   "/ownership"])
 def test_companion_pages_render(fresh_db, path):
     from fastapi.testclient import TestClient

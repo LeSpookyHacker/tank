@@ -263,8 +263,15 @@ own tables:
 
 Lives across `app/claude/{nudges, meeting_prep, notes, day1_brief,
 anniversary, anniversary_security, journal_extractor, philosophy,
-scheduler}.py` and `app/storage/{journal, followups, subscriptions,
+scheduler}.py` and `app/storage/{journal, kanban, followups, subscriptions,
 usage, nudges, notes, glossary, lessons, owned, …}_store.py`.
+
+The **Kanban board generator** (`app/routers/kanban.py`) serves `/kanban`
+(board landing) and `/kanban/boards/{id}` (board view). Storage in
+`app/storage/kanban_store.py` (`kanban_boards` + `kanban_cards` tables,
+migrated via `app/db.py::_migrate_kanban`). The old `followups` table and
+`/api/followups` endpoints remain for programmatic creation from postmortems
+and dashboard widgets; kanban is the user-facing interface.
 
 ### The scheduler
 
@@ -351,8 +358,8 @@ Foundation tables (Phase 1-2):
   app_state
 
 Daily-use additions (Phase 8):
-  journal_entries, followups, report_subscriptions,
-  usage_events, watchers, meetings
+  journal_entries, followups, kanban_boards, kanban_cards,
+  report_subscriptions, usage_events, watchers, meetings
 
 Living artifacts (Phase 12):
   threat_models, decisions

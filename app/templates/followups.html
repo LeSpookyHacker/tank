@@ -1,85 +1,232 @@
 {% extends "base.html" %}
-{% block title %}Tank — follow-ups{% endblock %}
+{% block title %}Tank — Kanban{% endblock %}
 
-{% block breadcrumb %}<span class="crumb">Daily</span> › <span class="crumb crumb-current">Follow-ups</span>{% endblock %}
+{% block breadcrumb %}<span class="crumb">Daily</span> › <span class="crumb crumb-current">Kanban</span>{% endblock %}
 
 {% block content %}
-<section class="followups-page">
-  <h1>Follow-ups</h1>
-  <p class="lede">Open threads that need an action from you — spawned by
-  postmortems, design reviews, notes, or added by hand.</p>
+<section class="kanban-landing">
+  <div class="kanban-landing-header">
+    <h1>Boards</h1>
+    <button class="btn-primary" id="new-board-btn">+ New Board</button>
+  </div>
 
-  <form class="followup-add" id="followup-add">
-    <input id="fu-title" type="text" placeholder="Add a follow-up…" autocomplete="off">
-    <button type="submit" class="btn-primary">Add</button>
-  </form>
+  <!-- New board form (hidden by default) -->
+  <div class="new-board-form" id="new-board-form" style="display:none">
+    <input id="nb-title" type="text" placeholder="Board title…" autocomplete="off" maxlength="120">
+    <textarea id="nb-desc" placeholder="Description (optional)" rows="2"></textarea>
+    <div class="new-board-form-actions">
+      <button class="btn-primary" id="nb-submit">Create Board</button>
+      <button class="btn-secondary" id="nb-cancel">Cancel</button>
+    </div>
+  </div>
 
-  <h2>Open <span class="dim">({{ open|length }})</span></h2>
-  <ul class="followup-list">
-    {% for f in open %}
-      <li class="followup-row" data-id="{{ f.id }}">
-        <span class="followup-source badge">{{ f.source_kind }}</span>
-        <span class="followup-title">{{ f.title }}</span>
-        <span class="followup-actions">
-          <button class="btn-secondary fu-act" data-action="done">done</button>
-          <button class="btn-secondary fu-act" data-action="snooze">snooze</button>
-          <button class="btn-secondary fu-act" data-action="cancel">cancel</button>
+  {% if boards %}
+  <div class="board-grid">
+    {% for b in boards %}
+    <div class="board-tile">
+      <a class="board-tile-link" href="/kanban/boards/{{ b.id }}">
+        <span class="board-tile-title">{{ b.title }}</span>
+        {% if b.description %}
+        <span class="board-tile-desc">{{ b.description }}</span>
+        {% endif %}
+        <span class="board-tile-counts">
+          <span class="col-pill col-todo">{{ b.todo_count }} todo</span>
+          <span class="col-pill col-doing">{{ b.doing_count }} doing</span>
+          <span class="col-pill col-done">{{ b.done_count }} done</span>
         </span>
-      </li>
-    {% else %}
-      <li class="dim">Nothing open. Nice.</li>
+        <span class="board-tile-date dim" data-ts="{{ b.created_at | int }}"></span>
+      </a>
+      <button class="board-delete-btn" data-id="{{ b.id }}" data-title="{{ b.title }}" title="Delete board">×</button>
+    </div>
     {% endfor %}
-  </ul>
-
-  {% if snoozed %}
-  <h2>Snoozed <span class="dim">({{ snoozed|length }})</span></h2>
-  <ul class="followup-list">
-    {% for f in snoozed %}
-      <li class="followup-row" data-id="{{ f.id }}">
-        <span class="followup-source badge">{{ f.source_kind }}</span>
-        <span class="followup-title">{{ f.title }}</span>
-        <span class="followup-actions">
-          <button class="btn-secondary fu-act" data-action="done">done</button>
-        </span>
-      </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  {% if done %}
-  <h2 class="dim">Recently done</h2>
-  <ul class="followup-list followup-done">
-    {% for f in done %}
-      <li class="dim">{{ f.title }}</li>
-    {% endfor %}
-  </ul>
+  </div>
+  {% else %}
+  <div class="kanban-empty">
+    <p>No boards yet.</p>
+    <p class="dim">Create your first board to start tracking work.</p>
+  </div>
   {% endif %}
 </section>
 
-<script nonce="{{ request.state.csp_nonce }}">
-async function addFollowup(ev) {
-  ev.preventDefault();
-  const input = document.getElementById("fu-title");
-  const title = input.value.trim();
-  if (!title) return false;
-  await fetch("/api/followups", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({title}),
-  });
-  window.location.reload();
-  return false;
-}
-document.getElementById("followup-add").addEventListener("submit", addFollowup);
+<style>
+.kanban-landing { max-width: 900px; }
+.kanban-landing-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.kanban-landing-header h1 { margin: 0; }
 
-document.querySelectorAll(".fu-act").forEach(function (btn) {
-  btn.addEventListener("click", async function () {
-    const row = btn.closest(".followup-row");
-    const id = row.dataset.id;
-    const action = btn.dataset.action;
-    await fetch(`/api/followups/${id}/${action}`, {method: "POST"});
-    window.location.reload();
+.new-board-form {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+}
+.new-board-form input,
+.new-board-form textarea {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: .5rem .75rem;
+  font: inherit;
+  resize: vertical;
+}
+.new-board-form-actions { display: flex; gap: .5rem; }
+
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.board-tile {
+  position: relative;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s;
+}
+.board-tile:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.board-tile-link {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  padding: 1rem 2.5rem 1rem 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.board-tile-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.board-tile-desc {
+  font-size: .8rem;
+  color: var(--fg2);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.board-tile-counts {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin-top: .3rem;
+}
+.col-pill {
+  font-size: .72rem;
+  padding: .15rem .5rem;
+  border-radius: 99px;
+  font-weight: 500;
+}
+.col-todo  { background: rgba(99,102,241,.18); color: #a5b4fc; }
+.col-doing { background: rgba(234,179,8,.18);  color: #fde68a; }
+.col-done  { background: rgba(34,197,94,.18);  color: #86efac; }
+
+.board-tile-date {
+  font-size: .72rem;
+  margin-top: .2rem;
+}
+
+.board-delete-btn {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--fg2);
+  cursor: pointer;
+  font-size: .9rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+}
+.board-tile:hover .board-delete-btn { opacity: 1; }
+.board-delete-btn:hover { color: #f87171; border-color: #f87171; }
+
+.kanban-empty { padding: 3rem 0; color: var(--fg2); }
+.kanban-empty p { margin: .3rem 0; }
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  const newBtn  = document.getElementById("new-board-btn");
+  const form    = document.getElementById("new-board-form");
+  const titleIn = document.getElementById("nb-title");
+  const descIn  = document.getElementById("nb-desc");
+  const submit  = document.getElementById("nb-submit");
+  const cancel  = document.getElementById("nb-cancel");
+
+  newBtn.addEventListener("click", function () {
+    form.style.display = "flex";
+    newBtn.style.display = "none";
+    titleIn.focus();
   });
-});
+
+  cancel.addEventListener("click", function () {
+    form.style.display = "none";
+    newBtn.style.display = "";
+    titleIn.value = "";
+    descIn.value = "";
+  });
+
+  submit.addEventListener("click", async function () {
+    const title = titleIn.value.trim();
+    if (!title) { titleIn.focus(); return; }
+    submit.disabled = true;
+    const res = await fetch("/api/kanban/boards", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({title, description: descIn.value.trim() || null}),
+    });
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      submit.disabled = false;
+    }
+  });
+
+  document.querySelectorAll("[data-ts]").forEach(function (el) {
+    const ts = parseInt(el.dataset.ts, 10);
+    if (!ts) return;
+    el.textContent = "Created " + new Date(ts * 1000).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"});
+  });
+
+  titleIn.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") submit.click();
+    if (e.key === "Escape") cancel.click();
+  });
+
+  document.querySelectorAll(".board-delete-btn").forEach(function (btn) {
+    btn.addEventListener("click", async function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const title = btn.dataset.title;
+      if (!confirm(`Delete board "${title}" and all its cards? This cannot be undone.`)) return;
+      const res = await fetch(`/api/kanban/boards/${btn.dataset.id}`, {method: "DELETE"});
+      if (res.ok) {
+        btn.closest(".board-tile").remove();
+        const grid = document.querySelector(".board-grid");
+        if (grid && !grid.children.length) window.location.reload();
+      }
+    });
+  });
+})();
 </script>
 {% endblock %}

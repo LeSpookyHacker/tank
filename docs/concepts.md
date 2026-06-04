@@ -104,15 +104,15 @@ You can see your current lens on the home dashboard and override it in Settings 
 
 ---
 
-## Nudges vs. Follow-ups
+## Nudges vs. Kanban
 
 These are easy to confuse because they both appear on the home dashboard.
 
 **Nudges** are scheduler-generated insight cards. Tank creates them automatically — a decision about to expire, a threat model that has drifted, a service with a high-severity threat but no IR runbook. They are informational: read it, decide what to do, mark it dismissed.
 
-**Follow-ups** are action items you (or Tank) create deliberately. They have a due date and a status (`open`, `done`). They persist until you mark them done. Tank can auto-create follow-ups when you publish a postmortem (one per action item) or complete an onboarding step.
+**Kanban** is where you track action items deliberately. Create multiple boards (one per project or workstream), then move cards across TODO / Doing / Done columns. Tank can auto-create items when you publish a postmortem (one per action item) or complete an onboarding step.
 
-Think of nudges as Tank tapping your shoulder. Follow-ups are your todo list.
+Think of nudges as Tank tapping your shoulder. Kanban is your todo board.
 
 ---
 

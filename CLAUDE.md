@@ -20,7 +20,7 @@ for:
 - Living artifacts: versioned threat models (drift-aware), decisions
   log, design reviews, postmortems, tabletops, IR runbooks, policies
   (5 kinds), 90-day plan.
-- Partner mode: Day-1 brief, journal, follow-ups, recurring reports,
+- Partner mode: Day-1 brief, journal, kanban boards, recurring reports,
   anniversary retros (generic + security-focused), philosophy doc.
 - Second brain: lessons-learned DB, glossary, ownership dashboard,
   tenure-aware lens (map / prioritize / execute / maintain).
@@ -189,7 +189,7 @@ table the router and scheduler both use.
 ### Partner mode: the daily-companion machinery
 
 Lives across `app/claude/{nudges,meeting_prep,notes,day1_brief,anniversary,journal_extractor,scheduler}.py`
-and `app/storage/{journal,followups,subscriptions,usage,nudges,notes}_store.py`.
+and `app/storage/{journal,kanban,followups,subscriptions,usage,nudges,notes}_store.py`.
 
 The **scheduler** is a single `asyncio.Task` started in
 `app/main.py::lifespan` and cancelled on shutdown. It wakes every 60s
@@ -232,7 +232,8 @@ lens.**
 | Capture a lesson from an artifact | `app/claude/lesson_extractor.py::extract_from_<source>()` — runs synchronously on publish/reject; persisted to `lessons` table |
 | Add ownership / personal-dashboard signal | `app/routers/me.py::_risk_score_for(entity_id)` — append to the heuristic mix |
 | Change service ownership / on-call roster | `app/storage/ownership_store.py` (CRUD + `seed_from_graph`) + `app/routers/ownership.py` (`/ownership` page, `/api/ownership`). Table `service_ownership` (`_migrate_service_ownership` in `app/db.py`). Surfaced on Service `entity_detail.html`, the Today home ("Services you own"), the `get_service_ownership` chat tool, IR-runbook escalation (`ir_runbook.py::_build_context`), and the `ownership_gap` nudge. Distinct from `owned_store` (the user's *personal* RACI claims). |
-| Change the front door / Today home | `/` is served by `app/routers/pages.py::home` → `index.html` (personal "Today" companion). `/dashboard` (`dashboard.py`) is the org→team→project "Workspaces" console — do NOT re-add a `/` → `/dashboard` redirect. Daily-companion pages live under the "Daily" nav group in `base.html`: `/journal`, `/followups`, `/cadence`, `/meeting-prep`, `/notes`. |
+| Change the Kanban board feature | `app/routers/kanban.py` (page routes `/kanban`, `/kanban/boards/{id}` + API `/api/kanban/*`) + `app/storage/kanban_store.py` + `app/templates/followups.html` (landing) + `app/templates/kanban_board.html` (board view). Tables `kanban_boards` / `kanban_cards` seeded by `_migrate_kanban` in `app/db.py`. SortableJS CDN for drag-and-drop; `POST /api/kanban/boards/{id}/reorder` persists column order. The old `followups` table + `/api/followups` endpoints stay for postmortem auto-creation and dashboard widgets. |
+| Change the front door / Today home | `/` is served by `app/routers/pages.py::home` → `index.html` (personal "Today" companion). `/dashboard` (`dashboard.py`) is the org→team→project "Workspaces" console — do NOT re-add a `/` → `/dashboard` redirect. Daily-companion pages live under the "Daily" nav group in `base.html`: `/journal`, `/kanban`, `/cadence`, `/meeting-prep`, `/notes`. |
 | Add a continuous-ingestion connector | `app/ingest/watchers/<kind>.py` implementing `scan(watcher_row) -> ScanResult` + register in `watchers/__init__.py::dispatch`. Kinds: `folder`, `ics_url`, `cve_feed`, `github_repo`. Users enable via Settings → Integrations. |
 | Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt, 1h TTL), `build_kb_block(hits, entity_cards)` (per-turn retrieved context, 5m TTL), `build_scope_block(service_id=None)` (canonical KB-scope, 1h TTL, shared across reports + anniversaries + day1 + plan + meeting prep + policy + compliance wizard). Use the `CACHE_5M` / `CACHE_1H` constants from the same module instead of inlining the dict. |
 | Add a batched background job (50% off) | `app/claude/batches.py` — declare a handler with `@batches.register("<kind>")` (and optionally `@batches.register_finalizer("<kind>")` for N→1 aggregation patterns). Build each request via `app/claude/batch_helpers.py::tool_params_for(cls)` (Pydantic-class JSON schema as the forced tool's `input_schema`) and `extract_validated(msg, cls)` in the handler. Submit via `batches.submit(kind, requests, payload)`; scheduler `_tick` polls every minute. The synchronous `messages.parse` path stays for HTTP / user-waiting call sites. |

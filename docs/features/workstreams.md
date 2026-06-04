@@ -189,7 +189,7 @@ tick. Summarizes the past week across:
 - Decisions made
 - Threat models updated
 - Postmortems published
-- Open follow-ups overdue
+- Open kanban items overdue
 - Coverage gaps spotted
 
 Plus a **one thing to focus this week** headline — the single

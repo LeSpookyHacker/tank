@@ -151,7 +151,7 @@ executive brief button.
 | Vulnerabilities | Open by severity (critical/high/medium/low) / average age (days) |
 | Risk register | Open risks / risks with overdue review |
 | Compliance | Controls with evidence vs. controls without |
-| Incidents | Postmortems published in 90d / open followups / followups done in 90d |
+| Incidents | Postmortems published in 90d / open kanban items / kanban items done in 90d |
 | Design reviews | Open / approved in last 90 days |
 
 ### 12-week trend history

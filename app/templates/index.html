@@ -48,7 +48,7 @@
       <li><a href="/journal">Write journal</a></li>
       <li><a href="/meeting-prep">Prep for a meeting</a></li>
       <li><a href="/notes">Capture notes</a></li>
-      <li><a href="/followups">Follow-ups</a></li>
+      <li><a href="/kanban">Kanban</a></li>
       <li><a href="/dashboard">Workspaces</a></li>
     </ul>
   </article>
@@ -139,7 +139,7 @@
   </article>
 
   <article class="today-pane">
-    <h2>Follow-ups</h2>
+    <h2>Kanban</h2>
     {% if followups %}
       <ul class="followup-list">
         {% for f in followups %}
@@ -151,7 +151,7 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="dim">No open follow-ups.</p>
+      <p class="dim">No open items.</p>
     {% endif %}
     <a class="dim" href="/notes">Add notes →</a>
   </article>

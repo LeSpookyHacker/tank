@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ board.title }}{% endblock %}
+
+{% block breadcrumb %}<span class="crumb">Daily</span> › <a class="crumb" href="/kanban">Boards</a> › <span class="crumb crumb-current" id="board-title-crumb">{{ board.title }}</span>{% endblock %}
+
+{% block content %}
+<div class="kanban-board-wrap" data-board-id="{{ board.id }}">
+
+  <!-- Board header -->
+  <div class="kanban-board-header">
+    <a href="/kanban" class="back-link">← Boards</a>
+    <h1 id="board-title-el"
+        contenteditable="true"
+        spellcheck="false"
+        title="Click to rename">{{ board.title }}</h1>
+    <button class="btn-danger-sm" id="delete-board-btn">Delete board</button>
+  </div>
+
+  {% if board.description %}
+  <p class="board-desc" id="board-desc-el"
+     contenteditable="true"
+     spellcheck="false"
+     title="Click to edit description">{{ board.description }}</p>
+  {% else %}
+  <p class="board-desc dim" id="board-desc-el"
+     contenteditable="true"
+     spellcheck="false"
+     data-empty="1"
+     title="Click to add description">Add a description…</p>
+  {% endif %}
+
+  <!-- Columns -->
+  <div class="kanban-columns">
+
+    {% for col_key, col_label in [("todo","TODO"), ("doing","Doing"), ("done","Done")] %}
+    <div class="kanban-col" data-col="{{ col_key }}">
+      <div class="kanban-col-header">
+        <span class="kanban-col-label">{{ col_label }}</span>
+        <span class="kanban-col-count">{{ cards[col_key] | length }}</span>
+      </div>
+
+      <div class="kanban-cards" id="col-{{ col_key }}">
+        {% for card in cards[col_key] %}
+        <div class="kanban-card" data-id="{{ card.id }}">
+          <div class="kanban-card-body">
+            <div class="kanban-card-title"
+                 contenteditable="true"
+                 spellcheck="false">{{ card.title }}</div>
+            {% if card.body %}
+            <div class="kanban-card-note"
+                 contenteditable="true"
+                 spellcheck="false">{{ card.body }}</div>
+            {% else %}
+            <div class="kanban-card-note dim"
+                 contenteditable="true"
+                 spellcheck="false"
+                 data-empty="1">Add a note…</div>
+            {% endif %}
+          </div>
+          <button class="card-del-btn" title="Delete card">×</button>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="add-card-wrap">
+        <button class="add-card-btn" data-col="{{ col_key }}">+ Add card</button>
+        <div class="add-card-form" style="display:none" data-col="{{ col_key }}">
+          <input class="add-card-input" type="text" placeholder="Card title…" maxlength="200" autocomplete="off">
+          <textarea class="add-card-note" placeholder="Note (optional)" rows="2"></textarea>
+          <div class="add-card-actions">
+            <button class="btn-primary add-card-submit">Add</button>
+            <button class="btn-secondary add-card-cancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+<style>
+.kanban-board-wrap { height: 100%; display: flex; flex-direction: column; }
+
+.back-link { font-size: .85rem; color: var(--fg2); text-decoration: none; }
+.back-link:hover { color: var(--accent); }
+
+.kanban-board-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: .25rem;
+  flex-wrap: wrap;
+}
+.kanban-board-header h1 {
+  margin: 0;
+  flex: 1;
+  min-width: 100px;
+  outline: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: text;
+}
+.kanban-board-header h1:focus { background: var(--bg2); }
+.kanban-board-header h1:empty:before { content: attr(data-placeholder); color: var(--fg2); }
+
+.btn-danger-sm {
+  padding: .3rem .75rem;
+  font-size: .8rem;
+  border-radius: 6px;
+  border: 1px solid #f87171;
+  background: transparent;
+  color: #f87171;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-danger-sm:hover { background: rgba(248,113,113,.12); }
+
+.board-desc {
+  font-size: .85rem;
+  color: var(--fg2);
+  margin: 0 0 1rem;
+  outline: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: text;
+  min-height: 1.2em;
+}
+.board-desc:focus { background: var(--bg2); color: var(--fg); }
+
+.kanban-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  flex: 1;
+  align-items: start;
+  margin-top: .5rem;
+}
+
+.kanban-col {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--border);
+}
+.kanban-col-label { font-weight: 600; font-size: .85rem; text-transform: uppercase; letter-spacing: .05em; }
+[data-col="todo"]  .kanban-col-label { color: #a5b4fc; }
+[data-col="doing"] .kanban-col-label { color: #fde68a; }
+[data-col="done"]  .kanban-col-label { color: #86efac; }
+.kanban-col-count {
+  font-size: .75rem;
+  background: var(--bg3);
+  border-radius: 99px;
+  padding: .1rem .5rem;
+  color: var(--fg2);
+}
+
+.kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  min-height: 4px;
+}
+
+.kanban-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: .6rem .7rem;
+  cursor: grab;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: .4rem;
+  transition: box-shadow .15s;
+}
+.kanban-card:active { cursor: grabbing; }
+.kanban-card:hover { border-color: var(--accent); }
+.kanban-card.sortable-ghost { opacity: .4; }
+.kanban-card.sortable-drag  { box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+
+.kanban-card-body { flex: 1; min-width: 0; }
+.kanban-card-title {
+  font-size: .875rem;
+  font-weight: 500;
+  outline: none;
+  border-radius: 3px;
+  min-height: 1.2em;
+  word-break: break-word;
+}
+.kanban-card-title:focus { background: var(--bg2); padding: 1px 3px; }
+.kanban-card-title:empty:before { content: "Card title"; color: var(--fg2); }
+
+.kanban-card-note {
+  font-size: .78rem;
+  color: var(--fg2);
+  outline: none;
+  border-radius: 3px;
+  min-height: 1em;
+  word-break: break-word;
+  margin-top: .25rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.kanban-card-note:focus {
+  background: var(--bg2);
+  padding: 1px 3px;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  color: var(--fg);
+}
+.kanban-card-note:empty:before,
+.kanban-card-note[data-empty="1"]:before { content: "Add a note…"; color: var(--fg3, #555); }
+
+.card-del-btn {
+  opacity: 0;
+  border: none;
+  background: none;
+  color: var(--fg2);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 .2rem;
+  transition: opacity .15s, color .15s;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: .1rem;
+}
+.kanban-card:hover .card-del-btn { opacity: 1; }
+.card-del-btn:hover { color: #f87171; }
+
+/* Add card */
+.add-card-wrap { margin-top: .25rem; }
+.add-card-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--fg2);
+  cursor: pointer;
+  padding: .4rem .6rem;
+  font-size: .82rem;
+  transition: color .15s, border-color .15s;
+}
+.add-card-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.add-card-form {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+.add-card-form .add-card-input,
+.add-card-form .add-card-note {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  padding: .4rem .6rem;
+  font: inherit;
+  font-size: .85rem;
+  resize: vertical;
+}
+.add-card-form .add-card-input:focus,
+.add-card-form .add-card-note:focus { border-color: var(--accent); outline: none; }
+.add-card-actions { display: flex; gap: .4rem; }
+
+@media (max-width: 700px) {
+  .kanban-columns { grid-template-columns: 1fr; }
+}
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  const BOARD_ID = document.querySelector(".kanban-board-wrap").dataset.boardId;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function colCardIds(colKey) {
+    return [...document.querySelectorAll(`#col-${colKey} .kanban-card`)]
+      .map(el => el.dataset.id);
+  }
+
+  function allColumns() {
+    return {
+      todo:  colCardIds("todo"),
+      doing: colCardIds("doing"),
+      done:  colCardIds("done"),
+    };
+  }
+
+  async function saveReorder() {
+    await fetch(`/api/kanban/boards/${BOARD_ID}/reorder`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({columns: allColumns()}),
+    });
+    updateCounts();
+  }
+
+  function updateCounts() {
+    document.querySelectorAll(".kanban-col").forEach(function (col) {
+      const key   = col.dataset.col;
+      const count = col.querySelectorAll(".kanban-card").length;
+      col.querySelector(".kanban-col-count").textContent = count;
+    });
+  }
+
+  function makeCard(id, title, body) {
+    const card = document.createElement("div");
+    card.className = "kanban-card";
+    card.dataset.id = id;
+    card.innerHTML = `
+      <div class="kanban-card-body">
+        <div class="kanban-card-title" contenteditable="true" spellcheck="false">${escHtml(title)}</div>
+        <div class="kanban-card-note${body ? "" : " dim"}" contenteditable="true" spellcheck="false"${body ? "" : ' data-empty="1"'}>${body ? escHtml(body) : ""}</div>
+      </div>
+      <button class="card-del-btn" title="Delete card">×</button>`;
+    wireCard(card);
+    return card;
+  }
+
+  function escHtml(s) {
+    return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ── Card inline edit + delete ──────────────────────────────────────────────
+
+  function wireCard(card) {
+    const titleEl = card.querySelector(".kanban-card-title");
+    const noteEl  = card.querySelector(".kanban-card-note");
+    const delBtn  = card.querySelector(".card-del-btn");
+
+    async function saveCard() {
+      const title = titleEl.textContent.trim();
+      const body  = noteEl.getAttribute("data-empty") ? null : (noteEl.textContent.trim() || null);
+      if (!title) return;
+      await fetch(`/api/kanban/cards/${card.dataset.id}`, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({title, body}),
+      });
+    }
+
+    // Prevent drag start on contenteditable clicks
+    [titleEl, noteEl].forEach(function (el) {
+      el.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+      el.addEventListener("focus", function () {
+        if (el.getAttribute("data-empty")) {
+          el.textContent = "";
+          el.removeAttribute("data-empty");
+          el.classList.remove("dim");
+        }
+      });
+      el.addEventListener("blur", function () {
+        if (!el.textContent.trim()) {
+          if (el === noteEl) {
+            el.textContent = "";
+            el.setAttribute("data-empty", "1");
+            el.classList.add("dim");
+          }
+        }
+        saveCard();
+      });
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); el.blur(); }
+        if (e.key === "Escape") { el.blur(); }
+      });
+    });
+
+    delBtn.addEventListener("click", async function () {
+      if (!confirm("Delete this card?")) return;
+      const res = await fetch(`/api/kanban/cards/${card.dataset.id}`, {method: "DELETE"});
+      if (res.ok) {
+        card.remove();
+        updateCounts();
+      }
+    });
+  }
+
+  // Wire existing cards
+  document.querySelectorAll(".kanban-card").forEach(wireCard);
+
+  // ── SortableJS ─────────────────────────────────────────────────────────────
+
+  ["todo", "doing", "done"].forEach(function (col) {
+    Sortable.create(document.getElementById("col-" + col), {
+      group: "cards",
+      animation: 150,
+      ghostClass: "sortable-ghost",
+      dragClass: "sortable-drag",
+      handle: ".kanban-card",
+      filter: "[contenteditable]",
+      preventOnFilter: false,
+      onEnd: saveReorder,
+    });
+  });
+
+  // ── Add card ───────────────────────────────────────────────────────────────
+
+  document.querySelectorAll(".add-card-btn").forEach(function (btn) {
+    const col    = btn.dataset.col;
+    const form   = btn.closest(".add-card-wrap").querySelector(".add-card-form");
+    const input  = form.querySelector(".add-card-input");
+    const note   = form.querySelector(".add-card-note");
+    const submit = form.querySelector(".add-card-submit");
+    const cancel = form.querySelector(".add-card-cancel");
+
+    btn.addEventListener("click", function () {
+      btn.style.display = "none";
+      form.style.display = "flex";
+      input.focus();
+    });
+
+    function closeForm() {
+      form.style.display = "none";
+      btn.style.display = "";
+      input.value = "";
+      note.value = "";
+    }
+
+    cancel.addEventListener("click", closeForm);
+
+    async function doAdd() {
+      const title = input.value.trim();
+      if (!title) { input.focus(); return; }
+      submit.disabled = true;
+      const res = await fetch(`/api/kanban/boards/${BOARD_ID}/cards`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({title, body: note.value.trim() || null, column: col}),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const cardEl = makeCard(data.id, title, note.value.trim() || null);
+        document.getElementById("col-" + col).appendChild(cardEl);
+        updateCounts();
+      }
+      submit.disabled = false;
+      closeForm();
+    }
+
+    submit.addEventListener("click", doAdd);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doAdd();
+      if (e.key === "Escape") closeForm();
+    });
+  });
+
+  // ── Board title inline edit ────────────────────────────────────────────────
+
+  const titleEl = document.getElementById("board-title-el");
+  const crumbEl = document.getElementById("board-title-crumb");
+  titleEl.setAttribute("data-placeholder", "Board title");
+
+  titleEl.addEventListener("blur", async function () {
+    const t = titleEl.textContent.trim();
+    if (!t) return;
+    crumbEl.textContent = t;
+    await fetch(`/api/kanban/boards/${BOARD_ID}`, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({title: t, description: currentDesc()}),
+    });
+  });
+  titleEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); titleEl.blur(); }
+    if (e.key === "Escape") titleEl.blur();
+  });
+
+  // ── Board description inline edit ─────────────────────────────────────────
+
+  const descEl = document.getElementById("board-desc-el");
+
+  function currentDesc() {
+    if (descEl.getAttribute("data-empty")) return null;
+    return descEl.textContent.trim() || null;
+  }
+
+  descEl.addEventListener("focus", function () {
+    if (descEl.getAttribute("data-empty")) {
+      descEl.textContent = "";
+      descEl.removeAttribute("data-empty");
+      descEl.classList.remove("dim");
+    }
+  });
+  descEl.addEventListener("blur", async function () {
+    if (!descEl.textContent.trim()) {
+      descEl.textContent = "";
+      descEl.setAttribute("data-empty", "1");
+      descEl.classList.add("dim");
+    }
+    await fetch(`/api/kanban/boards/${BOARD_ID}`, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        title: titleEl.textContent.trim(),
+        description: currentDesc(),
+      }),
+    });
+  });
+  descEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); descEl.blur(); }
+    if (e.key === "Escape") descEl.blur();
+  });
+
+  // ── Delete board ───────────────────────────────────────────────────────────
+
+  document.getElementById("delete-board-btn").addEventListener("click", async function () {
+    const name = titleEl.textContent.trim();
+    if (!confirm(`Delete board "${name}" and all its cards? This cannot be undone.`)) return;
+    const res = await fetch(`/api/kanban/boards/${BOARD_ID}`, {method: "DELETE"});
+    if (res.ok) window.location.href = "/kanban";
+  });
+
+})();
+</script>
+{% endblock %}

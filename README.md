@@ -22,6 +22,7 @@ A local-first security engineering partner for the first security hire. Tank ask
 - **90-Day Plan** — week-by-week task list generated from your intake answers and KB
 - **Leadership reports** — State of Security, Initial Assessment, Program Roadmap in plain business language; entity picker for scoped reports
 - **Token usage dashboard** — per-source, per-model, per-call-site spend breakdown with 14-day history at `/usage`
+- **Kanban boards** — multi-board drag-and-drop task tracking (TODO / Doing / Done) with inline card editing; boards per project or workstream at `/kanban`
 - **Daily companion** — morning digest, nudges, journal, meeting prep, anniversary retros
 
 ---

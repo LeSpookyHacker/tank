@@ -86,7 +86,7 @@ Tank ships in phases. The current state:
 | 5 | Remaining parsers (DOCX, vision, CSV, repo summary) | ✅ |
 | 6 | Chat with SSE streaming + tool use | ✅ |
 | 7 | Six original reports (cached scope) | ✅ |
-| 8 | Partner mode (digest, journal, follow-ups, anniversary) | ✅ |
+| 8 | Partner mode (digest, journal, kanban, anniversary) | ✅ |
 | 9 | UI polish (entity graph, settings, badges) | ✅ |
 | 10 | Privacy assertion script | ✅ |
 | 11 | Opt-in connectors (folder, ICS, CVE, GitHub) | ✅ |
@@ -103,6 +103,7 @@ Tank ships in phases. The current state:
 | 3.2 | DFD threat modeling — 4-mode input, SSE progress, split-panel workspace, 4 export formats | ✅ |
 | 3.3 | Projects dashboard — color/notes, card grid, detail page, project-scoped chat | ✅ |
 | 3.4 | Sample data expansion — 42 files + 4 DFD Mermaid sources + `seed_db.py` seed script | ✅ |
+| 3.5 | Kanban board generator — multi-board drag-and-drop task tracking, replaces flat follow-ups list | ✅ |
 
 For the change history with tradeoffs and known gaps, see
 [HISTORY.md](../HISTORY.md).

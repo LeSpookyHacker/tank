@@ -87,10 +87,13 @@ The living knowledge base and memory layer.
 
 ---
 
-## Partner mode
+## Daily
 
-The daily companion: digest, nudges, journal, meeting prep, anniversaries.
+The daily companion: digest, nudges, journal, kanban, meeting prep, anniversaries.
 
+- **Kanban boards** (`/kanban`) — create multiple boards (one per project or workstream);
+  drag cards between TODO / Doing / Done columns; inline title + note editing; delete
+  boards and cards. Boards and API at `app/routers/kanban.py` + `app/storage/kanban_store.py`.
 - [using-tank.md](../using-tank.md) — day-to-day workflows that tie all features together
 - [workstreams.md](workstreams.md) — pre-meeting briefs, weekly security digest,
   on-call handoff brief
@@ -123,6 +126,9 @@ The daily companion: digest, nudges, journal, meeting prep, anniversaries.
 - **Redesign** — First-hire pivot: intake interview, org discovery wizard, security
   stack audit, chat discovery mode, vulnerability triage, policy scaffolding, 90-day
   plan, prioritization engine, compliance wizard, persistent left nav.
+- **3.6** — Kanban board generator: multi-board drag-and-drop task tracking at `/kanban`;
+  replaces flat follow-ups list. SortableJS columns, inline card editing, board-level
+  delete. Old `followups` table and `/api/followups` kept for postmortem/dashboard compat.
 - **3.5** — D3.js knowledge graph (`/knowledge-graph`), token usage dashboard
   (`/usage`), entity-picker modal on reports page (replaces `window.prompt`), DFD
   "← Existing" tab + KB doc bridge, `.mmd` ingest support, Mermaid SVG rendering

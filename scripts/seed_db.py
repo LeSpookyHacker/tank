@@ -754,7 +754,7 @@ def seed_journal(dry_run: bool) -> None:
     print("  [journal] Wrote day-1 journal entry")
 
 
-# ── follow-ups ───────────────────────────────────────────────────────────────
+# ── kanban seed items ─────────────────────────────────────────────────────────
 
 FOLLOWUPS = [
     {"title": "Ask Dana to scope down the ci-deploy SA (remove admin/editor)", "days": 3},
@@ -768,12 +768,12 @@ def seed_followups(dry_run: bool) -> None:
     existing = {f["title"] for f in list_by_status("open", limit=200)}
     for f in FOLLOWUPS:
         if f["title"] in existing:
-            print(f"  [followup] '{f['title'][:40]}…' exists — skipped")
+            print(f"  [kanban] '{f['title'][:40]}…' exists — skipped")
             continue
         if not dry_run:
             create(title=f["title"], source_kind="manual",
                    due_at=_days_from_now(f["days"]))
-        print(f"  [followup] Created '{f['title'][:44]}…'")
+        print(f"  [kanban] Created '{f['title'][:44]}…'")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -812,7 +812,7 @@ def main(argv: list[str]) -> int:
         ("90-day plan", seed_plan),
         ("Report subscription", seed_subscriptions),
         ("Journal", seed_journal),
-        ("Follow-ups", seed_followups),
+        ("Kanban", seed_followups),
     ]:
         print(label)
         fn(dry)

@@ -283,15 +283,15 @@ multi-tenant; today it doesn't.
 
 ## Daily use
 
-### What's the difference between a nudge and a follow-up?
+### What's the difference between a nudge and a kanban card?
 
 - **Nudges** are tool-generated. Tank notices something (a
   contradiction, a drift, an abandoned thread) and surfaces a card.
   Snooze / dismiss / act. They expire if you don't act.
-- **Follow-ups** are user-tracked. You explicitly add them — from a
+- **Kanban cards** are user-tracked. You explicitly add them — from a
   chat suggestion, a meeting brief, a postmortem action item, or
-  the inline `+ add` on the home dashboard. They have due dates
-  and stay open until you close them.
+  the `/kanban` boards. Drag them across TODO / Doing / Done columns
+  as work progresses.
 
 ### Does Tank ever modify external systems?
 

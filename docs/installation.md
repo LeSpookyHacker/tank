@@ -236,7 +236,7 @@ vulnerability intake queue (7 vulns across triage states), 4 decisions (one
 expiring soon to trigger a nudge), 12 unconfirmed glossary terms, 5 lessons,
 1 tabletop, 2 IR runbooks, a design review, 2 postmortems, the stack-audit
 inventory, a 90-day plan, a weekly-digest subscription, a journal entry, and
-3 follow-ups. Safe to re-run — each section checks for existing records first.
+3 kanban seed items. Safe to re-run — each section checks for existing records first.
 
 **Step 3 — verify the ingest:**
 

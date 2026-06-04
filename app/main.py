@@ -35,7 +35,7 @@ from app.rate_limiter import limiter
 from app.routers import (
     attack_surface, chat, compliance, decisions, design_reviews, detections,
     discovery, dfd, entities, followups, glossary, iam, ingest, integrations,
-    intake, ir_runbooks, journal, lessons, me, meeting_prep, notes, nudges,
+    intake, ir_runbooks, journal, kanban, lessons, me, meeting_prep, notes, nudges,
     onboarding, ownership, pages, philosophy, plan, policies, postmortems, projects,
     reports, risks, security_program, settings, stack_audit, subscriptions,
     tabletops, teams, threat_models, vulnerabilities, dashboard,
@@ -195,7 +195,8 @@ app.include_router(notes.router)
 app.include_router(journal.router)
 app.include_router(journal.page)
 app.include_router(followups.router)
-app.include_router(followups.page)
+app.include_router(kanban.router)
+app.include_router(kanban.page)
 app.include_router(subscriptions.router)
 app.include_router(subscriptions.page)
 

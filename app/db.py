@@ -689,6 +689,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     # Journal redesign: optional title per entry.
     _migrate_journal_title(conn)
 
+    # Kanban board generator (replaces the follow-ups page UI).
+    _migrate_kanban(conn)
+
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -797,6 +800,33 @@ def _migrate_service_ownership(conn: sqlite3.Connection) -> None:
 def _migrate_journal_title(conn: sqlite3.Connection) -> None:
     """Add optional title column to journal_entries (journal redesign)."""
     _add_col_safe(conn, "journal_entries", "title TEXT")
+
+
+def _migrate_kanban(conn: sqlite3.Connection) -> None:
+    """Kanban boards + cards tables for the multi-board follow-ups rework."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS kanban_boards (
+            id          TEXT PRIMARY KEY,
+            title       TEXT NOT NULL,
+            description TEXT,
+            created_at  REAL NOT NULL,
+            updated_at  REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS kanban_cards (
+            id         TEXT PRIMARY KEY,
+            board_id   TEXT NOT NULL REFERENCES kanban_boards(id) ON DELETE CASCADE,
+            title      TEXT NOT NULL,
+            body       TEXT,
+            column     TEXT NOT NULL DEFAULT 'todo',
+            position   INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_kanban_cards_board
+            ON kanban_cards(board_id, column, position);
+    """)
 
 
 def _add_col_safe(conn: sqlite3.Connection, table: str, col_def: str) -> None:

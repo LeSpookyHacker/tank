@@ -12,6 +12,30 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-06-03] — Kanban board generator (replaces flat follow-ups list)
+
+### Added
+
+- **Kanban board generator** at `/kanban`: landing page shows a grid of board tiles (title, description, per-column card counts). Each tile links to a full board view at `/kanban/boards/{id}`.
+- Per-board view with three columns — **TODO**, **Doing**, **Done** — and SortableJS drag-and-drop between columns. Card order persists via `POST /api/kanban/boards/{id}/reorder`.
+- Cards support inline title + optional note editing (click to edit, blur to save via `PUT /api/kanban/cards/{id}`). Delete button (×) shown on hover.
+- "Add card" form at the bottom of each column; board title and description are click-to-edit in the board header.
+- Delete board button (with JS confirmation); cascades to all cards.
+- New DB tables: `kanban_boards`, `kanban_cards` (migrated by `_migrate_kanban` in `app/db.py`).
+- New storage module: `app/storage/kanban_store.py`.
+- New router: `app/routers/kanban.py` (page routes + `/api/kanban/*` REST API).
+
+### Changed
+
+- Nav label "Follow-ups" → **Kanban**; `/followups` route redirects replaced by `/kanban` everywhere in the UI and docs.
+- All user-facing "Follow-ups" / "follow-ups" text updated to "Kanban" across templates, docs, and CLAUDE.md.
+
+### Preserved (backward compat)
+
+- `followups` table, `app/storage/followups_store.py`, and `/api/followups` endpoints unchanged — postmortem action-item auto-creation, the Today home widget, and me-page scoring all continue to work.
+
+---
+
 ## [2026-05-29] — Security hardening: adversarial audit pass 4 (fresh full re-audit)
 
 ### Security

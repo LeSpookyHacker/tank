@@ -18,7 +18,7 @@ Tank surfaces.
      Each is one-click dismiss / snooze / act.
    - **Today's briefs** — meeting prep generated overnight for any
      calendar events with known attendees.
-   - **Follow-ups due today** — items you tracked yesterday.
+   - **Kanban items due today** — items you tracked yesterday.
    - **Hot entities (7d)** — services you've been touching most.
 3. Pick the **one thing** from the digest and act on it. Everything
    else can wait.
@@ -101,13 +101,13 @@ Freewrite what happened. Don't worry about structure. Sonnet drafts:
 - Why (mechanism)
 - Contributing factors
 - Mitigations applied during the incident
-- Action items (each will become a follow-up)
+- Action items (each will become a kanban card)
 - Services affected (linked to entity IDs)
 - Severity guess (sev1/2/3)
 
 Edit before publishing. **On publish**:
 
-- Each action item → row in `followups` you can assign owners to.
+- Each action item → a kanban card you can track to completion.
 - Each service-affected → linked to its entity.
 - Sonnet extracts 1-4 **lessons** that go into `/lessons` (your
   team's queryable lessons-learned DB).
@@ -322,7 +322,7 @@ Six metric domains render instantly (no Claude call):
 | Vulnerabilities | Open by severity + average age |
 | Risk register | Open risks / overdue reviews |
 | Compliance | Controls with evidence vs. without |
-| Incidents | Postmortems (90d) / open followups |
+| Incidents | Postmortems (90d) / open kanban items |
 | Design reviews | Open / approved (90d) |
 
 **12-week trend**: the Sunday 09:30 scheduler job saves a snapshot; the
