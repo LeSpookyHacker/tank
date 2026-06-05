@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.claude import batches
 from app.claude.batch_helpers import extract_validated, tool_params_for
-from app.claude.caching import build_scope_block
+from app.claude.caching import CACHE_5M, build_scope_block
 from app.config import HAIKU_MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name, get_card
 from app.redact.engine import apply_redactions, rehydrate
@@ -93,7 +93,7 @@ def prepare(*, who: str, when: str | None = None,
             messages=[{
                 "role": "user",
                 "content": [
-                    build_scope_block(),
+                    {**build_scope_block(), "cache_control": CACHE_5M},
                     {"type": "text", "text": user_task},
                 ],
             }],
@@ -139,7 +139,7 @@ def _request_for(meeting: dict) -> dict | None:
             "messages": [{
                 "role": "user",
                 "content": [
-                    build_scope_block(),
+                    {**build_scope_block(), "cache_control": CACHE_5M},
                     {"type": "text", "text": user_task},
                 ],
             }],

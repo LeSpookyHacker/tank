@@ -19,6 +19,70 @@ from app.storage import asset_inventory_store as inv_store
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# Common tools pre-populated per category. Shown as dropdown options in the UI;
+# users can select "Other…" to enter a custom value not on this list.
+TOOL_OPTIONS: dict[str, list[str]] = {
+    "Identity Provider (SSO/LDAP)": [
+        "Okta", "Azure AD / Entra ID", "Google Workspace", "OneLogin",
+        "Ping Identity", "JumpCloud", "Auth0",
+    ],
+    "Multi-Factor Authentication": [
+        "Duo Security", "Okta Verify", "Microsoft Authenticator",
+        "Google Authenticator", "YubiKey", "Authy",
+    ],
+    "Secrets Management": [
+        "HashiCorp Vault", "AWS Secrets Manager", "Azure Key Vault",
+        "GCP Secret Manager", "CyberArk", "Doppler", "1Password Secrets",
+    ],
+    "SIEM / Log Aggregation": [
+        "Splunk", "Elastic / ELK", "Microsoft Sentinel", "Sumo Logic",
+        "Datadog", "CrowdStrike Falcon", "IBM QRadar",
+    ],
+    "Web Application Firewall (WAF)": [
+        "Cloudflare WAF", "AWS WAF", "Fastly", "Akamai",
+        "F5 Advanced WAF", "Imperva", "Barracuda",
+    ],
+    "Endpoint Detection & Response (EDR)": [
+        "CrowdStrike Falcon", "SentinelOne", "Microsoft Defender for Endpoint",
+        "Carbon Black", "Cylance", "Palo Alto Cortex XDR",
+    ],
+    "Vulnerability Scanner": [
+        "Qualys VMDR", "Tenable / Nessus", "Rapid7 InsightVM",
+        "Snyk", "Wiz", "OpenVAS",
+    ],
+    "Data Loss Prevention (DLP)": [
+        "Microsoft Purview", "Symantec DLP", "Forcepoint",
+        "Nightfall", "Digital Guardian", "Varonis",
+    ],
+    "Network Segmentation": [
+        "Palo Alto NGFW", "Cisco ASA", "Fortinet FortiGate",
+        "Check Point", "Zscaler", "Illumio",
+    ],
+    "Backup & Recovery": [
+        "Veeam", "Commvault", "Rubrik", "AWS Backup",
+        "Azure Backup", "Cohesity", "Zerto",
+    ],
+    "Patch Management": [
+        "Microsoft WSUS / SCCM", "Ivanti", "Tanium",
+        "Automox", "ManageEngine Endpoint", "BigFix",
+    ],
+    "Security Training Platform": [
+        "KnowBe4", "Proofpoint Security Awareness", "Cofense",
+        "SANS", "Mimecast Awareness", "Cybrary",
+    ],
+    "Bug Bounty / Penetration Testing": [
+        "HackerOne", "Bugcrowd", "Synack", "Cobalt", "Internal red team",
+    ],
+    "Container / Supply Chain Security": [
+        "Snyk", "Aqua Security", "Prisma Cloud", "Sysdig",
+        "Trivy", "GitHub Advanced Security", "Anchore",
+    ],
+    "Cloud Security Posture Management (CSPM)": [
+        "Wiz", "Prisma Cloud", "Orca Security", "Lacework",
+        "AWS Security Hub", "Microsoft Defender for Cloud",
+    ],
+}
+
 
 class SaveCategoryBody(BaseModel):
     capability_category: str
@@ -40,6 +104,7 @@ def stack_audit_page(request: Request):
             "state": state,
             "categories": categories,
             "completion_pct": completion_pct,
+            "tool_options": TOOL_OPTIONS,
         },
     )
 

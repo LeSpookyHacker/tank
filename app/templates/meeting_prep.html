@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Tank — meeting prep{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css"
+      integrity="sha384-Y64ixq0sw4ASbzOXI0H86SHuTR4D9yoVMPq+2w/jVU3AOvf7l9pNZuWYmrAHVIhd"
+      crossorigin="anonymous" />
+{% endblock %}
+
 {% block content %}
 <section class="meeting-prep">
   <h1>Meeting prep</h1>
@@ -14,11 +20,29 @@
     <label>When (optional):
       <input id="when" type="text" placeholder="e.g. tomorrow 10am">
     </label>
-    <label>Extra context (optional):
-      <textarea id="extras" rows="2"
-        placeholder="anything else you want me to consider"></textarea>
-    </label>
-    <button type="submit" class="btn-primary">Prepare brief</button>
+    <label>Extra context (optional):</label>
+    <!-- Custom toolbar: replaces Vditor's built-in one whose icons never render -->
+    <div class="je-toolbar" id="je-toolbar">
+      <button class="je-tb-btn" data-action="bold"   title="Bold (Ctrl+B)"><b>B</b></button>
+      <button class="je-tb-btn" data-action="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+      <button class="je-tb-btn" data-action="strike" title="Strikethrough"><s>S</s></button>
+      <span class="je-tb-sep"></span>
+      <button class="je-tb-btn" data-action="h1" title="Heading 1">H1</button>
+      <button class="je-tb-btn" data-action="h2" title="Heading 2">H2</button>
+      <button class="je-tb-btn" data-action="h3" title="Heading 3">H3</button>
+      <span class="je-tb-sep"></span>
+      <button class="je-tb-btn" data-action="ul"    title="Bullet list">&#8801;</button>
+      <button class="je-tb-btn" data-action="ol"    title="Numbered list">1.</button>
+      <button class="je-tb-btn" data-action="quote" title="Blockquote">&#10099;</button>
+      <span class="je-tb-sep"></span>
+      <button class="je-tb-btn je-tb-mono" data-action="icode" title="Inline code">ab</button>
+      <button class="je-tb-btn je-tb-mono" data-action="code"  title="Code block">{}</button>
+      <button class="je-tb-btn je-tb-mono" data-action="link"  title="Link">&#128279;</button>
+      <span class="je-tb-sep"></span>
+      <button class="je-tb-btn" data-action="hr"   title="Horizontal rule">&#8213;</button>
+    </div>
+    <div id="vditor"></div>
+    <button type="submit" class="btn-primary" style="margin-top:0.75rem">Prepare brief</button>
   </form>
 
   <article id="brief" class="prep-brief" hidden>
@@ -27,15 +51,100 @@
   </article>
 </section>
 
+<script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"
+        integrity="sha384-eJNPL+l6x8h5j+uopxmlvvDeNRwWkSYtv5vIn4ksoqY3sgQ3vsDWLGQXwz1IU6j7"
+        crossorigin="anonymous"></script>
+
+<style nonce="{{ request.state.csp_nonce }}">
+/* ── Custom toolbar ── */
+.je-toolbar {
+  display: flex; align-items: center; gap: 1px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.je-tb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--text-dim); cursor: pointer; font-size: 0.85rem;
+  font-family: inherit; transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+.je-tb-btn:hover { background: var(--bg-card); color: var(--text); }
+.je-tb-btn b, .je-tb-btn em, .je-tb-btn s { font-size: 0.9rem; }
+.je-tb-mono { font-family: var(--font-mono); font-size: 0.78rem; }
+.je-tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+
+/* Hide Vditor's built-in (broken) toolbar; keep its border radius */
+#vditor .vditor-toolbar { display: none !important; }
+.vditor { border-radius: 0 0 8px 8px !important; border-color: var(--border) !important; }
+
+/* Content text color */
+#vditor .vditor-reset,
+#vditor .vditor-ir pre.vditor-reset,
+#vditor .vditor-ir .vditor-reset {
+  color: var(--text) !important;
+}
+#vditor .vditor-reset a { color: var(--accent); }
+</style>
+
 <script nonce="{{ request.state.csp_nonce }}">
+let extrasBody = '';
+
+const isDark = !document.documentElement.classList.contains('theme-light');
+
+const vditor = new Vditor('vditor', {
+  mode: 'ir',
+  lang: 'en_US',
+  theme: isDark ? 'dark' : 'classic',
+  value: '',
+  minHeight: 200,
+  toolbar: [],
+  cache: { enable: false },
+  placeholder: 'Any additional context — background, recent incidents, what you want to accomplish…\n\nUse **bold**, *italics*, - lists, and more.',
+  input(val) { extrasBody = val; },
+});
+
+// ── Custom toolbar ──────────────────────────────────────────────────────────
+document.getElementById('je-toolbar').addEventListener('mousedown', function(e) {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  e.preventDefault();
+
+  const action = btn.dataset.action;
+  const sel    = window.getSelection();
+  const s      = (sel && sel.rangeCount > 0) ? sel.toString() : '';
+
+  const wrap = (l, r) => vditor.insertValue(s ? l + s + r : l + r);
+
+  switch (action) {
+    case 'bold':   wrap('**', '**');          break;
+    case 'italic': wrap('*', '*');            break;
+    case 'strike': wrap('~~', '~~');          break;
+    case 'h1':     vditor.insertValue('\n# '   + (s || 'Heading') + '\n'); break;
+    case 'h2':     vditor.insertValue('\n## '  + (s || 'Heading') + '\n'); break;
+    case 'h3':     vditor.insertValue('\n### ' + (s || 'Heading') + '\n'); break;
+    case 'ul':     vditor.insertValue('\n- '   + (s || 'item') + '\n');    break;
+    case 'ol':     vditor.insertValue('\n1. '  + (s || 'item') + '\n');    break;
+    case 'quote':  vditor.insertValue('\n> '   + (s || 'quote') + '\n');   break;
+    case 'icode':  wrap('`', '`');            break;
+    case 'code':   vditor.insertValue('\n```\n' + (s || 'code') + '\n```\n'); break;
+    case 'link':   vditor.insertValue('[' + (s || 'link text') + '](url)'); break;
+    case 'hr':     vditor.insertValue('\n---\n'); break;
+  }
+});
+
 async function prep(ev) {
   ev.preventDefault();
   const who = document.getElementById("who").value.trim();
   if (!who) return false;
   const when = document.getElementById("when").value.trim();
-  const extras = document.getElementById("extras").value.trim();
+  const extras = extrasBody.trim() || null;
 
-  const btn = ev.target.querySelector("button");
+  const btn = ev.target.querySelector("button[type=submit]");
   btn.disabled = true;
   btn.textContent = "preparing…";
 

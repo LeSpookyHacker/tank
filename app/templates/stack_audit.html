@@ -31,8 +31,17 @@
       <tr class="audit-row" id="row-{{ loop.index0 }}" data-category="{{ cat.capability_category }}">
         <td class="audit-category">{{ cat.capability_category }}</td>
         <td>
-          <input type="text" class="audit-input" placeholder="Tool name or 'None'"
-                 value="{{ cat.tool_name or '' }}" data-field="tool_name">
+          <select class="audit-select audit-tool-select" data-field="tool_name"
+                  data-current="{{ cat.tool_name or '' }}">
+            <option value="">— select tool —</option>
+            {% for opt in tool_options[cat.capability_category] %}
+            <option value="{{ opt }}">{{ opt }}</option>
+            {% endfor %}
+            <option value="__other__">Other…</option>
+          </select>
+          <input type="text" class="audit-input audit-tool-custom"
+                 placeholder="Custom tool name" style="display:none"
+                 data-field="tool_name_custom">
         </td>
         <td>
           <select class="audit-select" data-field="deployment_status">
@@ -60,13 +69,46 @@
 </div>
 
 <script nonce="{{ request.state.csp_nonce }}">
+// Initialize tool selects: pre-select existing value or "Other…" for custom values.
+document.querySelectorAll(".audit-tool-select").forEach(function(sel) {
+  const current = sel.dataset.current || "";
+  if (!current) return;
+  const knownValues = Array.from(sel.options).map(function(o) { return o.value; });
+  if (knownValues.includes(current)) {
+    sel.value = current;
+  } else {
+    sel.value = "__other__";
+    const customInput = sel.nextElementSibling;
+    customInput.value = current;
+    customInput.style.display = "";
+  }
+});
+
+// Show/hide custom input when "Other…" is selected.
+document.querySelectorAll(".audit-tool-select").forEach(function(sel) {
+  sel.addEventListener("change", function() {
+    const customInput = sel.nextElementSibling;
+    if (sel.value === "__other__") {
+      customInput.style.display = "";
+      customInput.focus();
+    } else {
+      customInput.style.display = "none";
+      customInput.value = "";
+    }
+  });
+});
+
 document.querySelectorAll(".audit-save-btn[data-category]").forEach(function(btn) {
   btn.addEventListener("click", function() { saveRow(btn.dataset.category, parseInt(btn.dataset.idx)); });
 });
 
 async function saveRow(category, idx) {
   const row = document.getElementById("row-" + idx);
-  const tool = row.querySelector("[data-field=tool_name]").value.trim() || null;
+  const toolSel = row.querySelector(".audit-tool-select");
+  const toolCustom = row.querySelector(".audit-tool-custom");
+  const tool = (toolSel.value === "__other__")
+    ? (toolCustom.value.trim() || null)
+    : (toolSel.value || null);
   const status = row.querySelector("[data-field=deployment_status]").value;
   const notes = row.querySelector("[data-field=coverage_notes]").value.trim() || null;
   const gaps = row.querySelector("[data-field=known_gaps]").value.trim() || null;
@@ -84,6 +126,8 @@ async function saveRow(category, idx) {
   });
   const data = await res.json();
   if (res.ok) {
+    // Update the select's data-current so a re-init after page refresh stays consistent.
+    toolSel.dataset.current = tool || "";
     const badge = document.getElementById("saved-" + idx);
     badge.hidden = false;
     setTimeout(() => { badge.hidden = true; }, 2000);
