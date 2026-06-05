@@ -151,7 +151,7 @@ One row per category, inline-editable in the browser.
 
 ### Per-category fields
 
-- **Current tool** — tool name, or leave blank for "None"
+- **Current tool** — dropdown pre-populated with the most common tools for each category (5–7 options); select "Other…" to enter a custom tool name not on the list
 - **Deployment status** — `None` / `Partial` / `Full`
 - **Coverage notes** — what's in scope
 - **Known gaps** — what's missing

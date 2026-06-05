@@ -12,6 +12,34 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-06-04] — Meeting prep fix, stack audit tool dropdown, Vditor editor for Notes & Meeting Prep
+
+### Fixed
+
+- **Meeting prep 400 error** — `meeting_prep.prepare()` called `build_scope_block()` which
+  returns `CACHE_1H = {"type": "ephemeral", "ttl": "1h"}`. Haiku rejects the 1h extended TTL;
+  the Anthropic API returned 400 on every "Prepare brief" click. Both the sync and batch paths
+  now override the scope block's cache control to `CACHE_5M`, matching every other Haiku call
+  in the codebase (`app/claude/meeting_prep.py`).
+
+### Changed
+
+- **Security Stack Audit — Current Tool dropdown** — the free-text "Current Tool" input is
+  replaced with a per-category dropdown pre-populated with 5–7 common tools (e.g., Okta /
+  Azure AD / JumpCloud for Identity Provider; CrowdStrike / SentinelOne / Defender for EDR).
+  Selecting "Other…" reveals a text input for custom values. Existing saved tool names are
+  matched on load; unrecognized values auto-select "Other" and pre-fill the custom input
+  (`app/routers/stack_audit.py` — `TOOL_OPTIONS`; `app/templates/stack_audit.html`).
+- **Vditor Markdown editor for Notes and Meeting Prep** — the plain textareas on `/notes`
+  and `/meeting-prep` are replaced with the same Vditor 3.10.9 rich editor used in the
+  journal: IR mode, custom markdown toolbar (bold, italic, headings, lists, code, links),
+  SRI-hashed CDN tags, dark/light theme-aware. Notes gets 360px min-height; meeting prep
+  extras gets 200px. CSS override on the notes page reduces Vditor's default horizontal
+  padding so text starts at the left edge (`app/templates/notes.html`,
+  `app/templates/meeting_prep.html`).
+
+---
+
 ## [2026-06-04] — Journal redesign (rich editor, per-entry pages, titles)
 
 ### Changed

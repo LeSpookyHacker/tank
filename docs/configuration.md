@@ -28,7 +28,7 @@ cp .env.example .env
 |----------|------|---------|-------------|
 | `TANK_BIND_HOST` | string | `127.0.0.1` | Host uvicorn listens on. Keep at `127.0.0.1` unless you are putting Tank behind a reverse proxy. Never bind to `0.0.0.0` without a firewall rule in front. |
 | `TANK_BIND_PORT` | integer | `8000` | Port uvicorn listens on. Change if 8000 conflicts with another service. |
-| `TANK_API_KEY` | string | `""` (disabled) | Optional static API key. When set, **every** HTTP request to Tank must include an `X-Tank-Key: <value>` header matching this value (compared via `secrets.compare_digest` to prevent timing attacks). Exempted paths: `/healthz`, `/static/*`. The browser UI reads the key from `localStorage` and injects the header automatically. Strongly recommended if `TANK_BIND_HOST` is changed from `127.0.0.1`. Generate a secure key with: `python3 -c "import secrets; print(secrets.token_hex(32))"`. |
+| `TANK_API_KEY` | string | `""` (disabled) | Optional static API key. When set, every HTTP request to Tank must include either a valid session cookie or an `X-Tank-Key: <value>` header (both compared via `secrets.compare_digest`). Exempted paths: `/healthz`, `/static/*`, `/api/auth/*`. The browser UI authenticates via an HttpOnly session cookie issued by `POST /api/auth/session` (Settings → enter your key → Login). Strongly recommended if `TANK_BIND_HOST` is changed from `127.0.0.1`. Generate a secure key with: `python3 -c "import secrets; print(secrets.token_hex(32))"`. |
 
 ### Redaction
 

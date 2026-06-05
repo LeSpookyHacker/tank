@@ -13,6 +13,28 @@ of work, in chronological order.
 
 ---
 
+## 2026-06-04 — Meeting prep fix, stack audit tool dropdown, Vditor editor for Notes & Meeting Prep
+
+Three independent improvements. Meeting prep was broken: `prepare()` passed `build_scope_block()`
+output directly to a Haiku call, but `build_scope_block()` returns `CACHE_1H = {"type":
+"ephemeral", "ttl": "1h"}` which Haiku rejects with a 400. Fix: override the cache_control to
+`CACHE_5M` via `{**build_scope_block(), "cache_control": CACHE_5M}` — both sync and batch paths.
+This aligns with every other Haiku call in the codebase (extractor, journal_extractor, nudges
+all use plain `{"type": "ephemeral"}`).
+
+Stack audit "Current Tool" column replaced the free-text input with a category-aware `<select>`
+pre-populated from a `TOOL_OPTIONS` dict in the router (5–7 common tools per capability
+category). "Other…" reveals a text input. JS initializes the dropdown from the saved value on
+load, falling back to "Other" for any custom value not in the list.
+
+Notes (`/notes`) and Meeting Prep (`/meeting-prep`) now use Vditor 3.10.9 in IR mode with the
+identical custom toolbar, CSS, and SRI-hashed CDN tags as the journal editor. Notes gets 360px
+min-height; meeting prep extras gets 200px. A CSS override (`padding-left: 12px !important` +
+`max-width: none !important` on `.vditor-ir`) fixes Vditor's default centred-content behavior
+on a full-width layout.
+
+---
+
 ## 2026-06-04 — Journal redesign (rich editor, per-entry pages, titles)
 
 Replaced the plain textarea with a Vditor Markdown editor (headings, lists, code blocks,

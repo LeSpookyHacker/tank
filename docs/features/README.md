@@ -94,6 +94,12 @@ The daily companion: digest, nudges, journal, kanban, meeting prep, anniversarie
 - **Journal** (`/journal`) — per-entry Markdown editor (Vditor) with optional title; entries
   list at `/journal`, individual entries at `/journal/{entry_id}`. Evening 18:00 nudge fires
   if no entry today. Extraction runs locally to surface follow-ups as nudges.
+- **Meeting Prep** (`/meeting-prep`) — one-screen brief for an upcoming 1:1; enter who
+  you're meeting, when, and extra context. The extra-context field uses the same Vditor
+  Markdown editor as the journal (bold, lists, headings, etc.).
+- **Notes / Learning capture** (`/notes`) — freewrite after a meeting or reading session;
+  Tank extracts proposed entity and relationship additions, which you confirm before they
+  reach the KB. The body field uses the Vditor Markdown editor (360px min-height).
 - **Kanban boards** (`/kanban`) — create multiple boards (one per project or workstream);
   drag cards between TODO / Doing / Done columns; inline title + note editing; delete
   boards and cards. Boards and API at `app/routers/kanban.py` + `app/storage/kanban_store.py`.

@@ -203,7 +203,7 @@ Run the privacy assertion to confirm the redaction engine is healthy:
 cd ~/projects/tank
 source .venv/bin/activate
 python -m pytest -q
-# 28 passed
+# 53 passed
 ```
 
 ---
