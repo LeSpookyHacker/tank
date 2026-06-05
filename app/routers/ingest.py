@@ -19,7 +19,7 @@ from collections import Counter
 from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.rate_limiter import limiter
@@ -163,7 +163,7 @@ async def ingest_repo_endpoint(request: Request,
 # ---------------- bulk ingest (drag-drop / mixed paths + SSE) ----------------
 
 class BulkPathRequest(BaseModel):
-    paths: list[str]
+    paths: list[str] = Field(max_length=500)
     project_id: str | None = None
 
 

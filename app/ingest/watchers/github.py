@@ -15,9 +15,12 @@ import time
 import urllib.request
 import urllib.parse
 
+from app.redact.engine import apply_redactions
 from app.storage import nudges_store
 
 log = logging.getLogger("tank.watchers.github")
+
+_MAX_RESPONSE_BYTES = 5 * 1024 * 1024  # 5 MB cap
 
 
 _AUTH_PATH_HINTS = ("auth/", "auth.py", "auth.go", "jwt", "oauth",
@@ -37,7 +40,7 @@ def _gh_request(path: str, token: str) -> dict | None:
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            return json.loads(resp.read(_MAX_RESPONSE_BYTES).decode("utf-8"))
     except Exception as exc:
         log.warning("github request to %s failed: %s", path, exc)
         return None
@@ -76,11 +79,15 @@ class GitHubWatcher:
 
         if sensitive_prs:
             top = sensitive_prs[0]
+            raw_title = f"Sensitive PR merged in {repo}"
+            raw_body = (f"#{top.get('number')}: {top.get('title')!r}. "
+                        f"Body mentioned auth/secrets paths. Worth a look.")
+            clean_title = apply_redactions(raw_title).redacted_text
+            clean_body = apply_redactions(raw_body).redacted_text
             nudges_store.insert(
                 kind="repo_activity",
-                title=f"Sensitive PR merged in {repo}",
-                body=f"#{top.get('number')}: {top.get('title')!r}. "
-                     f"Body mentioned auth/secrets paths. Worth a look.",
+                title=clean_title,
+                body=clean_body,
                 payload={"repo": repo, "pr_url": top.get("html_url"),
                          "sensitive_pr_count": len(sensitive_prs)},
                 priority=70,

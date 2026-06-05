@@ -81,9 +81,10 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=63072000; includeSubDomains; preload"
-        )
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains"
+            )
         response.headers["Permissions-Policy"] = (
             "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
         )
@@ -96,7 +97,8 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "font-src fonts.gstatic.com cdn.jsdelivr.net; "
             "img-src 'self' data: blob: cdn.jsdelivr.net; "
             "connect-src 'self'; "
-            "worker-src 'self' blob:;"
+            "worker-src 'self' blob:; "
+            "frame-ancestors 'none';"
         )
         return response
 

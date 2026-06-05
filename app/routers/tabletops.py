@@ -22,8 +22,8 @@ class GenerateRequest(BaseModel):
 
 
 class LessonsCapture(BaseModel):
-    lessons_md: str
-    tags: list[str] = []
+    lessons_md: str = Field(max_length=50_000)
+    tags: list[str] = Field(default_factory=list, max_length=50)
 
 
 @api.get("")

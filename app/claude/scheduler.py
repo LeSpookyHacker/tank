@@ -380,6 +380,11 @@ def _take_backup() -> None:
         return
     backup_dir = src.parent / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
+    # Set restrictive permissions on backup directory
+    try:
+        backup_dir.chmod(0o700)
+    except Exception:
+        pass
 
     label = _today_label()
     dst = backup_dir / f"db-{label}.sqlite"
@@ -392,6 +397,12 @@ def _take_backup() -> None:
             src_conn.backup(dst_conn)
     finally:
         dst_conn.close()
+
+    # Set restrictive permissions on backup file
+    try:
+        dst.chmod(0o600)
+    except Exception:
+        pass
 
     size = dst.stat().st_size if dst.exists() else 0
     backup_log_store.record(dst, size)

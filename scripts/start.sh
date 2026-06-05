@@ -78,8 +78,17 @@ if [[ ! -f .env ]]; then
     fail "no .env found. Run: cp .env.example .env  and paste your ANTHROPIC_API_KEY."
 fi
 
-# shellcheck disable=SC1091
-set -a; source .env; set +a
+# Safe .env loading — parse only, do not execute
+while IFS='=' read -r _key _val; do
+    # Skip comments and empty lines
+    case "$_key" in
+        ''|\#*) continue ;;
+    esac
+    # Only export keys that are valid shell identifiers
+    if printf '%s' "$_key" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
+        export "${_key}=${_val}"
+    fi
+done < .env
 
 if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
     say "${RED}error:${RST} ANTHROPIC_API_KEY is empty in .env."

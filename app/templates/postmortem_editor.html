@@ -82,7 +82,7 @@ async function saveFields(e) {
       action_items: splitLines(f.action_items.value),
     },
   };
-  await fetch("/api/postmortems/{{ pm.id }}/fields", {
+  await fetch("/api/postmortems/" + {{ pm.id | tojson }} + "/fields", {
     method: "PUT",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(payload),

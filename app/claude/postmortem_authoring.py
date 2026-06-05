@@ -8,6 +8,7 @@ affected get linked.
 from __future__ import annotations
 
 import logging
+import re
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name
@@ -17,6 +18,15 @@ from app.schemas import PostmortemDraftPayload, PostmortemFields
 from app.storage import followups_store, postmortems_store
 
 log = logging.getLogger("tank.postmortem")
+
+_PH_RE = re.compile(
+    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|"
+    r"AWS_ACCT|AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|CUSTOM[A-Z_]*)_\d+\]"
+)
+
+
+def _ph_in(text: str) -> set[str]:
+    return set(_PH_RE.findall(text or ""))
 
 
 def draft_from_freewrite(*, title: str, freewrite: str,
@@ -37,7 +47,7 @@ def draft_from_freewrite(*, title: str, freewrite: str,
         services = []
 
     body_md_red = _render(title, fields)
-    body_md = rehydrate(body_md_red, load_rehydration_map())
+    body_md = rehydrate(body_md_red, load_rehydration_map(_ph_in(body_md_red)))
 
     # resolve service names to entity IDs
     svc_ids: list[str] = []

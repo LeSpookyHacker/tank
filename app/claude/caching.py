@@ -179,6 +179,6 @@ def build_scope_block(service_id: str | None = None,
 
     return {
         "type": "text",
-        "text": "\n".join(parts),
+        "text": _KB_TRUST_HEADER + "\n".join(parts),
         "cache_control": CACHE_1H,
     }

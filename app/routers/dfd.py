@@ -23,7 +23,7 @@ import uuid
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.claude.event_bus import drain, publish, subscribe, unsubscribe
@@ -183,12 +183,13 @@ def dfd_detail(request: Request, dfd_id: str, cached: str = ""):
 # ---------------------------------------------------------------------------
 
 class GenerateFromDescRequest(BaseModel):
-    text: str
+    text: str = Field(max_length=50_000)
     project_id: str | None = None
 
 
 @router.post("/api/dfd/generate-from-description")
-async def generate_from_description(body: GenerateFromDescRequest) -> dict:
+@limiter.limit("20/hour")
+async def generate_from_description(request: Request, body: GenerateFromDescRequest) -> dict:
     from app.claude import dfd_analyzer
 
     project_notes = _get_project_notes(body.project_id)
@@ -206,7 +207,9 @@ async def generate_from_description(body: GenerateFromDescRequest) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/api/dfd/generate-from-doc")
+@limiter.limit("20/hour")
 async def generate_from_doc(
+    request: Request,
     file: UploadFile = File(...),
     project_id: str = Form(default=""),
 ) -> dict:
@@ -252,7 +255,9 @@ async def start_analysis(request: Request, body: StartAnalysisRequest) -> dict:
 
 
 @router.post("/api/dfd/start-analysis-image")
+@limiter.limit("20/hour")
 async def start_analysis_image(
+    request: Request,
     image: UploadFile = File(...),
     project_id: str = Form(default=""),
     force: bool = Form(default=False),
@@ -327,7 +332,7 @@ async def _run_analysis_task(task_id: str, body: StartAnalysisRequest) -> None:
 
     except Exception as exc:
         log.exception("analysis task %s failed", task_id)
-        publish(topic, "error", {"error": str(exc)})
+        publish(topic, "error", {"error": "Analysis failed. Check server logs for details."})
 
 
 async def _run_image_analysis_task(
@@ -363,7 +368,7 @@ async def _run_image_analysis_task(
 
     except Exception as exc:
         log.exception("image analysis task %s failed", task_id)
-        publish(topic, "error", {"error": str(exc)})
+        publish(topic, "error", {"error": "Analysis failed. Check server logs for details."})
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +376,9 @@ async def _run_image_analysis_task(
 # ---------------------------------------------------------------------------
 
 @router.post("/api/dfd/analyze")
+@limiter.limit("20/hour")
 async def analyze_dfd(
+    request: Request,
     mermaid_src: str = Form(default=""),
     image: UploadFile = File(default=None),
     force: bool = Form(default=False),
@@ -414,7 +421,8 @@ async def analyze_dfd(
 # ---------------------------------------------------------------------------
 
 @router.post("/api/dfd/{dfd_id}/improve")
-async def improve_dfd(dfd_id: str):
+@limiter.limit("20/hour")
+async def improve_dfd(request: Request, dfd_id: str):
     """Return an improved Mermaid diagram with missing elements filled in from KB."""
     from app.claude import dfd_analyzer
     from app.kb.search import hybrid_search

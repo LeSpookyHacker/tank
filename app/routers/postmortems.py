@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.claude import postmortem_authoring as pm_helper
 from app.config import TEMPLATES_DIR
@@ -16,8 +16,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 class DraftRequest(BaseModel):
-    title: str
-    freewrite: str
+    title: str = Field(max_length=500)
+    freewrite: str = Field(max_length=50_000)
     severity: str | None = None
 
 

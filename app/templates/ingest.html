@@ -376,7 +376,7 @@ function bulkStream(taskId) {
     }[d.status] || "";
     row.innerHTML = badge + `<span class="bi-icon">${icon}</span>` +
       `<span class="bi-name">${escapeHtml(d.name)}</span>` +
-      (d.category ? `<code class="bi-cat">${d.category}</code>` : "");
+      (d.category ? `<code class="bi-cat">${escapeHtml(d.category)}</code>` : "");
     if (d.status !== "started") {
       _bulkDone++;
       document.getElementById("bulk-progress-count").textContent = `${_bulkDone}/${_bulkTotal}`;

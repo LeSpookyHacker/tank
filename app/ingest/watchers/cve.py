@@ -15,9 +15,12 @@ import urllib.request
 import urllib.parse
 import json
 
+from app.redact.engine import apply_redactions
 from app.storage import nudges_store
 
 log = logging.getLogger("tank.watchers.cve")
+
+_MAX_RESPONSE_BYTES = 5 * 1024 * 1024  # 5 MB cap
 
 
 class CVEWatcher:
@@ -48,7 +51,7 @@ class CVEWatcher:
         req = urllib.request.Request(url, headers={"apiKey": api_key})
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+                data = json.loads(resp.read(_MAX_RESPONSE_BYTES).decode("utf-8"))
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -64,10 +67,14 @@ class CVEWatcher:
             matched = [d for d in deps if d.lower() in lower]
             if not matched:
                 continue
+            raw_title = f"Critical CVE may affect {matched[0]}: {cve_id}"
+            raw_body = desc_text[:600]
+            clean_title = apply_redactions(raw_title).redacted_text
+            clean_body = apply_redactions(raw_body).redacted_text
             nudges_store.insert(
                 kind="dependency_cve",
-                title=f"Critical CVE may affect {matched[0]}: {cve_id}",
-                body=desc_text[:600],
+                title=clean_title,
+                body=clean_body,
                 payload={"cve_id": cve_id, "matched_deps": matched},
                 priority=80,
             )

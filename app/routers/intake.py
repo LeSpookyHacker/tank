@@ -237,6 +237,7 @@ async def intake_complete(
     body: CompleteIntakeBody,
     background_tasks: BackgroundTasks,
 ) -> JSONResponse:
+    from app.redact.engine import apply_redactions
     answers = body.answers
 
     # Validate that the first 5 required questions are answered.
@@ -246,6 +247,15 @@ async def intake_complete(
             {"error": f"Required questions not answered: {missing}"},
             status_code=422,
         )
+
+    # Redact freetext answer values before storing or passing to Claude.
+    sanitized: dict = {}
+    for k, v in answers.items():
+        if isinstance(v, str):
+            sanitized[k] = apply_redactions(v).redacted_text
+        else:
+            sanitized[k] = v
+    answers = sanitized
 
     intake_store.complete(body.interview_id, answers)
 

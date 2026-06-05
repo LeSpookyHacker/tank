@@ -37,9 +37,15 @@ def db_path() -> Path:
 def get_conn() -> sqlite3.Connection:
     global _CONN
     if _CONN is None:
+        p = db_path()
         _CONN = sqlite3.connect(
-            db_path(), check_same_thread=False, isolation_level=None,
+            p, check_same_thread=False, isolation_level=None,
         )
+        # Restrict DB file to owner-only access
+        try:
+            p.chmod(0o600)
+        except Exception:
+            pass
         _CONN.row_factory = sqlite3.Row
         _CONN.execute("PRAGMA journal_mode=WAL")
         _CONN.execute("PRAGMA foreign_keys=ON")

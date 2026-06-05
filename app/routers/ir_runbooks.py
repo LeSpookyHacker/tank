@@ -6,9 +6,10 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.storage import entities_store, ir_runbooks_store
 
 log = logging.getLogger("tank.routers.ir_runbooks")
@@ -20,7 +21,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 class GenerateRequest(BaseModel):
     service_entity_id: str | None = None
-    threat_scenario: str
+    threat_scenario: str = Field(max_length=2_000)
     severity: str = "any"
     tabletop_id: str | None = None
 
@@ -33,7 +34,8 @@ async def list_runbooks(service_entity_id: str | None = None) -> dict:
 
 
 @api.post("/generate")
-async def generate(body: GenerateRequest, background_tasks: BackgroundTasks) -> dict:
+@limiter.limit("5/hour")
+async def generate(request: Request, body: GenerateRequest, background_tasks: BackgroundTasks) -> dict:
     background_tasks.add_task(
         _run_generate,
         service_entity_id=body.service_entity_id,
@@ -45,7 +47,8 @@ async def generate(body: GenerateRequest, background_tasks: BackgroundTasks) -> 
 
 
 @api.post("/generate-sync")
-async def generate_sync(body: GenerateRequest) -> dict:
+@limiter.limit("5/hour")
+async def generate_sync(request: Request, body: GenerateRequest) -> dict:
     """Blocking generation — used when the caller needs the runbook_id immediately."""
     from app.claude.ir_runbook import generate as _gen
     rid = _gen(

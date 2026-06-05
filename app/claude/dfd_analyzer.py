@@ -273,6 +273,7 @@ def improve_mermaid(mermaid_src: str, kb_context: str = "") -> DFDImprovement:
     Returns DFDImprovement with improved_mermaid and a suggestions list.
     Does not cache — each improve call is intentionally fresh.
     """
+    mermaid_src = apply_redactions(mermaid_src).redacted_text
     prompt = load_prompt("dfd_improve")
     client = get_client()
     user_parts: list[dict] = []

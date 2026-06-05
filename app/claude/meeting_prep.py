@@ -16,6 +16,7 @@ Two execution paths:
 from __future__ import annotations
 
 import logging
+import re
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +31,15 @@ from app.schemas import MeetingPrepBrief
 from app.storage import meeting_briefs_store
 
 log = logging.getLogger("tank.meeting_prep")
+
+_PH_RE = re.compile(
+    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|"
+    r"AWS_ACCT|AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|CUSTOM[A-Z_]*)_\d+\]"
+)
+
+
+def _ph_in(text: str) -> set[str]:
+    return set(_PH_RE.findall(text or ""))
 
 
 def _user_task_for(who: str, when: str | None,
@@ -56,7 +66,19 @@ def _user_task_for(who: str, when: str | None,
 
 def _rehydrate_brief(parsed: MeetingPrepBrief) -> dict:
     """Rehydrate every text field on a parsed brief. Pure dict out."""
-    mapping = load_rehydration_map()
+    # Collect all text fields to find which placeholders actually appear.
+    all_text = " ".join([
+        parsed.who_summary or "",
+        parsed.their_world or "",
+        parsed.overlap or "",
+        " ".join(parsed.unknowns or []),
+        " ".join(
+            (q.get("question", "") or "") + " " + (q.get("why", "") or "")
+            for q in (parsed.ranked_questions or [])
+        ),
+        parsed.one_thing_to_offer or "",
+    ])
+    mapping = load_rehydration_map(_ph_in(all_text))
 
     def _rh(s: str) -> str:
         return rehydrate(s or "", mapping)
@@ -103,7 +125,7 @@ def prepare(*, who: str, when: str | None = None,
         parsed = getattr(resp, "parsed_output", None)
     except Exception as exc:
         log.exception("meeting prep failed")
-        return {"error": str(exc)}
+        return {"error": "Meeting prep failed. Please try again."}
 
     if parsed is None:
         return {"error": "no structured output returned"}

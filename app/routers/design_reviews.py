@@ -1,10 +1,12 @@
 """Design review endpoints."""
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.claude import design_review as design_review_helper
 from app.config import TEMPLATES_DIR
@@ -16,8 +18,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 class CreateReview(BaseModel):
-    title: str
-    freewrite: str
+    title: str = Field(max_length=500)
+    freewrite: str = Field(max_length=50_000)
     requester: str | None = None
 
 
@@ -30,10 +32,10 @@ class StatusUpdate(BaseModel):
 
 
 class DecisionFromReview(BaseModel):
-    title: str
-    body_md: str
-    kind: str = "design_choice"
-    rationale: str | None = None
+    title: str = Field(max_length=500)
+    body_md: str = Field(max_length=50_000)
+    kind: Literal["design_choice", "accepted_risk", "deferred_fix", "security_invariant"] = "design_choice"
+    rationale: str | None = Field(None, max_length=10_000)
     expires_at: float | None = None
 
 
@@ -90,12 +92,14 @@ async def update_status(dr_id: str, body: StatusUpdate) -> dict:
 @api.post("/{dr_id}/decisions")
 async def add_decision(dr_id: str, body: DecisionFromReview) -> dict:
     """Spawn a decision row sourced from this review."""
+    from app.redact.engine import apply_redactions
     dr = design_reviews_store.get(dr_id)
     if not dr:
         raise HTTPException(404, "not found")
+    body_md_redacted = apply_redactions(body.body_md).redacted_text
     did = decisions_store.create(
         title=body.title, body_md=body.body_md,
-        body_md_redacted=body.body_md, kind=body.kind,
+        body_md_redacted=body_md_redacted, kind=body.kind,
         scope_entity_ids=dr.get("scope_entity_ids") or [],
         rationale=body.rationale, expires_at=body.expires_at,
         source="design_review", source_doc_id=None,

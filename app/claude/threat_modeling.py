@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from typing import Any
 
 from app.claude.caching import CACHE_1H
@@ -30,6 +31,15 @@ from app.storage import entities_store, threat_models_store
 from app.storage.chunks_store import list_chunks_for_doc
 
 log = logging.getLogger("tank.threat_modeling")
+
+_PH_RE = re.compile(
+    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|"
+    r"AWS_ACCT|AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|CUSTOM[A-Z_]*)_\d+\]"
+)
+
+
+def _ph_in(text: str) -> set[str]:
+    return set(_PH_RE.findall(text or ""))
 
 
 def _gather_service_chunks(service_id: str, limit: int = 40) -> list[dict]:
@@ -194,7 +204,7 @@ def generate(service_id: str) -> str:
 
     next_version = (prior["version"] if prior else 0) + 1
     md_red = _render_md(parsed, version=next_version)
-    md = rehydrate(md_red, load_rehydration_map())
+    md = rehydrate(md_red, load_rehydration_map(_ph_in(md_red)))
 
     threats_payload = [t.model_dump() for t in parsed.threats]
 

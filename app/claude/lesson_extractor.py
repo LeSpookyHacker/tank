@@ -14,12 +14,24 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from app.config import HAIKU_MODEL, get_client, load_prompt, log_token_usage
+from app.redact.engine import rehydrate
+from app.redact.store import load_rehydration_map
 from app.schemas import LessonExtraction
 from app.storage import lessons_store
 
 log = logging.getLogger("tank.lessons")
+
+_PH_RE = re.compile(
+    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|"
+    r"AWS_ACCT|AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|CUSTOM[A-Z_]*)_\d+\]"
+)
+
+
+def _ph_in(text: str) -> set[str]:
+    return set(_PH_RE.findall(text or ""))
 
 
 def extract_from_postmortem(pm_id: str, pm_body_redacted: str) -> list[str]:
@@ -35,8 +47,12 @@ def extract_from_postmortem(pm_id: str, pm_body_redacted: str) -> list[str]:
         return []
     ids = []
     for lesson in payload.lessons:
+        lesson_text = (lesson.title or "") + " " + (lesson.body_md or "")
+        _mapping = load_rehydration_map(_ph_in(lesson_text))
+        rehydrated_title = rehydrate(lesson.title or "", _mapping)
+        rehydrated_body = rehydrate(lesson.body_md or "", _mapping)
         lid = lessons_store.create(
-            title=lesson.title, body_md=lesson.body_md,
+            title=rehydrated_title, body_md=rehydrated_body,
             source_kind="postmortem", source_id=pm_id,
             tags=lesson.tags,
         )
@@ -56,8 +72,12 @@ def extract_from_design_review(dr_id: str, body_redacted: str) -> list[str]:
         return []
     ids = []
     for lesson in payload.lessons:
+        lesson_text = (lesson.title or "") + " " + (lesson.body_md or "")
+        _mapping = load_rehydration_map(_ph_in(lesson_text))
+        rehydrated_title = rehydrate(lesson.title or "", _mapping)
+        rehydrated_body = rehydrate(lesson.body_md or "", _mapping)
         lid = lessons_store.create(
-            title=lesson.title, body_md=lesson.body_md,
+            title=rehydrated_title, body_md=rehydrated_body,
             source_kind="design_review", source_id=dr_id,
             tags=lesson.tags,
         )

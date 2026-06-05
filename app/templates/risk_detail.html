@@ -122,7 +122,7 @@
 
 <script nonce="{{ request.state.csp_nonce }}">
 (function() {
-  var ra = {{ risk.review_at or 'null' }};
+  var ra = {{ risk.review_at | tojson }};
   if (!ra) return;
   var el = document.getElementById("review-date");
   if (!el) return;

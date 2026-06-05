@@ -272,6 +272,8 @@ def search_api(q: str = "") -> JSONResponse:
 
 
 def _do_search(q: str) -> dict:
+    if not q or len(q) > 200:
+        return {"teams": [], "projects": [], "documents": [], "reports": []}
     conn = get_conn()
     q_like = f"%{q}%"
 

@@ -470,11 +470,15 @@ def _first_hire_team_meeting() -> str | None:
     if not teams:
         return None
     for t in teams:
+        escaped_name = (t['name']
+                        .replace('\\', '\\\\')
+                        .replace('%', r'\%')
+                        .replace('_', r'\_'))
         with LOCK:
             met = get_conn().execute(
                 "SELECT COUNT(*) AS n FROM meetings "
-                "WHERE starts_at >= ? AND title LIKE ?",
-                (cutoff, f"%{t['name']}%"),
+                "WHERE starts_at >= ? AND title LIKE ? ESCAPE '\\'",
+                (cutoff, f"%{escaped_name}%"),
             ).fetchone()
         if not met or met["n"] == 0:
             return nudges_store.insert(

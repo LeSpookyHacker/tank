@@ -7,6 +7,14 @@
  * apiUrl:      the /api/entities-graph?... URL to fetch
  * options:     { width, height, onNodeClick }
  */
+function _escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function renderGraph(containerId, apiUrl, options) {
   options = options || {};
   var root = document.getElementById(containerId);
@@ -180,7 +188,7 @@ function renderGraph(containerId, apiUrl, options) {
 
     nodes.on('mouseover.tip', function(event, d) {
       tooltip.style('display', 'block')
-        .html('<strong>' + d.name + '</strong> <span style="color:var(--text-mute)">' + d.type + '</span>');
+        .html('<strong>' + _escHtml(d.name) + '</strong> <span style="color:var(--text-mute)">' + _escHtml(d.type) + '</span>');
     }).on('mousemove.tip', function(event) {
       var rect = root.getBoundingClientRect();
       tooltip.style('left', (event.clientX - rect.left + 12) + 'px')

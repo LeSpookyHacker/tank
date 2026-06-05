@@ -11,6 +11,7 @@ back-fed into the KB as a Runbook entity so chat tools can surface it.
 from __future__ import annotations
 
 import logging
+import re
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.redact.engine import apply_redactions, rehydrate
@@ -19,6 +20,16 @@ from app.schemas import IRRunbookOutput
 from app.storage import ir_runbooks_store
 
 log = logging.getLogger("tank.ir_runbook")
+
+_PH_RE = re.compile(
+    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|"
+    r"AWS_ACCT|AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|CUSTOM[A-Z_]*)_\d+\]"
+)
+
+
+def _ph_in(text: str) -> set[str]:
+    return set(_PH_RE.findall(text or ""))
+
 
 _PHASE_ICONS = {
     "detect": "🔍",
@@ -80,7 +91,7 @@ def generate(
         raise
 
     md_redacted = _render(parsed)
-    md_display = rehydrate(md_redacted, load_rehydration_map())
+    md_display = rehydrate(md_redacted, load_rehydration_map(_ph_in(md_redacted)))
 
     rid = ir_runbooks_store.create(
         threat_scenario=threat_scenario,

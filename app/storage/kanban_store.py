@@ -110,12 +110,17 @@ def delete_card(card_id: str) -> None:
         get_conn().execute("DELETE FROM kanban_cards WHERE id=?", (card_id,))
 
 
+VALID_COLUMNS = {"todo", "doing", "done"}
+
+
 def reorder_board(board_id: str, columns: dict[str, list[str]]) -> None:
     """Bulk-update positions for all cards from the given column→[card_id] map."""
     now = time.time()
     conn = get_conn()
     with LOCK:
         for col, card_ids in columns.items():
+            if col not in VALID_COLUMNS:
+                continue  # silently skip invalid column names
             for pos, card_id in enumerate(card_ids):
                 conn.execute(
                     "UPDATE kanban_cards SET \"column\"=?, position=?, updated_at=? "

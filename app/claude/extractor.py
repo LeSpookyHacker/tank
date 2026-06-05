@@ -150,8 +150,8 @@ def _persist(doc_id: str, batch_chunk_ids: list[str],
     for ent in extraction.entities:
         eid = entities_store.upsert_entity(
             type_=ent.type,
-            name=ent.name,
-            description=ent.description,
+            name=apply_redactions(ent.name).redacted_text,
+            description=apply_redactions(ent.description or "").redacted_text or None,
             attrs=ent.attrs,
             confidence=ent.confidence,
             provenance="inferred",
@@ -168,7 +168,8 @@ def _persist(doc_id: str, batch_chunk_ids: list[str],
         src_id = name_to_id.get((edge.src_type, edge.src_name.lower().strip()))
         if src_id is None:
             src_id = entities_store.upsert_entity(
-                type_=edge.src_type, name=edge.src_name,
+                type_=edge.src_type,
+                name=apply_redactions(edge.src_name).redacted_text,
                 provenance="inferred", first_seen_doc=doc_id,
                 confidence=edge.confidence * 0.5,
             )
@@ -176,7 +177,8 @@ def _persist(doc_id: str, batch_chunk_ids: list[str],
         dst_id = name_to_id.get((edge.dst_type, edge.dst_name.lower().strip()))
         if dst_id is None:
             dst_id = entities_store.upsert_entity(
-                type_=edge.dst_type, name=edge.dst_name,
+                type_=edge.dst_type,
+                name=apply_redactions(edge.dst_name).redacted_text,
                 provenance="inferred", first_seen_doc=doc_id,
                 confidence=edge.confidence * 0.5,
             )

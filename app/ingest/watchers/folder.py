@@ -5,6 +5,7 @@ import logging
 import time
 from pathlib import Path
 
+from app.ingest.path_guard import is_blocked_path
 from app.ingest.pipeline import ingest
 from app.storage import documents_store
 
@@ -14,6 +15,10 @@ log = logging.getLogger("tank.watchers.folder")
 class FolderWatcher:
     def scan(self, watcher: dict) -> dict:
         target = Path(watcher["target"]).expanduser().resolve()
+        blocked = is_blocked_path(target)
+        if blocked:
+            log.warning("folder watcher blocked path: %s reason: %s", target, blocked)
+            return {"error": f"blocked path: {blocked}"}
         if not target.is_dir():
             return {"error": f"no such directory: {target}"}
         category = watcher.get("category") or "architecture"

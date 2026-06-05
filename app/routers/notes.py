@@ -19,7 +19,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 class CreateNote(BaseModel):
     body: str = Field(max_length=50_000)
-    meeting_with_entity_id: str | None = None
+    meeting_with_entity_id: str | None = Field(None, max_length=100)
 
 
 class ConfirmNote(BaseModel):

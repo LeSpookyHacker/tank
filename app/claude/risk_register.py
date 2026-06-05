@@ -71,12 +71,15 @@ def assess(risk_id: str) -> RiskAssessmentOutput | None:
         # Compute 90-day review date from now.
         review_at = int(time.time()) + 90 * 86400
 
+        treatment = apply_redactions(result.recommended_treatment or "").redacted_text
+        rationale = apply_redactions(result.treatment_rationale or "").redacted_text
+
         risks_store.update_assessment(
             risk_id,
             residual_likelihood=result.residual_likelihood,
             residual_impact=result.residual_impact,
-            treatment=result.recommended_treatment,
-            treatment_rationale=result.treatment_rationale,
+            treatment=treatment,
+            treatment_rationale=rationale,
             review_at=review_at,
         )
         return result

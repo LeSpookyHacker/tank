@@ -16,6 +16,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.rate_limiter import limiter
+
 router = APIRouter(prefix="/api/auth")
 
 _COOKIE_NAME = "tank_session"
@@ -43,7 +45,8 @@ class _AuthIn(BaseModel):
 
 
 @router.post("/session")
-def create_session(body: _AuthIn) -> JSONResponse:
+@limiter.limit("5/minute")
+def create_session(request: Request, body: _AuthIn) -> JSONResponse:
     """Validate TANK_API_KEY and issue an HttpOnly session cookie."""
     import secrets as _sec
     from app.main import _TANK_API_KEY  # imported lazily to avoid circular
@@ -64,8 +67,8 @@ def create_session(body: _AuthIn) -> JSONResponse:
         value=token,
         httponly=True,
         samesite="strict",
+        secure=(request.url.scheme == "https"),
         max_age=_SESSION_TTL,
-        # secure=True should be added when serving over HTTPS
     )
     return resp
 

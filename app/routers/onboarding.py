@@ -30,10 +30,10 @@ class SetRoleMode(BaseModel):
 
 
 class SetScope(BaseModel):
-    freewrite: str
-    domain: str | None = None
-    org: str | None = None
-    manager: str | None = None
+    freewrite: str = Field(max_length=10_000)
+    domain: str | None = Field(default=None, max_length=200)
+    org: str | None = Field(default=None, max_length=200)
+    manager: str | None = Field(default=None, max_length=200)
     priorities: list[str] = []
 
 
@@ -58,8 +58,10 @@ async def set_role(body: SetRoleMode) -> dict:
 
 @router.post("/scope")
 async def set_scope(body: SetScope) -> dict:
+    from app.redact.engine import apply_redactions
+    redacted_fw = apply_redactions(body.freewrite).redacted_text
     scope = UserScope(
-        freewrite=body.freewrite,
+        freewrite=redacted_fw,
         domain=body.domain,
         org=body.org,
         manager=body.manager,

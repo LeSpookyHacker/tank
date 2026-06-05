@@ -9,9 +9,10 @@ import time
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.redact.engine import apply_redactions
 from app.schemas import VulnerabilityIntake
 from app.storage import risks_store, vulnerabilities_store
@@ -28,16 +29,16 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 # ── Risk register CRUD ──────────────────────────────────────────────
 
 class CreateRisk(BaseModel):
-    title: str
-    description: str
+    title: str = Field(max_length=500)
+    description: str = Field(max_length=50_000)
     category: str = "other"
     inherent_likelihood: int = 3
     inherent_impact: int = 3
     treatment: str = "mitigate"
-    treatment_rationale: str | None = None
+    treatment_rationale: str | None = Field(None, max_length=10_000)
     owner_entity_id: str | None = None
     scope_entity_ids: list[str] = []
-    controls: list[str] = []
+    controls: list[str] = Field(default_factory=list, max_length=50)
     review_days: int = 90
 
 
@@ -85,7 +86,8 @@ async def create_risk(body: CreateRisk, background_tasks: BackgroundTasks) -> di
 
 
 @api.post("/{risk_id}/assess")
-async def assess_risk(risk_id: str, background_tasks: BackgroundTasks) -> dict:
+@limiter.limit("20/hour")
+async def assess_risk(request: Request, risk_id: str, background_tasks: BackgroundTasks) -> dict:
     if not risks_store.get(risk_id):
         raise HTTPException(404, "not found")
     background_tasks.add_task(_run_assessment, risk_id)

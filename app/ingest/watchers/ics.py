@@ -9,10 +9,12 @@ upcoming weekly schedule.
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import re
 import socket
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -23,7 +25,15 @@ from app.db import LOCK, get_conn
 
 log = logging.getLogger("tank.watchers.ics")
 
-_BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal"}
+_BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal", "168.63.129.16"}
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.URLError(f"Redirect disallowed: {code} {newurl}")
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
 _MAX_ICS_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
@@ -105,7 +115,7 @@ def _fetch_ics(url: str, max_bytes: int) -> str:
         direct_url,
         headers={"Host": f"{host}{port_suffix}", "User-Agent": "Tank/1.0"},
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with _OPENER.open(req, timeout=15) as resp:
         return resp.read(max_bytes).decode("utf-8", errors="replace")
 
 
@@ -181,7 +191,7 @@ class ICSWatcher:
                     "VALUES (?, ?, ?, ?, ?, ?, 'ics', ?)",
                     (uuid.uuid4().hex, ev.get("external_id"),
                      ev["title"], ev["starts_at"], ev.get("ends_at"),
-                     str(ev.get("attendees") or []),
+                     json.dumps(ev.get("attendees") or []),
                      time.time()),
                 )
                 added += 1

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Type, TypeVar
 
 from pydantic import BaseModel
@@ -33,6 +34,15 @@ from app.storage import reports_store
 
 log = logging.getLogger("tank.reports")
 T = TypeVar("T", bound=BaseModel)
+
+_PH_RE = re.compile(
+    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|"
+    r"AWS_ACCT|AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|CUSTOM[A-Z_]*)_\d+\]"
+)
+
+
+def _ph_in(text: str) -> set[str]:
+    return set(_PH_RE.findall(text or ""))
 
 
 # ---------------- scope builders ----------------
@@ -215,7 +225,7 @@ def _render_matrix(report: ControlMatrix) -> str:
 def _finalize(*, kind: str, title: str, content_md_redacted: str,
               usage: dict, scope: dict | None = None) -> str:
     """Rehydrate, persist, publish event. Returns report_id."""
-    mapping = load_rehydration_map()
+    mapping = load_rehydration_map(_ph_in(content_md_redacted))
     content_md = rehydrate(content_md_redacted, mapping)
     state = get_state()
     rid = reports_store.insert(
@@ -921,7 +931,7 @@ def _handle_report_subscription(custom_id: str, msg, payload: dict) -> None:
         return
 
     md_redacted = spec["render_fn"](parsed)
-    mapping = load_rehydration_map()
+    mapping = load_rehydration_map(_ph_in(md_redacted))
     md = rehydrate(md_redacted, mapping)
 
     usage = getattr(msg, "usage", None)

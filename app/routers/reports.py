@@ -83,7 +83,7 @@ async def generate_report(request: Request, kind: str, body: GenerateRequest) ->
             )
     except Exception as exc:
         log.exception("report %s failed", kind)
-        raise HTTPException(500, str(exc))
+        raise HTTPException(500, "Report generation failed. Check server logs.")
 
     return {"report_id": report_id}
 
