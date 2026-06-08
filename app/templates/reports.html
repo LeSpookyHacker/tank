@@ -1,6 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Tank — reports{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.rp-s1 { font-size:0.8rem; }
+.rp-s2 { display:flex;flex-direction:column;gap:0.75rem;padding:1.5rem; }
+.rp-s3 { display:flex;align-items:center;justify-content:space-between;gap:1rem; }
+.rp-s4 { margin:0;flex:1; }
+.rp-s5 { display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.25rem; }
+.rp-s6 { background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:0;width:min(480px,90vw);max-height:80vh; }
+.rp-s7 { background:none;border:none;color:var(--text-mute);font-size:1.2rem;cursor:pointer;padding:0.1rem 0.4rem;border-radius:4px;line-height:1; }
+.rp-s8 { padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box; }
+.rp-s9 { list-style:none;padding:0;margin:0;overflow-y:auto;flex:1;max-height:300px;display:flex;flex-direction:column;gap:2px; }
+.rp-s10 { color:var(--text-mute);padding:0.5rem 0.75rem; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <section class="hero">
   <h1>Reports</h1>
@@ -13,7 +29,7 @@
   <article class="report-kind-card">
     <header>
       <h2>Day-1 Brief</h2>
-      <a href="/intake" class="btn-secondary" style="font-size:0.8rem;">Regenerate</a>
+      <a href="/intake" class="btn-secondary rp-s1">Regenerate</a>
     </header>
     <ul class="report-list">
       {% for r in day1_briefs %}
@@ -48,24 +64,16 @@
 </section>
 
 {# ── Entity picker modal — display:none when closed; no display:flex on <dialog> itself ── #}
-<dialog id="entity-picker-modal" style="
-  background:var(--bg-card);color:var(--text);border:1px solid var(--border);
-  border-radius:12px;padding:0;width:min(480px,90vw);max-height:80vh;">
-  <div style="display:flex;flex-direction:column;gap:0.75rem;padding:1.5rem;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
-      <h3 id="entity-picker-title" style="margin:0;flex:1"></h3>
-      <button id="entity-picker-close" aria-label="Close"
-        style="background:none;border:none;color:var(--text-mute);font-size:1.2rem;
-               cursor:pointer;padding:0.1rem 0.4rem;border-radius:4px;line-height:1;">✕</button>
+<dialog id="entity-picker-modal" class="rp-s6">
+  <div class="rp-s2">
+    <div class="rp-s3">
+      <h3 class="rp-s4" id="entity-picker-title"></h3>
+      <button id="entity-picker-close" aria-label="Close" class="rp-s7">✕</button>
     </div>
     <input type="search" id="entity-picker-search" placeholder="Filter…"
-      autocomplete="off"
-      style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:8px;
-             background:var(--bg-elevated);color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;">
-    <ul id="entity-picker-list" style="
-      list-style:none;padding:0;margin:0;overflow-y:auto;flex:1;
-      max-height:300px;display:flex;flex-direction:column;gap:2px;"></ul>
-    <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.25rem">
+      autocomplete="off" class="rp-s8">
+    <ul id="entity-picker-list" class="rp-s9"></ul>
+    <div class="rp-s5">
       <button id="entity-picker-cancel" class="btn-secondary">Cancel</button>
       <button id="entity-picker-confirm" class="btn-primary" disabled>Select</button>
     </div>
@@ -161,7 +169,7 @@ async function openPicker(promptTitle, types) {
   btnOk.disabled = true;
   _selected = null;
   _allItems = [];
-  list.innerHTML = '<li style="color:var(--text-mute);padding:0.5rem 0.75rem">Loading…</li>';
+  list.innerHTML = '<li class="rp-s10">Loading…</li>';
   modal.showModal();
 
   var fetched = [];
@@ -181,7 +189,7 @@ async function openPicker(promptTitle, types) {
   }
 
   if (!fetched.length) {
-    list.innerHTML = '<li style="color:var(--text-mute);padding:0.5rem 0.75rem">No entities found. Ingest some documents first.</li>';
+    list.innerHTML = '<li class="rp-s10">No entities found. Ingest some documents first.</li>';
   } else {
     _allItems = fetched;
     renderList("");

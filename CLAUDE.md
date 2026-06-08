@@ -224,20 +224,20 @@ lens.**
 | Add a new nudge kind | `app/claude/nudges.py::generate_nudges()` (add a gate function), call `nudges_store.insert(kind=...)` |
 | Add a SQL table | `app/db.py::_init_schema` (CREATE TABLE IF NOT EXISTS) + an additive migration in `_migrate_app_state_columns` if you're adding columns to an existing table |
 | Change the home dashboard / top-nav | `app/routers/dashboard.py` — handles `/`, `/dashboard`, `/teams/*`, `/search`; the Org→Team→Project hierarchy lives here |
-| Change the token usage / cost breakdown page | `app/routers/pages.py::usage_page` (`GET /usage`) + `usage_breakdown` (`GET /api/usage/breakdown`). Queries all three token tables (messages, reports, api_calls) and returns breakdowns by source, model, call site, and day. Template: `app/templates/usage.html`. The cost badge in the global header is a link to this page. |
-| Change the D3 knowledge graph | `app/static/graph.js` (D3 v7 force simulation; `renderGraph(containerId, apiUrl, options)`) + `app/templates/knowledge_graph.html` (`/knowledge-graph` full-page route). The `GET /api/entities-graph?type=all` route calls `app/kb/relationships.py::graph_for_all_types()`. The legacy call shape `renderGraph("Service", 2)` is handled by a compat shim at the bottom of `graph.js`. |
+| Change the token usage / cost breakdown page | `app/routers/pages.py::usage_page` (`GET /usage`) + `usage_breakdown` (`GET /api/usage/breakdown`). Queries all three token tables (messages, reports, api_calls); breakdowns by source, model, call site, day. Template: `app/templates/usage.html`. |
+| Change the D3 knowledge graph | `app/static/graph.js` (D3 v7 force simulation; `renderGraph(containerId, apiUrl, options)`) + `app/templates/knowledge_graph.html` (`/knowledge-graph` full-page route). `GET /api/entities-graph?type=all` calls `app/kb/relationships.py::graph_for_all_types()`. |
 | Add a versioned artifact (TM-style) | Mirror `app/storage/threat_models_store.py` (version per scope) + `app/claude/threat_modeling.py` (delta-aware regen with prior in prompt) |
 | Author a workstream artifact | Mirror Phase 13: `<artifact>s_store.py` + `app/claude/<artifact>.py` (seed via Sonnet from freewrite) + `prompts/<artifact>_draft.md` + 2 templates (`<artifact>s.html` list, `<artifact>_<new\|detail>.html`) |
 | Add a coverage / visibility analysis | Pattern in Phase 14: `app/kb/<kind>.py` for in-process queries + `app/claude/<analysis>.py` for Sonnet-driven synthesis + dedicated parser if the artifact is a new ingest type |
 | Capture a lesson from an artifact | `app/claude/lesson_extractor.py::extract_from_<source>()` — runs synchronously on publish/reject; persisted to `lessons` table |
 | Add ownership / personal-dashboard signal | `app/routers/me.py::_risk_score_for(entity_id)` — append to the heuristic mix |
 | Change service ownership / on-call roster | `app/storage/ownership_store.py` (CRUD + `seed_from_graph`) + `app/routers/ownership.py` (`/ownership` page, `/api/ownership`). Table `service_ownership` (`_migrate_service_ownership` in `app/db.py`). Surfaced on Service `entity_detail.html`, the Today home ("Services you own"), the `get_service_ownership` chat tool, IR-runbook escalation (`ir_runbook.py::_build_context`), and the `ownership_gap` nudge. Distinct from `owned_store` (the user's *personal* RACI claims). |
-| Change the Kanban board feature | `app/routers/kanban.py` (page routes `/kanban`, `/kanban/boards/{id}` + API `/api/kanban/*`) + `app/storage/kanban_store.py` + `app/templates/followups.html` (landing) + `app/templates/kanban_board.html` (board view). Tables `kanban_boards` / `kanban_cards` seeded by `_migrate_kanban` in `app/db.py`. SortableJS CDN for drag-and-drop; `POST /api/kanban/boards/{id}/reorder` persists column order. The old `followups` table + `/api/followups` endpoints stay for postmortem auto-creation and dashboard widgets. |
-| Change the front door / Today home | `/` is served by `app/routers/pages.py::home` → `index.html` (personal "Today" companion). `/dashboard` (`dashboard.py`) is the org→team→project "Workspaces" console — do NOT re-add a `/` → `/dashboard` redirect. Daily-companion pages live under the "Daily" nav group in `base.html`: `/journal`, `/kanban`, `/cadence`, `/meeting-prep`, `/notes`. |
+| Change the Kanban board feature | `app/routers/kanban.py` (page routes `/kanban`, `/kanban/boards/{id}` + API `/api/kanban/*`) + `app/storage/kanban_store.py` + `app/templates/followups.html` (landing) + `app/templates/kanban_board.html` (board view). Tables `kanban_boards` / `kanban_cards` seeded by `_migrate_kanban` in `app/db.py`. The old `followups` table + `/api/followups` endpoints stay for postmortem auto-creation and dashboard widgets. |
+| Change the front door / Today home | `/` → `app/routers/pages.py::home` → `index.html` (personal "Today" companion). `/dashboard` (`dashboard.py`) is the org→team→project "Workspaces" console — do NOT re-add a `/` → `/dashboard` redirect. Daily-companion pages: `/journal`, `/kanban`, `/cadence`, `/meeting-prep`, `/notes`. |
 | Add a continuous-ingestion connector | `app/ingest/watchers/<kind>.py` implementing `scan(watcher_row) -> ScanResult` + register in `watchers/__init__.py::dispatch`. Kinds: `folder`, `ics_url`, `cve_feed`, `github_repo`. Users enable via Settings → Integrations. |
 | Modify the two prompt-cache breakpoints | `app/claude/caching.py` — `build_system_block(role_mode, lens)` (system prompt, 1h TTL), `build_kb_block(hits, entity_cards)` (per-turn retrieved context, 5m TTL), `build_scope_block(service_id=None)` (canonical KB-scope, 1h TTL, shared across reports + anniversaries + day1 + plan + policy + compliance wizard). **Exception:** meeting prep overrides the scope block to CACHE_5M (`{**build_scope_block(), "cache_control": CACHE_5M}`) because Haiku rejects 1h TTL. Use the `CACHE_5M` / `CACHE_1H` constants from the same module instead of inlining the dict. |
-| Add a batched background job (50% off) | `app/claude/batches.py` — declare a handler with `@batches.register("<kind>")` (and optionally `@batches.register_finalizer("<kind>")` for N→1 aggregation patterns). Build each request via `app/claude/batch_helpers.py::tool_params_for(cls)` (Pydantic-class JSON schema as the forced tool's `input_schema`) and `extract_validated(msg, cls)` in the handler. Submit via `batches.submit(kind, requests, payload)`; scheduler `_tick` polls every minute. The synchronous `messages.parse` path stays for HTTP / user-waiting call sites. |
-| Change smart auto-categorization rules | `app/ingest/auto_categorize.py` — `suggest_category(path)` (path-keyword + content-sniff heuristics) and `walk_directory(root)` (returns `(path, category)` pairs, skipping hidden/.git/node_modules). `PARSEABLE_EXTS` controls which extensions `walk_directory` includes (currently includes `.mmd`). Mirrors heuristics in `app/templates/ingest.html` JS (`guessCategory`). |
+| Add a batched background job (50% off) | `app/claude/batches.py` — `@batches.register("<kind>")` for handlers, `@batches.register_finalizer("<kind>")` for N→1 aggregation. Build requests via `batch_helpers.py::tool_params_for(cls)` / `extract_validated(msg, cls)`. Submit via `batches.submit(kind, requests, payload)`; scheduler `_tick` polls every minute. |
+| Change smart auto-categorization rules | `app/ingest/auto_categorize.py` — `suggest_category(path)` (path-keyword + content-sniff heuristics) and `walk_directory(root)` (returns `(path, category)` pairs, skipping hidden/.git/node_modules). `PARSEABLE_EXTS` controls which extensions are included (currently includes `.mmd`). |
 | Add or switch projects | `app/storage/projects_store.py` + `app/routers/projects.py`. `project_id TEXT` FK added to 7 tables (documents, chunks, entities, relationships, reports, conversations, messages). Active project set in `app_state`; the project switcher in the topnav reads it from `/api/projects`. Projects belong to Teams (`team_id`); Teams belong to an Org (`org_id`). The full 3-level hierarchy (Org→Team→Project) is navigated via `app/routers/dashboard.py`. |
 | Change the side-panel chat UI | `app/templates/base.html` — the entire panel markup + ~180-line JS IIFE lives at the bottom of the `<script>` block. Panel is suppressed on `/chat` and `/onboarding` via `SUPPRESS_PATHS`. Width (240–600px), open/closed state, and `panelConvId` persist in `localStorage`. `--topbar-h` and `--footer-h` are set at runtime so the panel height fits exactly between them. CSS in `app/static/style.css` under `/* ── Side panel layout ──`. |
 | Add/modify IR runbooks | `app/claude/ir_runbook.py::generate(service_id, threat_scenario, severity)` → `app/storage/ir_runbooks_store.py` → `app/routers/ir_runbooks.py`; prompt in `prompts/ir_runbook.md`. Runbook is KB-contextual (pulls service TM, postmortems, IAM). |
@@ -269,8 +269,7 @@ The pattern, common across these phases:
 7. Drift detection (where relevant): a hash over contributing chunks
    that the regen path compares to current.
 
-Look at `app/claude/threat_modeling.py` for the reference
-implementation.
+Reference implementation: `app/claude/threat_modeling.py`.
 
 ## The three big subsystems (continued — Phase 12+ additions)
 
@@ -291,12 +290,7 @@ security_invariant}`; the `expires_at` field drives the
 tabletop}.py`, `app/storage/{design_reviews,postmortems,tabletops}_store.py`,
 `app/routers/{design_reviews,postmortems,tabletops}.py`).
 
-Three mini-apps: design-review intake → checklist → approval (spawns
-decisions); postmortem authoring from freewrite (action items become
-followups on publish, lessons get extracted); tabletop scenario
-generator with timed injects and lessons capture. The nightly 22:00
-scheduler tick auto-generates `meeting_prep` briefs for tomorrow's
-ICS-imported meetings (rate-limited to 5/day).
+Three mini-apps: design-review intake → checklist → approval (spawns decisions); postmortem authoring from freewrite (action items become followups on publish, lessons get extracted); tabletop scenario generator with timed injects and lessons capture.
 
 **6. Coverage + visibility** (`app/kb/{detections,iam,compliance}.py`,
 `app/claude/{attack_mapping,attack_surface,iam_translator,compliance}.py`).
@@ -382,7 +376,7 @@ pattern — reuse `_build_scope_block()` idiom for KB injection.
 
 `reports_store.insert()` additionally takes `cache_read_in` / `cache_create_in` — pass them or the reports table will undercount cache savings.
 
-The **`/usage`** page (`app/routers/pages.py::usage_page` + `app/templates/usage.html`) renders the breakdown by source, model, call site, and last-14-days timeline. The global header cost badge (`$—`) is a link to this page. `GET /api/usage/breakdown` is the JSON endpoint it consumes.
+The **`/usage`** page (`app/routers/pages.py::usage_page` + `app/templates/usage.html`) renders the breakdown by source, model, call site, and last-14-days timeline. `GET /api/usage/breakdown` is the JSON endpoint it consumes.
 
 ## Prompt-cache TTL helpers
 
@@ -406,7 +400,7 @@ All four scheduler fan-out consumers are migrated:
 
 Structured-output adapter: `app/claude/batch_helpers.py` provides `tool_params_for(cls)` and `extract_validated(msg, cls)`. The Batches endpoint doesn't accept `output_format=PydanticClass`, so each migration declares a single tool whose `input_schema` is the Pydantic class's JSON schema and forces it via `tool_choice={"type": "tool", "name": ...}`. The synchronous `messages.parse` path stays in place for interactive (user-waiting) call sites.
 
-Token accounting for batch results uses `log_token_usage(f"batches.{kind}", model, usage)` inside the result loop — they show up as ordinary `api_calls` rows. Subscription reports additionally pass `tokens_in/out/cache_read_in/cache_create_in` to `reports_store.insert` so per-report spend is captured in the reports table (matches sync path).
+Token accounting: `log_token_usage(f"batches.{kind}", model, usage)` inside the result loop — shows up as ordinary `api_calls` rows. Subscription reports also pass cache token fields to `reports_store.insert` (matches sync path).
 
 ## DFD Threat Modeling
 
@@ -414,7 +408,7 @@ Three-stage pipeline: Stage 1 (4-mode input) → Stage 2 (SSE progress) → Stag
 
 - **`app/schemas.py`** — `DFDThreat` (renamed from old `STRIDEThreat` to fix naming collision with reports `STRIDEThreat`); added `threat_id`, `element_label`, `title`, `cvss_estimate: float | None`, `references: list[str]`; `DFDMermaidGeneration` schema for generate flows.
 - **`app/claude/dfd_analyzer.py`** — `analyze_mermaid(src, force, project_id, project_notes, input_format)` → `(dfd_id, analysis, from_cache)`; `analyze_image(bytes, media_type, project_id, project_notes)` → same tuple; `generate_from_description(text, project_notes)` → `DFDMermaidGeneration`; `generate_from_document(file_bytes, filename, project_notes)` → `DFDMermaidGeneration`. Uses `pypdf`/`python-docx` for document text extraction.
-- **`app/routers/dfd.py`** — `POST /api/dfd/generate-from-description` and `POST /api/dfd/generate-from-doc` (return `{mermaid, notes}`); `POST /api/dfd/start-analysis` (returns `{task_id}`); `POST /api/dfd/start-analysis-image` (image variant); `GET /api/dfd/task/{task_id}/stream` (SSE drain, reuses `event_bus.py` pattern); `GET /api/dfd/{id}/export?format=mmd|original_mmd|json`. Legacy `POST /api/dfd/analyze` retained for backward compat. `GET /dfd/from-kb/{doc_id}` bridge page auto-starts analysis from a KB-ingested document (image → start-analysis-image; text → generate-from-doc). `GET /api/dfd/kb-doc-bytes/{doc_id}` serves the raw file; falls back to DB-chunk reassembly if `source_path` is gone.
+- **`app/routers/dfd.py`** — `POST /api/dfd/generate-from-description` and `POST /api/dfd/generate-from-doc` (return `{mermaid, notes}`); `POST /api/dfd/start-analysis` (returns `{task_id}`); `POST /api/dfd/start-analysis-image` (image variant); `GET /api/dfd/task/{task_id}/stream` (SSE drain); `GET /api/dfd/{id}/export?format=mmd|original_mmd|json`. `GET /dfd/from-kb/{doc_id}` bridge page auto-starts analysis from a KB-ingested document (image → start-analysis-image; text → generate-from-doc). `GET /api/dfd/kb-doc-bytes/{doc_id}` serves the raw file; falls back to DB-chunk reassembly.
 - **`app/storage/dfd_store.py`** — `insert()` accepts `input_format`, `project_id`, `cached`; `list_recent()` accepts optional `project_id` filter.
 - **`app/db.py`** — `_migrate_dfd_columns()` adds `input_format TEXT`, `project_id TEXT`, `cached INTEGER NOT NULL DEFAULT 0` columns to `dfd_analyses` (idempotent via `_add_col_safe()`).
 - **`prompts/dfd_stride.md`** — STRIDE analysis prompt; updated for new threat fields; Low severity color `#4F46E5` (was `#2563eb`); severity indicator on node labels (`⚠ H`); project context injection.
@@ -556,4 +550,4 @@ This project mirrors patterns from `/Users/manuel.del.rio/projects/job-fit/`:
   store modules.
 - Prompts as `.md` files in `prompts/`, loaded by name; never inlined.
 
-When in doubt about an idiom, check how job-fit does it.
+When in doubt, check job-fit.

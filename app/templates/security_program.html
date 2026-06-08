@@ -107,7 +107,7 @@
       </div>
       {% if metrics.compliance_controls_total > 0 %}
       <div class="sp-progress-bar">
-        <div class="sp-progress-fill" style="width: {{ compliance_pct }}%"></div>
+        <div class="sp-progress-fill" data-w-pct="{{ compliance_pct }}"></div>
       </div>
       {% endif %}
     </div>

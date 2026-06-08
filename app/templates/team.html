@@ -4,15 +4,15 @@
 {% block breadcrumb %}
   <a class="bc-item" href="/dashboard">Dashboard</a>
   <span class="bc-sep">›</span>
-  <span class="bc-item bc-current" style="color:{{ team.color }}">{{ team.icon }} {{ team.name }}</span>
+  <span class="bc-item bc-current" data-fg="{{ team.color }}">{{ team.icon }} {{ team.name }}</span>
 {% endblock %}
 
 {% block content %}
 <div class="team-page">
 
   {# ── Team header ── #}
-  <div class="team-header" style="border-left: 4px solid {{ team.color }}">
-    <div class="team-header-icon" style="background:{{ team.color }}22">{{ team.icon }}</div>
+  <div class="team-header" data-border-left="{{ team.color }}">
+    <div class="team-header-icon" data-bg="{{ team.color }}22">{{ team.icon }}</div>
     <div class="team-header-info">
       <h1 class="team-header-name">{{ team.name }}</h1>
       {% if team.description %}
@@ -72,7 +72,7 @@
          data-name="{{ p.name | lower }}"
          data-activity="{{ p.last_activity_at or 0 }}"
          data-created="{{ p.created_at or 0 }}">
-      <div class="project-card-accent" style="background:{{ p.color }};"></div>
+      <div class="project-card-accent" data-bg="{{ p.color }}"></div>
       <div class="project-card-body">
         <div class="project-card-top">
           <span class="project-card-icon">{{ p.icon or p.emoji }}</span>
@@ -163,7 +163,7 @@
     <div class="color-picker" id="np-color-picker">
       {% set colors = ["#6366f1","#6c5ce7","#00b894","#0984e3","#e17055","#fd79a8","#fdcb6e","#55efc4","#74b9ff","#a29bfe","#636e72","#e84393"] %}
       {% for c in colors %}
-      <button type="button" class="color-swatch" data-color="{{ c }}" style="background:{{ c }}"
+      <button type="button" class="color-swatch" data-color="{{ c }}" data-bg="{{ c }}"
               title="{{ c }}"></button>
       {% endfor %}
     </div>

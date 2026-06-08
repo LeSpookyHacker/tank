@@ -12,7 +12,7 @@
       {% endif %}
       {% endfor %}
       {% if avg_age > 0 %}
-      <span class="dim" style="font-size:0.82rem">avg age {{ avg_age }}d</span>
+      <span class="dim text-sm">avg age {{ avg_age }}d</span>
       {% endif %}
     </div>
   </header>
@@ -56,7 +56,7 @@
 <div class="modal-overlay" id="modal-overlay" hidden>
   <div class="modal" id="modal-content">
     <div id="modal-body"></div>
-    <button class="btn-secondary" id="modal-cancel-btn" style="margin-top:0.75rem">Cancel</button>
+    <button class="btn-secondary mt-075" id="modal-cancel-btn">Cancel</button>
   </div>
 </div>
 
@@ -72,7 +72,7 @@ function triageVuln(id) {
       <option value="">Keep current</option>
       ${["critical","high","medium","low","informational"].map(s => `<option value="${s}">${s}</option>`).join("")}
     </select>
-    <button class="btn-primary" id="modal-action-btn" style="margin-top:0.75rem">Confirm triage</button>`;
+    <button class="btn-primary mt-075" id="modal-action-btn">Confirm triage</button>`;
   document.getElementById("modal-overlay").hidden = false;
   document.getElementById("modal-action-btn").addEventListener("click", submitTriage);
 }
@@ -93,9 +93,9 @@ function assignVuln(id) {
     <h3>Assign vulnerability</h3>
     <label>Assign to</label>
     <input type="text" id="assign-owner" class="intake-text-input" placeholder="Name or team">
-    <label style="margin-top:0.75rem; display:block">Due date (optional)</label>
+    <label class="mt-075 d-block">Due date (optional)</label>
     <input type="date" id="assign-due" class="intake-text-input">
-    <button class="btn-primary" id="modal-action-btn" style="margin-top:0.75rem">Assign</button>`;
+    <button class="btn-primary mt-075" id="modal-action-btn">Assign</button>`;
   document.getElementById("modal-overlay").hidden = false;
   document.getElementById("modal-action-btn").addEventListener("click", submitAssign);
 }
@@ -127,10 +127,10 @@ function closeVuln(id) {
       <option value="wont_fix">Won't fix</option>
     </select>
     <div id="rationale-wrap" hidden>
-      <label style="margin-top:0.75rem; display:block">Rationale (for accepted risk)</label>
+      <label class="mt-075 d-block">Rationale (for accepted risk)</label>
       <textarea id="close-rationale" class="intake-textarea" rows="2"></textarea>
     </div>
-    <button class="btn-primary" id="modal-action-btn" style="margin-top:0.75rem">Close vulnerability</button>`;
+    <button class="btn-primary mt-075" id="modal-action-btn">Close vulnerability</button>`;
   document.getElementById("modal-overlay").hidden = false;
   document.getElementById("modal-action-btn").addEventListener("click", submitClose);
   document.getElementById("close-reason").addEventListener("change", function() {

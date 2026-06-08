@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Tank — settings{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.st-s1 { width:24rem; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <section class="settings-page">
   <h1>Settings</h1>
@@ -71,15 +78,15 @@
   <h2>Security</h2>
   <div class="settings-row" id="auth-section">
     <span class="dim" id="auth-status-msg">Checking auth status…</span>
-    <div id="auth-login-form" style="display:none">
+    <div class="hidden" id="auth-login-form">
       <label>TANK_API_KEY:
         <input type="password" id="auth-key-input" autocomplete="current-password"
-               placeholder="Enter TANK_API_KEY" style="width:24rem">
+               placeholder="Enter TANK_API_KEY">
       </label>
       <button class="btn-primary" id="auth-login-btn">Log in</button>
-      <span class="dim" id="auth-error" style="color:var(--danger)"></span>
+      <span class="dim text-danger" id="auth-error"></span>
     </div>
-    <button class="btn-secondary danger" id="auth-logout-btn" style="display:none">Log out</button>
+    <button class="btn-secondary danger hidden" id="auth-logout-btn">Log out</button>
   </div>
 
   <h2>Data</h2>

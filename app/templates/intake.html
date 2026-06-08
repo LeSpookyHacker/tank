@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Tank — Company Intake{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.itk-s1 { margin-top: 1.5rem; padding: 1rem 1.25rem; background: var(--surface-2); border-radius: 8px; border: 1px solid var(--border); }
+.itk-s2 { margin: 0 0 0.75rem; font-size: 0.875rem; }
+.itk-s3 { font-size: 0.85rem; }
+.itk-s4 { margin-left: 0.75rem; font-size: 0.85rem; display: none; }
+.itk-s5 { margin-top: 2rem; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <section class="intake-shell">
   <div class="intake-welcome" id="intake-welcome">
@@ -21,15 +32,15 @@
       {% endif %}
     </div>
     {% if existing and existing.completed_at %}
-    <div style="margin-top: 1.5rem; padding: 1rem 1.25rem; background: var(--surface-2); border-radius: 8px; border: 1px solid var(--border);">
-      <p class="dim" style="margin: 0 0 0.75rem; font-size: 0.875rem;">
+    <div class="itk-s1">
+      <p class="dim itk-s2">
         You've already completed an intake interview.
         Starting a new one will create a new record — your previous answers are preserved.
       </p>
-      <button class="btn-secondary" id="regen-brief-btn" style="font-size: 0.85rem;">
+      <button class="btn-secondary itk-s3" id="regen-brief-btn">
         Regenerate Day-1 Brief
       </button>
-      <span id="regen-brief-status" style="margin-left: 0.75rem; font-size: 0.85rem; display: none;"></span>
+      <span class="itk-s4" id="regen-brief-status"></span>
     </div>
     {% endif %}
   </div>
@@ -78,7 +89,7 @@
         <span class="intake-card-hint">Scan GitHub, import team directory</span>
       </a>
     </div>
-    <a href="/" class="btn-primary" style="margin-top: 2rem;">Go to dashboard →</a>
+    <a href="/" class="btn-primary itk-s5">Go to dashboard →</a>
   </div>
 </section>
 
@@ -147,7 +158,7 @@ function renderQuestion(index) {
       <input type="text" class="intake-text-input" id="q-yes-name-input"
         placeholder="${q.hint || 'Name (if yes)'}"
         value="${savedName}"
-        style="${savedChoice === 'Yes' ? '' : 'display:none'}">
+        class="${savedChoice !== 'Yes' ? 'hidden' : ''}">
     </div>`;
   } else if (q.input_type === "yes_detail") {
     const saved = answers[q.id] || {};
@@ -162,7 +173,7 @@ function renderQuestion(index) {
       </div>
       <textarea class="intake-textarea" id="q-yes-detail-input" rows="2"
         placeholder="Brief description (optional)"
-        style="${savedChoice === 'Yes' ? '' : 'display:none'}">${savedDetail}</textarea>
+        class="${savedChoice !== 'Yes' ? 'hidden' : ''}">${savedDetail}</textarea>
     </div>`;
   }
 

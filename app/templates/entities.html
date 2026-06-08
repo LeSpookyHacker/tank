@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Tank — entities{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.ent-s1 { font-size:0.78rem;margin-left:0.75rem;vertical-align:middle; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <section class="entities-page">
   <h1>Entities</h1>
@@ -48,12 +55,12 @@
   {% endif %}
 
   {% if selected_type == "Service" %}
-    <h2>Graph view <a href="/knowledge-graph" class="btn-secondary" style="font-size:0.78rem;margin-left:0.75rem;vertical-align:middle">Open full graph ◎</a></h2>
+    <h2>Graph view <a href="/knowledge-graph" class="btn-secondary ent-s1">Open full graph ◎</a></h2>
     <div id="entity-graph" class="entity-graph"></div>
     <script src="/static/graph.js"></script>
     <script nonce="{{ request.state.csp_nonce }}">renderGraph("Service", 2);</script>
   {% else %}
-    <p style="margin-top:1.5rem">
+    <p class="mt-15">
       <a href="/knowledge-graph" class="btn-secondary">◎ Open Knowledge Graph — all entity types</a>
     </p>
   {% endif %}

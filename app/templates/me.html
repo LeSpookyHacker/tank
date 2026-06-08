@@ -24,8 +24,7 @@
         </td>
         <td><span class="badge">{{ row.role }}</span></td>
         <td>
-          <span class="risk-bar"
-                style="--score: {{ row.risk_score }}">
+          <span class="risk-bar">
             {{ "%.1f"|format(row.risk_score) }}/10
           </span>
         </td>

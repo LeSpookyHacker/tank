@@ -4,12 +4,12 @@
 {% block content %}
 <div class="policy-detail-shell">
   <header class="policy-detail-header">
-    <a href="/policies" class="dim" style="font-size:0.85rem">← All policies</a>
+    <a href="/policies" class="dim text-sm2">← All policies</a>
     <h1>{{ display_name }}</h1>
     {% if policy %}
     <div class="policy-meta">
       <span class="policy-status policy-status-{{ policy.status }}">{{ policy.status }}</span>
-      <span class="dim" style="font-size:0.82rem">v{{ policy.version }}</span>
+      <span class="dim text-sm">v{{ policy.version }}</span>
       <div class="policy-status-actions">
         {% if policy.status == 'draft' %}
         <button class="btn-sm btn-secondary" class="btn-sm btn-secondary policy-status-btn" data-status="reviewed">Mark reviewed</button>

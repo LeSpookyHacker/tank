@@ -91,9 +91,9 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}' cdn.jsdelivr.net unpkg.com; "
-            # 'unsafe-inline' kept for inline style= attributes; nonce covers <style> blocks.
-            # Removing 'unsafe-inline' requires migrating all style= attrs to CSS classes.
-            f"style-src 'self' 'unsafe-inline' 'nonce-{nonce}' fonts.googleapis.com cdn.jsdelivr.net; "
+            # All inline style= attributes migrated to CSS classes or nonce-protected <style>
+            # blocks (SEC-002). JS-set styles via applyColorVars() are governed by script-src.
+            f"style-src 'self' 'nonce-{nonce}' fonts.googleapis.com cdn.jsdelivr.net; "
             "font-src fonts.gstatic.com cdn.jsdelivr.net; "
             "img-src 'self' data: blob: cdn.jsdelivr.net; "
             "connect-src 'self'; "

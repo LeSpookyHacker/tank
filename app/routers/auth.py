@@ -17,27 +17,17 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.rate_limiter import limiter
+from app.storage import sessions_store
 
 router = APIRouter(prefix="/api/auth")
 
 _COOKIE_NAME = "tank_session"
 _SESSION_TTL = 12 * 3600  # 12 hours
 
-# In-memory session store: token → expiry epoch.
-# Lost on server restart (users re-login, which is acceptable for a
-# local-first tool).
-_SESSIONS: dict[str, float] = {}
-
 
 def is_valid_session(token: str) -> bool:
-    """Return True if the token exists and has not expired."""
-    expiry = _SESSIONS.get(token)
-    if expiry is None:
-        return False
-    if time.time() > expiry:
-        _SESSIONS.pop(token, None)
-        return False
-    return True
+    """Return True if the token exists in the DB and has not expired."""
+    return sessions_store.get_expiry(token) is not None
 
 
 class _AuthIn(BaseModel):
@@ -58,8 +48,9 @@ def create_session(request: Request, body: _AuthIn) -> JSONResponse:
     if not _sec.compare_digest(body.key.strip(), _TANK_API_KEY):
         raise HTTPException(status_code=401, detail="invalid key")
 
+    sessions_store.cleanup_expired()  # prune stale rows lazily on each login
     token = secrets.token_urlsafe(32)
-    _SESSIONS[token] = time.time() + _SESSION_TTL
+    sessions_store.create(token, time.time() + _SESSION_TTL)
 
     resp = JSONResponse({"ok": True})
     resp.set_cookie(
@@ -77,7 +68,7 @@ def create_session(request: Request, body: _AuthIn) -> JSONResponse:
 def delete_session(request: Request) -> JSONResponse:
     """Invalidate the current session and clear the cookie."""
     token = request.cookies.get(_COOKIE_NAME, "")
-    _SESSIONS.pop(token, None)
+    sessions_store.delete(token)
     resp = JSONResponse({"ok": True})
     resp.delete_cookie(_COOKIE_NAME, samesite="strict")
     return resp

@@ -60,7 +60,7 @@
   <h2>Knowledge base is empty</h2>
   <p>Your entity graph has been seeded from your intake answers. Next step: ingest documents to enrich it.</p>
   <a class="btn-primary" href="/ingest">Ingest a document →</a>
-  <a class="btn-secondary" href="/discovery" style="margin-left:0.75rem">Org discovery wizard →</a>
+  <a class="btn-secondary ml-075" href="/discovery">Org discovery wizard →</a>
 </div>
 {% elif counts.documents == 0 %}
 <div class="empty-state">
@@ -68,7 +68,7 @@
   <h2>Nothing to show yet</h2>
   <p>Nothing to upload yet? Start the intake interview to build your starting point from a 15-minute conversation — no documents required.</p>
   <a class="btn-primary" href="/intake">Start intake interview →</a>
-  <a class="btn-secondary" href="/ingest" style="margin-left:0.75rem">Or ingest a document →</a>
+  <a class="btn-secondary ml-075" href="/ingest">Or ingest a document →</a>
 </div>
 {% endif %}
 
@@ -98,7 +98,7 @@
 {# ── Recent decisions strip (shown during Discovery/Assessment phases) ── #}
 {% if recent_decisions and (lens == "map" or lens == "prioritize") %}
 <section class="recent-decisions-strip">
-  <h3>Recent decisions <a class="dim" href="/decisions" style="font-size:0.8rem; font-weight:400;">View all →</a></h3>
+  <h3>Recent decisions <a class="dim text-muted-sm" href="/decisions">View all →</a></h3>
   <div class="recent-decisions-row">
     {% for d in recent_decisions %}
     <a href="/decisions" class="recent-decision-card">
@@ -158,7 +158,7 @@
 
   <article class="today-pane">
     <h2>Services you own
-      <a class="dim" href="/ownership" style="font-size:0.8rem;font-weight:400;">Roster →</a></h2>
+      <a class="dim text-muted-sm" href="/ownership">Roster →</a></h2>
     {% if owned_services %}
       <ul class="owned-services-list">
         {% for s in owned_services %}

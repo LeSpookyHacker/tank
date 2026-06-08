@@ -1,21 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Tank — Analyze KB document{% endblock %}
 
-{% block content %}
-<div style="max-width:700px;margin:3rem auto;padding:0 1.5rem;text-align:center">
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.dk-s1 { max-width:700px;margin:3rem auto;padding:0 1.5rem;text-align:center; }
+.dk-s2 { font-size:2.5rem;margin-bottom:1rem; }
+.dk-s3 { margin:2rem 0;color:var(--text-mute); }
+.dk-s4 { margin:1.5rem auto;max-width:360px; }
+.dk-s5 { margin:1.5rem 0; }
+</style>
+{% endblock %}
 
-  <div style="font-size:2.5rem;margin-bottom:1rem">
+
+{% block content %}
+<div class="dk-s1">
+
+  <div class="dk-s2">
     {% if doc.kind == 'image' %}🖼️{% elif doc.kind == 'pdf' %}📄{% elif doc.kind == 'docx' %}📝{% else %}📋{% endif %}
   </div>
 
-  <h1 style="margin-bottom:0.5rem">{{ doc.title or "Untitled document" }}</h1>
+  <h1 class="mb-05">{{ doc.title or "Untitled document" }}</h1>
   <p class="dim">{{ doc.kind }} · {{ doc.category }} · ingested from KB</p>
 
-  <div id="status-msg" style="margin:2rem 0;color:var(--text-mute)">
+  <div class="dk-s3" id="status-msg">
     Preparing to analyze…
   </div>
 
-  <div id="progress-wrap" hidden style="margin:1.5rem auto;max-width:360px">
+  <div class="dk-s4" id="progress-wrap" hidden>
     <ol class="dfd-steps" id="dfd-steps">
       <li class="dfd-step" id="step-1" data-status="pending">
         <span class="step-icon"></span>
@@ -36,9 +47,9 @@
     </ol>
   </div>
 
-  <div id="error-wrap" hidden style="margin:1.5rem 0">
-    <p id="error-msg" style="color:var(--danger)"></p>
-    <a href="/dfd" class="btn-secondary" style="margin-top:0.75rem">← Back to DFD</a>
+  <div class="dk-s5" id="error-wrap" hidden>
+    <p class="text-danger" id="error-msg"></p>
+    <a href="/dfd" class="btn-secondary mt-075">← Back to DFD</a>
   </div>
 
 </div>

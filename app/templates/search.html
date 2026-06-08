@@ -34,7 +34,7 @@
       <div class="search-items">
         {% for t in results.teams %}
         <a class="search-item" href="/teams/{{ t.id }}">
-          <span class="search-item-icon" style="background:{{ t.color }}22">{{ t.icon }}</span>
+          <span class="search-item-icon" data-bg="{{ t.color }}22">{{ t.icon }}</span>
           <div class="search-item-info">
             <div class="search-item-name">{{ t.name }}</div>
             {% if t.description %}<div class="search-item-meta">{{ t.description }}</div>{% endif %}
@@ -52,7 +52,7 @@
       <div class="search-items">
         {% for p in results.projects %}
         <a class="search-item" href="/teams/{{ p.team_id or 'default' }}/projects/{{ p.id }}">
-          <span class="search-item-icon" style="background:{{ p.color }}22">{{ p.icon or p.emoji }}</span>
+          <span class="search-item-icon" data-bg="{{ p.color }}22">{{ p.icon or p.emoji }}</span>
           <div class="search-item-info">
             <div class="search-item-name">{{ p.name }}</div>
             {% if p.description %}<div class="search-item-meta">{{ p.description }}</div>{% endif %}

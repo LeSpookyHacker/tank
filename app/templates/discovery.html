@@ -1,6 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Tank — Org Discovery Wizard{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.dc-s1 { max-width:320px; }
+.dc-s2 { font-size:0.8rem; margin-top:0.25rem; }
+.dc-s3 { display:flex; gap:0.5rem; align-items:center; }
+.dc-s4 { font-size:0.8rem; margin-top:0.5rem; }
+.dc-s5 { display:flex; gap:0.75rem; margin-top:1.5rem; }
+.dc-s6 { margin-bottom:1.5rem; }
+.dc-s7 { display:flex; gap:0.75rem; flex-wrap:wrap; }
+.dc-s8 { margin-top:0.75rem; display:flex; gap:0.5rem; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="wizard-shell">
   <header class="wizard-header">
@@ -24,21 +38,21 @@
     <p class="dim">Connect a GitHub personal access token (read-only, <code>repo</code> scope) to scan your org's repositories.</p>
     <div class="form-group">
       <label>GitHub org name</label>
-      <input type="text" id="github-org" placeholder="e.g. acme-corp" class="intake-text-input" style="max-width:320px">
+      <input type="text" id="github-org" placeholder="e.g. acme-corp" class="intake-text-input dc-s1">
     </div>
-    <p class="dim" style="font-size:0.8rem; margin-top:0.25rem">Token is read from <code>TANK_GITHUB_TOKEN</code> in your <code>.env</code> file — never sent to Anthropic.</p>
+    <p class="dim dc-s2">Token is read from <code>TANK_GITHUB_TOKEN</code> in your <code>.env</code> file — never sent to Anthropic.</p>
     <button class="btn-primary" id="github-scan-btn">Scan org →</button>
 
-    <div id="github-results" hidden style="margin-top:1.5rem">
+    <div class="mt-15" id="github-results" hidden>
       <div class="github-results-header">
         <span id="github-results-count" class="dim"></span>
-        <div style="display:flex; gap:0.5rem; align-items:center">
+        <div class="dc-s3">
           <button class="btn-sm" id="btn-check-all">Check all</button>
           <button class="btn-sm" id="btn-uncheck-all">Uncheck all</button>
         </div>
       </div>
       <div id="github-repo-list" class="repo-list"></div>
-      <button class="btn-primary" id="btn-step1-next" data-step="2" style="margin-top:1rem">Next →</button>
+      <button class="btn-primary mt-1" id="btn-step1-next" data-step="2">Next →</button>
     </div>
   </div>
 
@@ -48,15 +62,15 @@
     <p class="dim">Upload a CSV with columns: <code>name</code>, <code>email</code>, <code>team</code>, <code>role</code>. Or skip this step.</p>
     <input type="file" id="csv-file" accept=".csv">
 
-    <div id="csv-preview" hidden style="margin-top:1.5rem">
+    <div class="mt-15" id="csv-preview" hidden>
       <p id="csv-preview-count" class="dim"></p>
       <div class="csv-table-wrap">
         <table class="csv-preview-table" id="csv-preview-table"></table>
       </div>
-      <p class="dim" style="font-size:0.8rem; margin-top:0.5rem">Edit team names above before confirming. Rows with the same team will be grouped.</p>
+      <p class="dim dc-s4">Edit team names above before confirming. Rows with the same team will be grouped.</p>
     </div>
 
-    <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
+    <div class="dc-s5">
       <button type="button" class="btn-primary" data-step="3">Next →</button>
       <button type="button" class="btn-secondary" data-step="1">← Back</button>
     </div>
@@ -68,9 +82,9 @@
     <p class="dim">Enter services you've discovered in conversation or investigation that aren't in a repository.</p>
 
     <div id="manual-services-list"></div>
-    <button class="btn-secondary" id="btn-add-service" style="margin-top:0.5rem">+ Add another</button>
+    <button class="btn-secondary mt-05" id="btn-add-service">+ Add another</button>
 
-    <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
+    <div class="dc-s5">
       <button type="button" class="btn-primary" data-step="4">Next →</button>
       <button type="button" class="btn-secondary" data-step="2">← Back</button>
     </div>
@@ -79,13 +93,13 @@
   {# ── Step 4: Summary + confirm ── #}
   <div class="wizard-step-content" id="step-4" hidden>
     <h2>Step 4 — Review &amp; Confirm</h2>
-    <div id="summary-counts" style="margin-bottom:1.5rem"></div>
-    <div style="display:flex; gap:0.75rem; flex-wrap:wrap">
+    <div class="dc-s6" id="summary-counts"></div>
+    <div class="dc-s7">
       <button class="btn-primary" id="confirm-btn">Create entity stubs →</button>
       <button type="button" class="btn-secondary" data-step="3">← Back</button>
       <a href="/" class="btn-secondary">Skip for now</a>
     </div>
-    <div id="confirm-result" hidden style="margin-top:1.5rem"></div>
+    <div class="mt-15" id="confirm-result" hidden></div>
   </div>
 </div>
 
@@ -338,7 +352,7 @@ async function confirmAll() {
     const c = data.created;
     el.innerHTML = `<div class="success-box">
       <strong>Done!</strong> Created: ${c.repos} repo stubs, ${c.people} people, ${c.teams} teams, ${c.services} services.
-      <div style="margin-top:0.75rem; display:flex; gap:0.5rem">
+      <div class="dc-s8">
         <a href="/entities" class="btn-secondary">View entity graph →</a>
         <a href="/ingest" class="btn-primary">Start ingesting →</a>
       </div>

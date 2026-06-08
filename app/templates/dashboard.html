@@ -58,7 +58,7 @@
            data-activity="{{ team.last_activity_at or 0 }}"
            data-projects="{{ team.project_count }}"
            data-status="{{ team.status }}">
-          <div class="team-card-accent" style="background:{{ team.color }};"></div>
+          <div class="team-card-accent" data-bg="{{ team.color }}"></div>
           <div class="team-card-body">
             <div class="team-card-icon">{{ team.icon }}</div>
             <div class="team-card-info">
@@ -157,7 +157,7 @@
     <div class="color-picker" id="nt-color-picker">
       {% set colors = ["#6c5ce7","#00b894","#0984e3","#e17055","#fd79a8","#fdcb6e","#55efc4","#74b9ff","#a29bfe","#636e72","#2d3436","#e84393"] %}
       {% for c in colors %}
-      <button type="button" class="color-swatch" data-color="{{ c }}" style="background:{{ c }}"
+      <button type="button" class="color-swatch" data-color="{{ c }}" data-bg="{{ c }}"
               title="{{ c }}"></button>
       {% endfor %}
     </div>

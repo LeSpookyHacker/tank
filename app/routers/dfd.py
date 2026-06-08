@@ -114,7 +114,7 @@ def kb_doc_bytes(doc_id: str):
 
     conn = get_conn()
     rows = conn.execute(
-        "SELECT text_original FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC",
+        "SELECT text_redacted FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC",
         (doc_id,),
     ).fetchall()
     if not rows:
@@ -122,7 +122,7 @@ def kb_doc_bytes(doc_id: str):
             status_code=404,
             detail="Source file is gone and no text chunks were found. Re-ingest the document.",
         )
-    reassembled = "\n\n".join(r["text_original"] or "" for r in rows if r["text_original"])
+    reassembled = "\n\n".join(r["text_redacted"] or "" for r in rows if r["text_redacted"])
     return PlainTextResponse(reassembled, media_type="text/plain")
 
 

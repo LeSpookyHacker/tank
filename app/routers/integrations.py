@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -13,6 +15,8 @@ from pydantic import BaseModel
 from app.db import LOCK, get_conn
 from app.ingest.path_guard import is_blocked_path
 from app.ingest.watchers import dispatch
+
+log = logging.getLogger("tank.routers.integrations")
 
 router = APIRouter(prefix="/api/integrations")
 
@@ -38,7 +42,8 @@ def _validate_watcher_target(kind: str, target: str) -> None:
             raise HTTPException(400, "invalid folder path")
         blocked = is_blocked_path(p)
         if blocked:
-            raise HTTPException(400, f"folder target not allowed: {blocked}")
+            log.warning("blocked watcher folder target: %s (matched: %s)", p, blocked)
+            raise HTTPException(400, "folder target not allowed")
     elif kind == "github_repo":
         if not _GITHUB_REPO_RE.match(target):
             raise HTTPException(
@@ -46,6 +51,24 @@ def _validate_watcher_target(kind: str, target: str) -> None:
                 "github_repo target must be 'owner/repo' "
                 "(alphanumeric, hyphens, underscores, and dots only)",
             )
+    elif kind == "ics_url":
+        try:
+            parsed = urlparse(target)
+        except Exception:
+            raise HTTPException(400, "invalid ICS URL")
+        if parsed.scheme not in ("http", "https"):
+            raise HTTPException(400, "ics_url target must use http:// or https://")
+        if not parsed.hostname:
+            raise HTTPException(400, "ics_url target must include a hostname")
+    elif kind == "cve_feed":
+        try:
+            parsed = urlparse(target)
+        except Exception:
+            raise HTTPException(400, "invalid CVE feed URL")
+        if parsed.scheme not in ("http", "https"):
+            raise HTTPException(400, "cve_feed target must use http:// or https://")
+        if not parsed.hostname:
+            raise HTTPException(400, "cve_feed target must include a hostname")
 
 
 @router.get("/watchers")

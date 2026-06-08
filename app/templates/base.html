@@ -481,6 +481,32 @@
     })();
   </script>
 
+  <script nonce="{{ request.state.csp_nonce }}">
+    // SEC-002: Apply data-* driven color/size rules via JS.
+    // JS-set inline styles are governed by script-src, not style-src —
+    // so this pattern survives the removal of 'unsafe-inline' from style-src.
+    function applyColorVars() {
+      document.querySelectorAll('[data-bg]').forEach(function(el) {
+        el.style.background = el.dataset.bg;
+      });
+      document.querySelectorAll('[data-fg]').forEach(function(el) {
+        el.style.color = el.dataset.fg;
+      });
+      document.querySelectorAll('[data-border-left]').forEach(function(el) {
+        el.style.borderLeft = '4px solid ' + el.dataset.borderLeft;
+      });
+      document.querySelectorAll('[data-w-pct]').forEach(function(el) {
+        el.style.width = el.dataset.wPct + '%';
+      });
+      document.querySelectorAll('[data-proj-color]').forEach(function(el) {
+        el.style.setProperty('--proj-color', el.dataset.projColor);
+      });
+    }
+    document.addEventListener('DOMContentLoaded', applyColorVars);
+    // Re-apply after HTMX swaps content into the DOM
+    document.addEventListener('htmx:afterSwap', applyColorVars);
+  </script>
+
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

@@ -1,18 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Tank — Usage & Cost{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.ug-s1 { max-width:900px;margin:0 auto;padding:2rem 1.5rem; }
+.ug-s2 { color:var(--text-mute);margin-top:2rem; }
+.ug-s3 { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin:1.5rem 0; }
+.ug-s4 { color:#5cd7a0; }
+.ug-s5 { font-size:0.85rem;margin-top:-0.5rem; }
+</style>
+{% endblock %}
+
+
 {% block content %}
-<div style="max-width:900px;margin:0 auto;padding:2rem 1.5rem">
+<div class="ug-s1">
 
   <h1>Usage &amp; Cost</h1>
   <p class="lede dim">Lifetime Anthropic API spend across chat, reports, and background jobs.
   Prompt cache savings are shown separately.</p>
 
-  <div id="usage-loading" style="color:var(--text-mute);margin-top:2rem">Loading…</div>
+  <div class="ug-s2" id="usage-loading">Loading…</div>
   <div id="usage-content" hidden>
 
     <!-- Summary cards -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin:1.5rem 0">
+    <div class="ug-s3">
       <div class="usage-card">
         <div class="usage-card-label">Total spend</div>
         <div class="usage-card-value" id="u-total">—</div>
@@ -27,7 +38,7 @@
       </div>
       <div class="usage-card">
         <div class="usage-card-label">Cache saved</div>
-        <div class="usage-card-value" id="u-saved" style="color:#5cd7a0">—</div>
+        <div class="usage-card-value ug-s4" id="u-saved">—</div>
       </div>
     </div>
 
@@ -39,22 +50,22 @@
     </table>
 
     <!-- By model -->
-    <h2 style="margin-top:2rem">By model</h2>
+    <h2 class="mt-2">By model</h2>
     <table class="usage-table" id="t-model">
       <thead><tr><th>Model</th><th>USD</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
       <tbody></tbody>
     </table>
 
     <!-- Top call sites -->
-    <h2 style="margin-top:2rem">Top call sites</h2>
-    <p class="dim" style="font-size:0.85rem;margin-top:-0.5rem">Background jobs and pipeline calls (api_calls table). Chat and reports tracked separately above.</p>
+    <h2 class="mt-2">Top call sites</h2>
+    <p class="dim ug-s5">Background jobs and pipeline calls (api_calls table). Chat and reports tracked separately above.</p>
     <table class="usage-table" id="t-sites">
       <thead><tr><th>Call site</th><th>USD</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
       <tbody></tbody>
     </table>
 
     <!-- Last 14 days -->
-    <h2 style="margin-top:2rem">Last 14 days</h2>
+    <h2 class="mt-2">Last 14 days</h2>
     <table class="usage-table" id="t-days">
       <thead><tr><th>Date</th><th>USD</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
       <tbody></tbody>

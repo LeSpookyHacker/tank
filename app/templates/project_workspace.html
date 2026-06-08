@@ -4,17 +4,17 @@
 {% block breadcrumb %}
   <a class="bc-item" href="/dashboard">Dashboard</a>
   <span class="bc-sep">›</span>
-  <a class="bc-item" href="/teams/{{ team.id }}" style="color:{{ team.color }}">{{ team.icon }} {{ team.name }}</a>
+  <a class="bc-item" href="/teams/{{ team.id }}" data-fg="{{ team.color }}">{{ team.icon }} {{ team.name }}</a>
   <span class="bc-sep">›</span>
-  <span class="bc-item bc-current" style="color:{{ project.color }}">{{ project.icon or project.emoji }} {{ project.name }}</span>
+  <span class="bc-item bc-current" data-fg="{{ project.color }}">{{ project.icon or project.emoji }} {{ project.name }}</span>
 {% endblock %}
 
 {% block content %}
 <div class="workspace-page">
 
   {# ── Persistent project header ── #}
-  <header class="project-header" style="border-left: 4px solid {{ project.color }}">
-    <div class="project-header-icon" style="background:{{ project.color }}22">
+  <header class="project-header" data-border-left="{{ project.color }}">
+    <div class="project-header-icon" data-bg="{{ project.color }}22">
       {{ project.icon or project.emoji }}
     </div>
     <div class="project-header-info">
@@ -212,7 +212,7 @@ e.g.
 graph TD
   User -->|HTTPS| API
   API -->|SQL| DB"></textarea>
-            <label class="btn-secondary upload-btn" style="margin-top:0.5rem">
+            <label class="btn-secondary upload-btn mt-05">
               Load .mmd file
               <input type="file" id="dfd-mmd-file" accept=".mmd,.txt" hidden
                      id="dfd-mmd-file-input">
@@ -223,7 +223,7 @@ graph TD
                    accept="image/png,image/jpeg,image/webp">
           </div>
 
-          <button class="btn-primary" id="dfd-analyze-btn" style="margin-top:1rem">
+          <button class="btn-primary mt-1" id="dfd-analyze-btn">
             Analyze with STRIDE
           </button>
           <div class="dfd-status" id="dfd-status" hidden></div>

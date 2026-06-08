@@ -2985,3 +2985,25 @@ html:not(.theme-light) .icon-sun { display:none; }
 .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
 .btn-danger { border-color: rgb(220 38 38 / .4); color: #dc2626; }
 .btn-danger:hover { background: rgb(220 38 38 / .1); }
+
+/* ── SEC-002 utility migrations ─────────────────────────────────────────── */
+.hidden        { display: none !important; }
+.d-inline      { display: inline; }
+.d-block       { display: block; }
+.flex-1        { flex: 1; }
+.mt-05         { margin-top: 0.5rem; }
+.mt-075        { margin-top: 0.75rem; }
+.mt-1          { margin-top: 1rem; }
+.mt-15         { margin-top: 1.5rem; }
+.mt-2          { margin-top: 2rem; }
+.mb-05         { margin-bottom: 0.5rem; }
+.ml-05         { margin-left: 0.5rem; }
+.ml-075        { margin-left: 0.75rem; }
+.text-sm       { font-size: 0.82rem; }
+.text-sm2      { font-size: 0.85rem; }
+.text-muted-sm { font-size: 0.8rem; font-weight: 400; }
+.text-lg       { font-size: 1.4rem; }
+.text-danger   { color: var(--danger); }
+.text-accent   { color: var(--accent); }
+/* Used for project/team color-bar accent strips */
+.proj-accent-bar { height: 6px; }

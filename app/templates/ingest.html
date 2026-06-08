@@ -19,7 +19,7 @@
           detected and summarized — raw source is never sent.
         </p>
         <button class="btn-secondary" type="button" id="btn-choose-files">Or choose files…</button>
-        <input type="file" id="bulk-file-input" multiple style="display:none"
+        <input class="hidden" type="file" id="bulk-file-input" multiple
                accept=".pdf,.md,.markdown,.docx,.csv,.json,.yml,.yaml,.png,.jpg,.jpeg,.txt">
       </div>
     </div>
@@ -62,7 +62,7 @@
                multiple>
         <label class="btn-secondary folder-pick-label" title="Pick a folder to upload all files inside it">
           Pick folder
-          <input type="file" id="folder-input" webkitdirectory multiple style="display:none">
+          <input class="hidden" type="file" id="folder-input" webkitdirectory multiple>
         </label>
         <button class="btn-primary" id="btn-upload-file">Upload</button>
       </div>

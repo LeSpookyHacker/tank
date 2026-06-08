@@ -1,6 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Tank — DFD Threat Analysis{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.dd-s1 { width:60%;height:8px; }
+.dd-s10 { width:60%;height:12px;margin-top:8px; }
+.dd-s11 { width:75%;height:8px;margin-top:16px; }
+.dd-s12 { width:90%;height:8px;margin-top:8px; }
+.dd-s13 { --pill-color:var(--sev-critical); }
+.dd-s14 { --pill-color:var(--sev-high); }
+.dd-s15 { --pill-color:var(--sev-medium); }
+.dd-s16 { --pill-color:var(--sev-low); }
+.dd-s17 { padding:2rem; }
+.dd-s2 { width:80%;height:8px;margin-top:12px; }
+.dd-s3 { width:45%;height:8px;margin-top:12px; }
+.dd-s4 { font-size:0.82rem;margin-top:0.5rem; }
+.dd-s5 { background:var(--sev-critical); }
+.dd-s6 { background:var(--sev-high); }
+.dd-s7 { background:var(--sev-medium); }
+.dd-s8 { background:var(--sev-low); }
+.dd-s9 { width:90%;height:12px; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="dfd-workspace">
 
@@ -42,16 +65,16 @@
 
       <!-- Skeleton shown while Mermaid initializes -->
       <div class="dfd-diagram-skeleton" id="diagram-skeleton">
-        <div class="skeleton-line" style="width:60%;height:8px"></div>
-        <div class="skeleton-line" style="width:80%;height:8px;margin-top:12px"></div>
-        <div class="skeleton-line" style="width:45%;height:8px;margin-top:12px"></div>
+        <div class="skeleton-line dd-s1"></div>
+        <div class="skeleton-line dd-s2"></div>
+        <div class="skeleton-line dd-s3"></div>
       </div>
 
       <!-- Diagram error state -->
       <div class="dfd-diagram-error" id="diagram-error" hidden>
         <div class="dfd-diagram-error-icon">◈</div>
         <div id="diagram-error-msg">Diagram could not be rendered.</div>
-        <div class="dim" style="font-size:0.82rem;margin-top:0.5rem">Check that the Mermaid source is valid. <a href="/dfd">← Back</a></div>
+        <div class="dim dd-s4">Check that the Mermaid source is valid. <a href="/dfd">← Back</a></div>
       </div>
 
       <!-- Diagram zoom controls -->
@@ -73,10 +96,10 @@
       <details class="dfd-legend" id="diagram-legend">
         <summary>Legend</summary>
         <div class="dfd-legend-items">
-          <span class="legend-swatch" style="background:var(--sev-critical)"></span> Critical
-          <span class="legend-swatch" style="background:var(--sev-high)"></span> High
-          <span class="legend-swatch" style="background:var(--sev-medium)"></span> Medium
-          <span class="legend-swatch" style="background:var(--sev-low)"></span> Low
+          <span class="legend-swatch dd-s5"></span> Critical
+          <span class="legend-swatch dd-s6"></span> High
+          <span class="legend-swatch dd-s7"></span> Medium
+          <span class="legend-swatch dd-s8"></span> Low
           <span class="legend-swatch legend-none"></span> No threats
         </div>
       </details>
@@ -90,10 +113,10 @@
 
       <!-- Skeleton -->
       <div class="dfd-findings-skeleton" id="findings-skeleton">
-        <div class="skeleton-line" style="width:90%;height:12px"></div>
-        <div class="skeleton-line" style="width:60%;height:12px;margin-top:8px"></div>
-        <div class="skeleton-line" style="width:75%;height:8px;margin-top:16px"></div>
-        <div class="skeleton-line" style="width:90%;height:8px;margin-top:8px"></div>
+        <div class="skeleton-line dd-s9"></div>
+        <div class="skeleton-line dd-s10"></div>
+        <div class="skeleton-line dd-s11"></div>
+        <div class="skeleton-line dd-s12"></div>
       </div>
 
       <!-- Summary strip -->
@@ -117,10 +140,10 @@
       <div class="dfd-filter-bar" id="filter-bar" hidden>
         <div class="dfd-filter-group">
           <button class="filter-pill active" data-filter="sev" data-value="all">All</button>
-          <button class="filter-pill" data-filter="sev" data-value="Critical" style="--pill-color:var(--sev-critical)">Critical</button>
-          <button class="filter-pill" data-filter="sev" data-value="High" style="--pill-color:var(--sev-high)">High</button>
-          <button class="filter-pill" data-filter="sev" data-value="Medium" style="--pill-color:var(--sev-medium)">Medium</button>
-          <button class="filter-pill" data-filter="sev" data-value="Low" style="--pill-color:var(--sev-low)">Low</button>
+          <button class="filter-pill dd-s13" data-filter="sev" data-value="Critical">Critical</button>
+          <button class="filter-pill dd-s14" data-filter="sev" data-value="High">High</button>
+          <button class="filter-pill dd-s15" data-filter="sev" data-value="Medium">Medium</button>
+          <button class="filter-pill dd-s16" data-filter="sev" data-value="Low">Low</button>
         </div>
         <div class="dfd-filter-group dfd-stride-filters">
           <button class="filter-pill active" data-filter="stride" data-value="all">All</button>
@@ -183,15 +206,15 @@
         <div class="dfd-empty-state" id="filter-empty" hidden>
           <div class="empty-icon">◈</div>
           <div>No threats match these filters.</div>
-          <button class="btn-secondary" id="btn-clear-all-filters" style="margin-top:0.75rem">Clear filters</button>
+          <button class="btn-secondary mt-075" id="btn-clear-all-filters">Clear filters</button>
         </div>
       </div>
 
       {% if not threats %}
-      <div class="dfd-empty-state" style="padding:2rem">
+      <div class="dfd-empty-state dd-s17">
         <div class="empty-icon">✓</div>
         <div>No significant threats identified.</div>
-        <div class="dim" style="font-size:0.82rem;margin-top:0.5rem">The diagram may be too abstract. Try adding trust boundaries and data stores.</div>
+        <div class="dim dd-s4">The diagram may be too abstract. Try adding trust boundaries and data stores.</div>
       </div>
       {% endif %}
     </div>

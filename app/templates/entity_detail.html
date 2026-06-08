@@ -38,7 +38,7 @@
 
   {% if card.type == "Service" %}
     <h2>Ownership &amp; on-call
-      <a class="dim" href="/ownership" style="font-size:0.8rem;font-weight:400;">Edit roster →</a></h2>
+      <a class="dim text-muted-sm" href="/ownership">Edit roster →</a></h2>
     {% if ownership %}
       <ul class="ownership-summary">
         <li>Primary owner: <strong>{{ ownership.primary_label or "—" }}</strong>

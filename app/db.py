@@ -701,6 +701,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     # Security audit: backup checksum column.
     _migrate_backup_checksum(conn)
 
+    # Security audit SEC-003: persist sessions to SQLite so they survive restarts.
+    _migrate_sessions_table(conn)
+
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -814,6 +817,18 @@ def _migrate_journal_title(conn: sqlite3.Connection) -> None:
 def _migrate_backup_checksum(conn: sqlite3.Connection) -> None:
     """Add SHA-256 checksum column to backup_log (SEC-015)."""
     _add_col_safe(conn, "backup_log", "checksum TEXT")
+
+
+def _migrate_sessions_table(conn: sqlite3.Connection) -> None:
+    """Persist session tokens to SQLite so they survive server restarts (SEC-003)."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token      TEXT PRIMARY KEY,
+            expires_at REAL NOT NULL,
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+    """)
 
 
 def _migrate_kanban(conn: sqlite3.Connection) -> None:

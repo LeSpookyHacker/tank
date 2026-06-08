@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Tank — Setup{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.ob-s1 { font-weight:400;font-size:.85em;opacity:.6; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <section class="onboarding">
   <h1>Before we begin.</h1>
@@ -28,7 +35,7 @@
     <button class="role-btn" data-role="both">Both</button>
   </div>
 
-  <h2>Step 2 — Internal TLD <span style="font-weight:400;font-size:.85em;opacity:.6">(optional)</span></h2>
+  <h2 class="ob-s1">Step 2 — Internal TLD <span>(optional)</span></h2>
   <input id="tld-input" type="text" placeholder="e.g. corp.internal">
   <p class="field-help">
     The suffix shared by all your internal hostnames. If services live at
@@ -40,11 +47,11 @@
 
   <div class="onboarding-actions">
     <button class="btn-primary" id="btn-start-onboarding">Continue to intake interview →</button>
-    <form method="post" action="/api/onboarding/skip" style="display:inline">
+    <form class="d-inline" method="post" action="/api/onboarding/skip">
       <button type="submit" class="btn-secondary">Skip for now</button>
     </form>
   </div>
-  <p class="field-help" style="margin-top:.75rem">
+  <p class="field-help mt-075">
     The intake interview (next step) is a 20-question structured interview that seeds
     your knowledge graph and generates your Day-1 brief. It takes about five minutes
     and is the fastest way to make Tank useful.

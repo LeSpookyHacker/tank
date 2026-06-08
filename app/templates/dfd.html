@@ -1,6 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Tank — DFD Threat Analysis{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.df-s1 { margin-top:-0.5rem; }
+.df-s2 { margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-mute);text-transform:uppercase;letter-spacing:0.06em; }
+.df-s3 { list-style:none;padding:0;margin:0 0 1.5rem;display:flex;flex-direction:column;gap:0.5rem; }
+.df-s4 { background:rgb(var(--nyx-iris)/0.15);color:var(--accent);border:1px solid rgb(var(--nyx-iris)/0.3);border-radius:6px;padding:0.2rem 0.6rem;font-size:0.8rem;white-space:nowrap; }
+.df-s5 { margin:0 0 1.5rem;font-size:0.88rem; }
+.df-s6 { margin:0 0 0.75rem;font-size:0.82rem; }
+.df-s7 { list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem; }
+.df-s8 { background:var(--bg-elevated);color:var(--text-mute);border:1px solid var(--border-soft);border-radius:6px;padding:0.2rem 0.5rem;font-size:0.75rem;white-space:nowrap; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="dfd-page">
 
@@ -9,7 +23,7 @@
     <section class="dfd-input-header">
       <h1>DFD Threat Analysis</h1>
       <p class="lede">Submit a Data Flow Diagram for automated STRIDE threat modeling — from input to an interactive, clickable threat workspace.</p>
-      <p class="dim" style="margin-top:-0.5rem">Looking for per-service, versioned threat models instead? See <a href="/threat-models">Living Threat Models →</a></p>
+      <p class="dim df-s1">Looking for per-service, versioned threat models instead? See <a href="/threat-models">Living Threat Models →</a></p>
     </section>
 
     <!-- Mode selector tabs -->
@@ -38,14 +52,14 @@
     <div id="mode-existing" class="dfd-mode-panel" hidden>
 
       {# ── Analyzed DFDs ── #}
-      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-mute);text-transform:uppercase;letter-spacing:0.06em">Analyzed DFDs</h3>
+      <h3 class="df-s2">Analyzed DFDs</h3>
       {% if recent %}
-      <ul style="list-style:none;padding:0;margin:0 0 1.5rem;display:flex;flex-direction:column;gap:0.5rem;">
+      <ul class="df-s3">
         {% for d in recent %}
         <li>
           <a href="/dfd/{{ d.id }}" class="dfd-kb-card">
-            <span style="font-size:1.4rem">🗺️</span>
-            <span style="flex:1">
+            <span class="text-lg">🗺️</span>
+            <span class="flex-1">
               <strong>
                 {% if d.input_format == 'image' %}Image analysis
                 {% elif d.input_format == 'generated_from_doc' %}From document
@@ -53,41 +67,41 @@
                 {% else %}Mermaid analysis
                 {% endif %}
               </strong>
-              <span class="dim" style="margin-left:0.5rem;font-size:0.85rem">{{ d.created_at | int }}</span>
+              <span class="dim ml-05 text-sm2">{{ d.created_at | int }}</span>
             </span>
-            <span style="background:rgb(var(--nyx-iris)/0.15);color:var(--accent);border:1px solid rgb(var(--nyx-iris)/0.3);border-radius:6px;padding:0.2rem 0.6rem;font-size:0.8rem;white-space:nowrap;">
+            <span class="df-s4">
               {{ d.analysis.threats | length }} threats
             </span>
-            <span style="color:var(--accent)">→</span>
+            <span class="text-accent">→</span>
           </a>
         </li>
         {% endfor %}
       </ul>
       {% else %}
-      <p class="dim" style="margin:0 0 1.5rem;font-size:0.88rem">None yet — use the tabs above to analyze a diagram.</p>
+      <p class="dim df-s5">None yet — use the tabs above to analyze a diagram.</p>
       {% endif %}
 
       {# ── From Knowledge Base ── #}
       {% if kb_docs %}
-      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-mute);text-transform:uppercase;letter-spacing:0.06em">From your knowledge base</h3>
-      <p class="dim" style="margin:0 0 0.75rem;font-size:0.82rem">Documents ingested via the Ingest page. Click to load and analyze as a DFD.</p>
-      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem;">
+      <h3 class="df-s2">From your knowledge base</h3>
+      <p class="dim df-s6">Documents ingested via the Ingest page. Click to load and analyze as a DFD.</p>
+      <ul class="df-s7">
         {% for doc in kb_docs %}
         <li>
           <a href="/dfd/from-kb/{{ doc.id }}" class="dfd-kb-card">
-            <span style="font-size:1.4rem">
+            <span class="text-lg">
               {% if doc.kind == 'image' %}🖼️
               {% elif doc.kind == 'pdf' %}📄
               {% elif doc.kind == 'docx' %}📝
               {% else %}📋
               {% endif %}
             </span>
-            <span style="flex:1">
+            <span class="flex-1">
               <strong>{{ doc.title or doc.id[:12] }}</strong>
             </span>
-            <span style="background:var(--bg-elevated);color:var(--text-mute);border:1px solid var(--border-soft);border-radius:6px;padding:0.2rem 0.5rem;font-size:0.75rem;white-space:nowrap;">{{ doc.kind }}</span>
-            <span style="background:var(--bg-elevated);color:var(--text-mute);border:1px solid var(--border-soft);border-radius:6px;padding:0.2rem 0.5rem;font-size:0.75rem;white-space:nowrap;">{{ doc.category }}</span>
-            <span style="color:var(--accent)">→</span>
+            <span class="df-s8">{{ doc.kind }}</span>
+            <span class="df-s8">{{ doc.category }}</span>
+            <span class="text-accent">→</span>
           </a>
         </li>
         {% endfor %}
@@ -124,7 +138,7 @@
         </div>
         <div class="dfd-dropzone-hint">Accepts: .mmd · .txt · .png · .jpg · .jpeg · .svg · .json</div>
         <input type="file" id="upload-file-input" accept=".mmd,.txt,.png,.jpg,.jpeg,.svg,.json"
-               style="display:none">
+>
       </div>
       <div id="upload-preview" class="dfd-upload-preview" hidden></div>
       <div id="upload-image-notice" class="dfd-notice" hidden>
@@ -142,10 +156,10 @@
         </div>
         <div class="dfd-dropzone-hint">PDF · DOCX · TXT · MD</div>
         <input type="file" id="doc-file-input" accept=".pdf,.docx,.txt,.md"
-               style="display:none">
+>
       </div>
       <div id="doc-status" class="dfd-gen-status" hidden></div>
-      <div class="dfd-notice" style="margin-top:0.75rem">
+      <div class="dfd-notice mt-075">
         Tank will extract the architecture and generate a Mermaid diagram. Review and edit before running threat modeling.
       </div>
     </div>
@@ -155,11 +169,11 @@
       <label class="dfd-editor-label">Describe your system in plain language</label>
       <textarea id="desc-input" class="dfd-editor" rows="8"
                 placeholder="A React frontend that talks to a Node.js REST API. The API authenticates via JWT and stores user data in PostgreSQL. There's a Redis cache layer and an S3 bucket for file uploads. All external traffic goes through an AWS ALB."></textarea>
-      <button class="btn-secondary" id="btn-gen-from-desc" style="margin-top:0.75rem">
+      <button class="btn-secondary mt-075" id="btn-gen-from-desc">
         Generate Mermaid diagram →
       </button>
       <div id="desc-status" class="dfd-gen-status" hidden></div>
-      <div class="dfd-notice" style="margin-top:0.75rem">
+      <div class="dfd-notice mt-075">
         AI-generated DFDs may need adjustments. Review the diagram in Paste Mermaid mode before running threat modeling.
       </div>
     </div>
@@ -198,7 +212,7 @@
       </ol>
       <div id="progress-error" class="dfd-progress-error" hidden>
         <span id="progress-error-msg"></span>
-        <button class="btn-secondary" id="btn-reset-to-input" style="margin-top:0.75rem">← Try again</button>
+        <button class="btn-secondary mt-075" id="btn-reset-to-input">← Try again</button>
       </div>
     </div>
   </div>

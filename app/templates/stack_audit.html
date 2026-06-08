@@ -9,9 +9,9 @@
     <div class="stack-audit-progress">
       <div class="stack-audit-pct" id="completion-pct">{{ completion_pct }}%</div>
       <div class="stack-audit-progress-bar">
-        <div class="stack-audit-progress-fill" id="progress-fill" style="width: {{ completion_pct }}%"></div>
+        <div class="stack-audit-progress-fill" id="progress-fill" data-w-pct="{{ completion_pct }}"></div>
       </div>
-      <span class="dim" style="font-size:0.82rem">{{ completion_pct }}% of categories assessed</span>
+      <span class="dim text-sm">{{ completion_pct }}% of categories assessed</span>
     </div>
   </header>
 
@@ -40,7 +40,7 @@
             <option value="__other__">Other…</option>
           </select>
           <input type="text" class="audit-input audit-tool-custom"
-                 placeholder="Custom tool name" style="display:none"
+                 placeholder="Custom tool name"
                  data-field="tool_name_custom">
         </td>
         <td>

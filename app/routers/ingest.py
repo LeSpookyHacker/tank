@@ -118,7 +118,8 @@ async def ingest_path(request: Request,
         raise HTTPException(403, "path outside allowed ingest directories")
     blocked = is_blocked_path(p)
     if blocked:
-        raise HTTPException(403, f"path not allowed (sensitive directory: {blocked})")
+        log.warning("blocked ingest path attempt: %s (matched: %s)", p, blocked)
+        raise HTTPException(403, "path not allowed")
     if not p.exists():
         raise HTTPException(404, f"no such path: {req.path}")
 
@@ -188,7 +189,8 @@ async def ingest_bulk_path(request: Request, req: BulkPathRequest) -> dict:
             raise HTTPException(403, f"path outside allowed ingest directories: {raw}")
         blocked = is_blocked_path(p)
         if blocked:
-            raise HTTPException(403, f"path not allowed (sensitive directory: {blocked})")
+            log.warning("blocked ingest path attempt: %s (matched: %s)", p, blocked)
+            raise HTTPException(403, "path not allowed")
         if not p.exists():
             raise HTTPException(404, f"no such path: {raw}")
         validated.append(p)

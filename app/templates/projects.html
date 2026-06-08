@@ -1,58 +1,78 @@
 {% extends "base.html" %}
 {% block title %}Tank — Projects{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+.pj-s1 { max-width:900px; }
+.pj-s10 { flex:1;min-width:160px; }
+.pj-s11 { width:100%;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem; }
+.pj-s12 { width:100%;margin-bottom:0.6rem;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem; }
+.pj-s13 { display:flex;gap:0.5rem; }
+.pj-s14 { font-size:0.7rem; }
+.pj-s2 { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem; }
+.pj-s3 { flex-shrink:0;margin-top:0.25rem; }
+.pj-s4 { display:none;margin-bottom:1.5rem;max-width:640px; }
+.pj-s5 { margin:0 0 1rem; }
+.pj-s6 { display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.6rem; }
+.pj-s7 { font-size:0.78rem;display:block;margin-bottom:0.25rem; }
+.pj-s8 { width:56px;text-align:center;padding:0.45rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:1.2rem; }
+.pj-s9 { width:56px;height:38px;padding:2px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:transparent; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 {# ── Phase 3 (tankinstuction): card-based project dashboard with color/icon and last-opened memory ── #}
-<section style="max-width:900px">
-  <div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem">
+<section class="pj-s1">
+  <div class="page-head pj-s2">
     <div>
       <h1>Projects</h1>
       <p class="lede">Organise your knowledge base, threat models, design reviews, and conversations by project.</p>
     </div>
-    <button class="btn-primary" id="new-proj-btn" style="flex-shrink:0;margin-top:0.25rem">+ New project</button>
+    <button class="btn-primary pj-s3" id="new-proj-btn">+ New project</button>
   </div>
 
   {# ── Create form (collapsed by default) ── #}
-  <div id="create-form" class="ingest-panel" style="display:none;margin-bottom:1.5rem;max-width:640px">
-    <h3 style="margin:0 0 1rem">New project</h3>
-    <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.6rem">
+  <div id="create-form" class="ingest-panel pj-s4">
+    <h3 class="pj-s5">New project</h3>
+    <div class="pj-s6">
       <div>
-        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Icon</label>
+        <label class="dim pj-s7">Icon</label>
         <input type="text" id="new-emoji" maxlength="2" value="🔐"
-          style="width:56px;text-align:center;padding:0.45rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:1.2rem">
+>
       </div>
       <div>
-        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Color</label>
+        <label class="dim pj-s7">Color</label>
         <input type="color" id="new-color" value="#6366f1"
-          style="width:56px;height:38px;padding:2px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:transparent">
+>
       </div>
-      <div style="flex:1;min-width:160px">
-        <label class="dim" style="font-size:0.78rem;display:block;margin-bottom:0.25rem">Name</label>
+      <div class="pj-s10">
+        <label class="dim pj-s7">Name</label>
         <input type="text" id="new-name" placeholder="Project name"
-          style="width:100%;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
+>
       </div>
     </div>
     <input type="text" id="new-desc" placeholder="Description (optional)"
-      style="width:100%;margin-bottom:0.6rem;padding:0.45rem 0.7rem;background:rgb(var(--nyx-midnight));border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:0.9rem">
-    <div style="display:flex;gap:0.5rem">
+>
+    <div class="pj-s13">
       <button class="btn-primary" id="btn-create-project">Create</button>
       <button class="btn-secondary" id="btn-cancel-create">Cancel</button>
     </div>
-    <div class="ingest-status" id="create-status" style="margin-top:0.5rem"></div>
+    <div class="ingest-status mt-05" id="create-status"></div>
   </div>
 
   {# ── Project cards grid ── #}
   <div class="proj-grid" id="project-grid">
     {% for p in projects %}
     <div class="proj-card" id="card-{{ p.id }}"
-      style="--proj-color:{{ p.color or '#6366f1' }}"
+      data-proj-color="{{ p.color or '#6366f1' }}"
       data-project-id="{{ p.id }}">
       <div class="proj-card__accent"></div>
       <div class="proj-card__body">
         <div class="proj-card__top">
           <span class="proj-card__icon">{{ p.emoji or '🔐' }}</span>
           {% if p.id == active_id %}
-          <span class="badge badge-source" style="font-size:0.7rem">active</span>
+          <span class="badge badge-source pj-s14">active</span>
           {% endif %}
         </div>
         <div class="proj-card__name">{{ p.name }}</div>
@@ -74,7 +94,7 @@
   </div>
 
   {% if not projects %}
-  <p class="dim" style="margin-top:2rem">No projects yet. Create one above.</p>
+  <p class="dim mt-2">No projects yet. Create one above.</p>
   {% endif %}
 </section>
 
