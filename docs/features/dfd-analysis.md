@@ -118,8 +118,9 @@ independently within the viewport.
 
 The annotated Mermaid diagram is rendered with a custom Nyx theme:
 
-- Background `#0d0d12`, primary color `#1a1728`, line color `#6c5ce7`
-- Nodes are color-coded by their highest-severity threat
+- Background `#0d0d12`, node fill `#2d1b6e`, border `#7c3aed`, edge `#9d8df1`
+- Nodes are color-coded by their highest-severity threat (severity fills applied via
+  `applyTankTheme()` in JS — see CLAUDE.md § Mermaid SVG rendering)
 
 **Interaction:**
 - **Hover node** — tooltip shows element label and threat count

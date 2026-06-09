@@ -432,13 +432,15 @@ The `improve_mermaid` endpoint pulls KB context using `hybrid_search("data flow 
 
 **Mermaid SVG rendering:** Mermaid v10+ renders node labels inside `<foreignObject>` elements. Use `element.innerHTML = result.svg` directly — never run DOMPurify on the output. Use `securityLevel: 'loose'` (NOT `'strict'` or `'antiscript'`). Mermaid v11 internally calls `DOMPurify.sanitize(svg, {ADD_TAGS:["foreignobject"], ADD_ATTR:["dominant-baseline"]})` for both `strict` and `antiscript` modes. Because `"style"` is not in ADD_ATTR, DOMPurify strips every inline `style="fill:..."` attribute from SVG shapes AND strips the `<style>` theme block — leaving only floating text labels visible in a black void. `loose` mode skips this DOMPurify pass entirely. Tank is local-first (users own their own diagrams) so XSS from Mermaid diagram content is not a concern.
 
+**CSP §8.3.2 — nonce defeats `unsafe-inline` for `<style>` elements:** Tank's CSP has a per-request nonce in `style-src`. Per CSP3 §8.3.2, when any `nonce-*` token is present in `style-src`, browsers silently ignore `'unsafe-inline'` for `<style>` ELEMENTS (not for `style=""` attributes). Mermaid's runtime-generated `<style>` block is inserted via `innerHTML` and has no nonce — it is always blocked, no matter what. **The fix:** call `applyTankTheme(container)` (in `dfd_detail.html`) or `applyPreviewTheme(container)` (in `dfd.html`) immediately after `inner.innerHTML = result.svg`. These functions set `element.style.setProperty()` from nonce-protected `<script>` blocks — JS DOM style manipulation is governed by `script-src` only, not `style-src`, so it always works. `applyTankTheme` is severity-aware: it reads `_elementThreatMap` (built from server-rendered threat cards) to pick per-node fill colors. **If you add a new page that renders Mermaid, you must call one of these functions after inserting the SVG.**
+
 ## Operations layer (the always-on-VM additions)
 
 Tank is designed to run on a user-owned dev VM via SSH tunnel, not
 on a laptop that sleeps. Key durable + operational pieces:
 
 - **Healthcheck**: `GET /healthz` returns
-  `{ok, scheduler, db, tenure_day}`. Wire into systemd / external
+  `{ok, scheduler, db}`. Wire into systemd / external
   probe. No Sonnet calls; cheap. Defined in `app/main.py`.
 - **Durable scheduler state**: `scheduler_state` table replaces the
   previous in-memory `_LAST_FIRED` dict. Restarts (intentional or
