@@ -91,9 +91,16 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}' cdn.jsdelivr.net unpkg.com; "
-            # All inline style= attributes migrated to CSS classes or nonce-protected <style>
-            # blocks (SEC-002). JS-set styles via applyColorVars() are governed by script-src.
-            f"style-src 'self' 'nonce-{nonce}' fonts.googleapis.com cdn.jsdelivr.net; "
+            # SEC-002: inline style= attributes migrated to CSS classes or nonce-protected <style>
+            # blocks. 'unsafe-inline' is intentionally included in style-src because Mermaid
+            # (v11+) injects a <style> block and inline style="" attributes into its dynamically-
+            # rendered SVG output. Mermaid's SVG is generated entirely at runtime by the JS
+            # library — we cannot attach a CSP nonce to it. Without 'unsafe-inline', Chrome blocks
+            # the Mermaid <style> block and all SVG style="" attributes, causing all node shapes
+            # and edges to render invisibly (black fill = default SVG, on dark background).
+            # Tank is a local-only app so the XSS risk surface for style-src is minimal.
+            # Note: 'unsafe-inline' in style-src does NOT allow inline JS — script-src remains strict.
+            f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net; "
             "font-src fonts.gstatic.com cdn.jsdelivr.net; "
             "img-src 'self' data: blob: cdn.jsdelivr.net; "
             "connect-src 'self'; "

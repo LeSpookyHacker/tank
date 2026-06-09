@@ -343,11 +343,21 @@ mermaid.initialize({
   startOnLoad: false,
   theme: isLight ? 'default' : 'base',
   themeVariables: isLight ? {} : {
-    background: '#0d0d12', primaryColor: '#1a1728', primaryTextColor: '#e8e6f0',
-    primaryBorderColor: '#3d2e6b', lineColor: '#6c5ce7',
+    background: '#0d0d12',
+    primaryColor: '#2d1b6e',        // node fill — visible dark purple (was #1a1728, near-black)
+    primaryTextColor: '#e8e6f0',
+    primaryBorderColor: '#7c3aed',  // vibrant amethyst border (was #3d2e6b, too dark)
+    secondaryColor: '#1e1560',      // trust boundary / subgraph fills
+    tertiaryColor: '#1a1040',       // additional node variant
+    lineColor: '#9d8df1',           // edge arrows — lighter for readability (was #6c5ce7)
     fontFamily: 'Inter, sans-serif', fontSize: '14px',
   },
-  securityLevel: 'strict',
+  // 'loose' is required for correct SVG rendering in Mermaid v11.
+  // Both 'strict' and 'antiscript' run DOMPurify on the SVG with ADD_ATTR:["dominant-baseline"]
+  // which does NOT include "style" — so DOMPurify strips every inline style="fill:..."
+  // attribute from SVG shapes, making all nodes invisible. The <style> block is also stripped.
+  // Tank is local-first (users own their own diagrams) so XSS from Mermaid is not a threat.
+  securityLevel: 'loose',
 });
 
 // ── Build element → threat count map from server-rendered threat cards ──
@@ -357,6 +367,71 @@ document.querySelectorAll('.threat-card').forEach(function(card) {
   if (!eid) return;
   _elementThreatMap[eid] = (_elementThreatMap[eid] || []).concat(card.dataset.severity);
 });
+
+// ── Apply Tank dark theme to Mermaid SVG via JS DOM manipulation ──
+// Mermaid injects a <style> block into the SVG at runtime. Chrome's CSP ignores
+// 'unsafe-inline' for <style> ELEMENTS when a nonce is present in the policy
+// (CSP3 §8.3.2), so Mermaid's generated stylesheet is always blocked. Setting
+// element.style properties from a nonce-protected <script> is governed by
+// script-src only — it bypasses style-src entirely, which is the correct fix.
+function applyTankTheme(container) {
+  var svg = container.querySelector('svg');
+  if (!svg) return;
+
+  // Severity fill palette (mirrors CSS vars + dfd_stride.md)
+  var SEV_FILL = { Critical: '#DC2626', High: '#EA580C', Medium: '#D97706', Low: '#4F46E5' };
+  var SEV_ORDER = ['Critical', 'High', 'Medium', 'Low'];
+  function worstFill(nodeId) {
+    var sevs = _elementThreatMap[nodeId] || [];
+    for (var i = 0; i < SEV_ORDER.length; i++) {
+      if (sevs.indexOf(SEV_ORDER[i]) !== -1) return SEV_FILL[SEV_ORDER[i]];
+    }
+    return null;
+  }
+
+  // 1. Individual nodes — find by .node group, set fill based on threat severity
+  svg.querySelectorAll('g.node').forEach(function(g) {
+    var nodeId = extractNodeId(g.id || '');
+    var fill = (nodeId && worstFill(nodeId)) || '#2d1b6e';
+    g.querySelectorAll('rect, circle, ellipse, polygon').forEach(function(shape) {
+      shape.style.setProperty('fill', fill, 'important');
+      shape.style.setProperty('stroke', '#7c3aed', 'important');
+      shape.style.setProperty('stroke-width', '2px', 'important');
+    });
+  });
+
+  // 2. Cluster / subgraph bounding boxes (trust boundaries, VPCs)
+  svg.querySelectorAll('.cluster rect').forEach(function(rect) {
+    rect.style.setProperty('fill', '#1a1040', 'important');
+    rect.style.setProperty('stroke', '#5b3fa8', 'important');
+    rect.style.setProperty('stroke-width', '1px', 'important');
+    rect.style.setProperty('fill-opacity', '0.85', 'important');
+  });
+
+  // 3. Data-flow edges
+  svg.querySelectorAll('.flowchart-link, path.flowchart-link').forEach(function(p) {
+    p.style.setProperty('stroke', '#9d8df1', 'important');
+    p.style.setProperty('stroke-width', '1.5px', 'important');
+    p.style.setProperty('fill', 'none', 'important');
+  });
+
+  // 4. Arrowhead markers (inside <defs>)
+  svg.querySelectorAll('marker path, marker polygon').forEach(function(el) {
+    el.style.setProperty('fill', '#9d8df1', 'important');
+    el.style.setProperty('stroke', '#9d8df1', 'important');
+  });
+
+  // 5. Edge label text
+  svg.querySelectorAll('.edgeLabel span, .edgeLabel p').forEach(function(el) {
+    el.style.setProperty('color', '#c4b5fd', 'important');
+    el.style.setProperty('background', 'transparent', 'important');
+  });
+
+  // 6. Node labels — ensure text is readable
+  svg.querySelectorAll('.nodeLabel, .label span, .label p').forEach(function(el) {
+    el.style.setProperty('color', '#e8e6f0', 'important');
+  });
+}
 
 // ── Render diagram ──
 async function initDiagram() {
@@ -372,7 +447,8 @@ async function initDiagram() {
   try {
     var result = await mermaid.render('dfd-main-svg', src);
     var inner = document.getElementById('diagram-inner');
-    inner.innerHTML = result.svg; // Mermaid strict mode already sanitizes
+    inner.innerHTML = result.svg;
+    applyTankTheme(inner);  // paint Tank colors via JS — bypasses CSP style-src
 
     document.getElementById('diagram-skeleton').hidden = true;
     document.getElementById('zoom-controls').hidden = false;
@@ -385,12 +461,12 @@ async function initDiagram() {
     document.getElementById('diagram-error-msg').textContent = 'Render error: ' + msg;
   }
 
-  // Render print diagram too
+  // Render print diagram too (theme not needed — print path uses CSS)
   if (_annotatedSrc) {
     try {
       var pr = await mermaid.render('dfd-print-svg', _annotatedSrc);
       var pd = document.getElementById('print-diagram');
-      if (pd) pd.innerHTML = pr.svg;
+      if (pd) { pd.innerHTML = pr.svg; applyTankTheme(pd); }
     } catch (_) {}
   }
 

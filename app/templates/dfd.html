@@ -259,11 +259,20 @@ mermaid.initialize({
   startOnLoad: false,
   theme: document.documentElement.classList.contains('theme-light') ? 'default' : 'base',
   themeVariables: document.documentElement.classList.contains('theme-light') ? {} : {
-    background: '#0d0d12', primaryColor: '#1a1728', primaryTextColor: '#e8e6f0',
-    primaryBorderColor: '#3d2e6b', lineColor: '#6c5ce7',
+    background: '#0d0d12',
+    primaryColor: '#2d1b6e',
+    primaryTextColor: '#e8e6f0',
+    primaryBorderColor: '#7c3aed',
+    secondaryColor: '#1e1560',
+    tertiaryColor: '#1a1040',
+    lineColor: '#9d8df1',
     fontFamily: 'Inter, sans-serif', fontSize: '14px',
   },
-  securityLevel: 'strict',
+  // 'loose' is required for correct SVG rendering in Mermaid v11.
+  // Both 'strict' and 'antiscript' call DOMPurify with ADD_ATTR:["dominant-baseline"]
+  // only, so DOMPurify strips inline style="fill:..." from every SVG shape, making
+  // all nodes invisible. Tank is local-first; users own their diagrams — not a threat.
+  securityLevel: 'loose',
 });
 
 // ── Mode switching ──
@@ -312,6 +321,46 @@ function onMermaidInput() {
   previewTimer = setTimeout(renderPreview, 300);
 }
 
+// Apply Tank dark theme to a Mermaid SVG container via JS DOM manipulation.
+// CSP: when a nonce is present in style-src, 'unsafe-inline' is ignored for
+// <style> ELEMENTS (CSP3 §8.3.2), so Mermaid's generated stylesheet is blocked.
+// element.style.setProperty() is governed by script-src only — always allowed.
+function applyPreviewTheme(container) {
+  var svg = container.querySelector('svg');
+  if (!svg) return;
+
+  // Nodes
+  svg.querySelectorAll('g.node').forEach(function(g) {
+    g.querySelectorAll('rect, circle, ellipse, polygon').forEach(function(s) {
+      s.style.setProperty('fill', '#2d1b6e', 'important');
+      s.style.setProperty('stroke', '#7c3aed', 'important');
+      s.style.setProperty('stroke-width', '2px', 'important');
+    });
+  });
+  // Clusters / subgraph boxes
+  svg.querySelectorAll('.cluster rect').forEach(function(r) {
+    r.style.setProperty('fill', '#1a1040', 'important');
+    r.style.setProperty('stroke', '#5b3fa8', 'important');
+    r.style.setProperty('stroke-width', '1px', 'important');
+    r.style.setProperty('fill-opacity', '0.85', 'important');
+  });
+  // Edges
+  svg.querySelectorAll('.flowchart-link, path.flowchart-link').forEach(function(p) {
+    p.style.setProperty('stroke', '#9d8df1', 'important');
+    p.style.setProperty('stroke-width', '1.5px', 'important');
+    p.style.setProperty('fill', 'none', 'important');
+  });
+  // Arrowhead markers
+  svg.querySelectorAll('marker path, marker polygon').forEach(function(el) {
+    el.style.setProperty('fill', '#9d8df1', 'important');
+    el.style.setProperty('stroke', '#9d8df1', 'important');
+  });
+  // Node labels
+  svg.querySelectorAll('.nodeLabel, .label span, .label p').forEach(function(el) {
+    el.style.setProperty('color', '#e8e6f0', 'important');
+  });
+}
+
 async function renderPreview() {
   var src = (document.getElementById('mermaid-input').value || '').trim();
   var area = document.getElementById('mermaid-preview-area');
@@ -327,10 +376,11 @@ async function renderPreview() {
     mermaidPreviewId++;
     var id = 'prev-' + mermaidPreviewId;
     var result = await mermaid.render(id, src);
-    // Mermaid securityLevel:'strict' already sanitizes its own output —
-    // running DOMPurify on top strips <foreignObject> (node label text)
-    // and <style> blocks, making all text invisible. Use svg directly.
+    // Do NOT add DOMPurify on top of result.svg — it strips <foreignObject> (node
+    // labels) and style attributes, making all shapes invisible. Mermaid loose mode
+    // handles the diagram source; no external DOMPurify needed.
     preEl.innerHTML = result.svg;
+    applyPreviewTheme(preEl);  // paint Tank colors via JS — bypasses CSP style-src
     errEl.hidden = true;
   } catch (e) {
     preEl.innerHTML = '';

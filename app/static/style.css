@@ -1115,6 +1115,11 @@ input:focus, textarea:focus, select:focus {
 .dfd-findings-skeleton {
   padding: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;
 }
+/* display:flex above overrides UA [hidden]{display:none} — restore it explicitly */
+.dfd-diagram-skeleton[hidden],
+.dfd-findings-skeleton[hidden] {
+  display: none;
+}
 .skeleton-line {
   background: linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-card) 50%, var(--bg-elevated) 75%);
   background-size: 200% 100%; border-radius: 4px; height: 8px;

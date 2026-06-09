@@ -430,7 +430,7 @@ The `improve_mermaid` endpoint pulls KB context using `hybrid_search("data flow 
 
 **DFD "← Existing" tab:** The tab appears when either `dfd_analyses` rows exist OR ingested documents are present. It shows two sections: analyzed DFDs (from `dfd_analyses`) and architecture/image KB documents (filtered from `documents` table). The router (`dfd_page`) filters `kb_docs` to `kind='image'`, `category='architecture'`, or path keyword matches (dfd/diagram/flow/architect).
 
-**Mermaid SVG rendering:** Mermaid v10+ renders node labels inside `<foreignObject>` elements. Never pass `mermaid.render()` output through DOMPurify — `USE_PROFILES:{svg:true}` strips `<foreignObject>` and `<style>` blocks, making all text invisible. Use `element.innerHTML = result.svg` directly; Mermaid's own `securityLevel:'strict'` already sanitizes the output.
+**Mermaid SVG rendering:** Mermaid v10+ renders node labels inside `<foreignObject>` elements. Use `element.innerHTML = result.svg` directly — never run DOMPurify on the output. Use `securityLevel: 'loose'` (NOT `'strict'` or `'antiscript'`). Mermaid v11 internally calls `DOMPurify.sanitize(svg, {ADD_TAGS:["foreignobject"], ADD_ATTR:["dominant-baseline"]})` for both `strict` and `antiscript` modes. Because `"style"` is not in ADD_ATTR, DOMPurify strips every inline `style="fill:..."` attribute from SVG shapes AND strips the `<style>` theme block — leaving only floating text labels visible in a black void. `loose` mode skips this DOMPurify pass entirely. Tank is local-first (users own their own diagrams) so XSS from Mermaid diagram content is not a concern.
 
 ## Operations layer (the always-on-VM additions)
 
