@@ -13,6 +13,54 @@ of work, in chronological order.
 
 ---
 
+## 2026-06-08 — DFD diagram rendering fix (skeleton loaders, Mermaid securityLevel, CSP §8.3.2)
+
+Three-layer bug that made the DFD workspace completely unusable: skeleton loading bars never hid,
+and all node shapes, severity colors, and data-flow edges were invisible — only floating white text
+labels visible in a black void.
+
+**Layer 1 — skeleton loaders never hiding.** `app/static/style.css` sets `display: flex` on
+`.dfd-diagram-skeleton` and `.dfd-findings-skeleton`. Author stylesheets have higher cascade
+precedence than the browser's user-agent `[hidden] { display: none }`, so JS calls to
+`element.hidden = true` had no visual effect. Fix: explicit `[hidden]` compound-selector override
+(`display: none`) in style.css.
+
+**Layer 2 — Mermaid `securityLevel: 'strict'` stripping SVG styles.** Mermaid v11 internally
+calls `DOMPurify.sanitize(svg, {ADD_TAGS:["foreignobject"], ADD_ATTR:["dominant-baseline"]})` for
+both `strict` and `antiscript` modes. `"style"` is not in `ADD_ATTR`, so DOMPurify strips every
+inline `style="fill:..."` attribute from SVG shape elements AND the entire `<style>` theme block.
+Result: all node shapes render black (SVG default), blending into the dark background. Fix:
+`securityLevel: 'loose'`, which skips the DOMPurify pass entirely. Tank is local-only; XSS from
+Mermaid diagram content is not a threat.
+
+**Layer 3 — CSP §8.3.2 nonce defeating `unsafe-inline` for `<style>` elements.** Even after
+switching to `loose` mode, shapes remained invisible. Root cause: Tank's CSP has a per-request
+`nonce-*` in `style-src`. Per CSP3 §8.3.2, when any nonce is present in `style-src`, browsers
+silently ignore `'unsafe-inline'` for `<style>` ELEMENTS — nonces and `unsafe-inline` are mutually
+exclusive for style elements by spec. Mermaid's runtime-generated `<style>` block (injected via
+`innerHTML`) can never receive a nonce, so it is permanently blocked regardless of `unsafe-inline`
+in the policy. Meanwhile, `style=""` ATTRIBUTES are governed separately and are allowed by
+`unsafe-inline` even when a nonce is present. Adding `'unsafe-inline'` to `style-src` in
+`app/main.py` was necessary but not sufficient.
+
+The definitive fix was `applyTankTheme(container)` (in `dfd_detail.html`) and
+`applyPreviewTheme(container)` (in `dfd.html`): after `inner.innerHTML = result.svg`, these
+functions walk the SVG DOM and call `element.style.setProperty(prop, value, 'important')` on
+every node shape, cluster rect, edge path, and arrowhead marker. JS DOM style manipulation is
+governed by `script-src` only (not `style-src`), so it always works from a nonce-protected
+`<script>` block. `applyTankTheme` is severity-aware: it reads `_elementThreatMap` (built from
+server-rendered threat card `data-severity` attributes) to apply per-node fill colors matching
+the STRIDE severity palette (Critical `#DC2626`, High `#EA580C`, Medium `#D97706`, Low `#4F46E5`).
+Nodes with no threats get the default Tank purple (`#2d1b6e` fill, `#7c3aed` stroke, 2px).
+
+Also corrected the dark-theme `themeVariables` in both templates: `primaryColor` was `#1a1728`
+(essentially black, 1.38:1 contrast against the `#0d0d12` background — invisible even if CSS
+had applied) → `#2d1b6e`; `lineColor` `#6c5ce7` → `#9d8df1`; `primaryBorderColor` `#3d2e6b` →
+`#7c3aed`. The `applyTankTheme` function now owns these values; the themeVariables are kept as
+a fallback for light mode and print.
+
+---
+
 ## 2026-06-04 — Meeting prep fix, stack audit tool dropdown, Vditor editor for Notes & Meeting Prep
 
 Three independent improvements. Meeting prep was broken: `prepare()` passed `build_scope_block()`
