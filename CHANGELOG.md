@@ -12,6 +12,78 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-06-09] — Vditor markdown editor in risk management UI
+
+### Changed
+
+- **Vditor editor on risk management pages** — the plain textareas on the risk register entry
+  form (description, context, notes, treatment rationale fields) are replaced with the same
+  Vditor 3.10.9 rich Markdown editor used in the journal, notes, and meeting prep pages:
+  IR mode, custom toolbar (bold, italic, headings, lists, code blocks, links), SRI-hashed
+  CDN tags, and dark/light theme-aware (`app/templates/risk_detail.html`,
+  `app/templates/risk_form.html`).
+
+---
+
+## [2026-06-08] — DFD diagram rendering fix (skeleton loaders, Mermaid securityLevel, CSP §8.3.2)
+
+### Fixed
+
+- **DFD workspace completely unusable** — three-layer bug: skeleton loading bars never hid,
+  and all node shapes, severity colors, and data-flow edges were invisible (only floating
+  white text labels in a black void).
+  - **Layer 1 (skeleton loaders):** `app/static/style.css` had `display: flex` on
+    `.dfd-diagram-skeleton` / `.dfd-findings-skeleton`; author stylesheets override the
+    browser's `[hidden] { display: none }` rule. Fix: explicit `[hidden]` compound-selector
+    override in `style.css`.
+  - **Layer 2 (Mermaid `securityLevel: 'strict'`):** Mermaid v11 internally calls
+    `DOMPurify.sanitize` for `strict` and `antiscript` modes, stripping every inline
+    `style="fill:..."` attribute from SVG shapes and the entire `<style>` theme block.
+    Fix: `securityLevel: 'loose'`, which skips the DOMPurify pass. Tank is local-only;
+    XSS from Mermaid diagram content is not a threat.
+  - **Layer 3 (CSP §8.3.2 nonce + `unsafe-inline`):** Per CSP3 §8.3.2, when any `nonce-*`
+    is present in `style-src`, browsers silently ignore `'unsafe-inline'` for `<style>`
+    ELEMENTS. Mermaid's runtime-generated `<style>` block (inserted via `innerHTML`) can
+    never receive a nonce, so it is always blocked regardless of `unsafe-inline`.
+    Fix: `applyTankTheme(container)` (in `dfd_detail.html`) and `applyPreviewTheme(container)`
+    (in `dfd.html`) walk the SVG DOM and call `element.style.setProperty()` from
+    nonce-protected `<script>` blocks after inserting the SVG. JS DOM style manipulation
+    is governed by `script-src` only, not `style-src`. `applyTankTheme` is severity-aware:
+    reads `_elementThreatMap` to pick per-node fill colors matching the STRIDE severity
+    palette (Critical `#DC2626`, High `#EA580C`, Medium `#D97706`, Low `#4F46E5`).
+    Nodes with no threats get the default Tank purple (`#2d1b6e` fill, `#7c3aed` stroke).
+- **Dark-theme Mermaid color variables corrected** — `primaryColor` was `#1a1728`
+  (essentially invisible against `#0d0d12` background, 1.38:1 contrast ratio) →
+  `#2d1b6e`; `lineColor` `#6c5ce7` → `#9d8df1`; `primaryBorderColor` `#3d2e6b` →
+  `#7c3aed`. `applyTankTheme` owns these values; `themeVariables` remain as a fallback
+  for light mode and print.
+
+---
+
+## [2026-06-08] — Security hardening: audit pass 7 (6 findings)
+
+### Security
+
+- Six findings from audit pass 7 resolved. Full report: [`SECURITY-AUDIT-2026-06-08.md`](SECURITY-AUDIT-2026-06-08.md).
+
+---
+
+## [2026-06-05] — Security hardening: audit pass 6 (34 findings)
+
+### Security
+
+- Thirty-four findings from audit pass 6 resolved. Full report: [`SECURITY-AUDIT-2026-06-05.md`](SECURITY-AUDIT-2026-06-05.md).
+
+---
+
+## [2026-06-04] — Security hardening: audit pass 5 (16 findings)
+
+### Security
+
+- Sixteen findings from audit pass 5 resolved. Full report: [`SECURITY-AUDIT-2026-06-04.md`](SECURITY-AUDIT-2026-06-04.md).
+
+---
+
 ## [2026-06-04] — Meeting prep fix, stack audit tool dropdown, Vditor editor for Notes & Meeting Prep
 
 ### Fixed

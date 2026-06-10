@@ -152,6 +152,7 @@ on shutdown. Wakes every 60s.
 | `journal_prompt` | weekday 18:00 if no entry today | Insert `journal_prompt` nudge | sync (no Claude call) |
 | `auto_briefs` | nightly 22:00 | Submit meeting-prep briefs for tomorrow's ICS meetings (≤5/night) to the Batches API; rehydrated results persist to `meeting_briefs` when the batch lands | batched |
 | `attack_surface_snapshot` | Sunday 09:00 | Snapshot all Endpoint entities + diff vs prior | sync (no Claude call) |
+| `security_program_snapshot` | Sunday 09:30 | Collect security-program metrics and persist to `security_program_snapshots`; diffs surfaced on the dashboard | sync (no Claude call) |
 | `weekly_backup` | Sunday 03:00 | `sqlite3.Connection.backup()` to `~/.tank/backups/`; keep 8 | sync |
 | `batches.poll_inflight` | every tick (~60s) | Refresh status of every in-flight Anthropic batch; dispatch results to the registered handler when a batch ends | sync |
 
@@ -363,7 +364,7 @@ the corresponding URLs must also be reachable.
 
 ### Vulnerability intake (Nyx integration)
 
-`POST /api/risks/vuln-intake` is protected by a server-side API key
+`POST /api/vulnerabilities/intake` is protected by a server-side API key
 check. The key must be set before the endpoint is usable:
 
 ```bash
@@ -373,7 +374,7 @@ systemctl --user restart tank
 
 If `TANK_NYX_API_KEY` is not set, the endpoint returns HTTP 503
 (`"vulnerability intake not configured"`). If the key is set but the
-caller sends the wrong value in the `X-Nyx-Api-Key` header, the
+caller sends the wrong value in the `X-Nyx-Key` header, the
 endpoint returns HTTP 401.
 
 ### ICS calendar URL validation
@@ -462,7 +463,7 @@ Schema migrations are additive — no manual migration step.
 
 - [ ] `curl http://127.0.0.1:8000/healthz` returns `ok=true, scheduler=running, db=ok`
 - [ ] `journalctl --user -u tank -f` shows "scheduler started"
-- [ ] `python -m pytest -q` (in the venv) → 28/28 pass
+- [ ] `python -m pytest -q` (in the venv) → 53 passed
 - [ ] `python -m scripts.verify_privacy --fixture-pack` → PASSED (after fixture ingest)
 - [ ] `~/.ssh/config` has a `Host tank-vm` entry with `LocalForward 8000 127.0.0.1:8000`
 - [ ] `.env` has `TANK_ENV=prod` AND `TANK_TIMEZONE=<your TZ>`
