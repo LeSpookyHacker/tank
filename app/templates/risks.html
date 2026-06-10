@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Tank — risk register{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css"
+      integrity="sha384-Y64ixq0sw4ASbzOXI0H86SHuTR4D9yoVMPq+2w/jVU3AOvf7l9pNZuWYmrAHVIhd"
+      crossorigin="anonymous" />
+{% endblock %}
+
 {% block content %}
 <section class="risks-page">
   <header class="page-head">
@@ -53,10 +59,30 @@
   <details class="add-risk">
     <summary>+ add risk</summary>
     <form id="add-risk-form">
-      <label>Title <input name="title" required placeholder="e.g. Insufficient MFA on admin consoles"></label>
+      <label>Title
+        <input name="title" required class="risk-title-input" placeholder="e.g. Insufficient MFA on admin consoles">
+      </label>
       <label>Description
-        <textarea name="description" rows="3" required
-                  placeholder="What is the risk? What could happen?"></textarea>
+        <div class="je-toolbar" id="je-toolbar">
+          <button type="button" class="je-tb-btn" data-action="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" class="je-tb-btn" data-action="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+          <button type="button" class="je-tb-btn" data-action="strike" title="Strikethrough"><s>S</s></button>
+          <span class="je-tb-sep"></span>
+          <button type="button" class="je-tb-btn" data-action="h1" title="Heading 1">H1</button>
+          <button type="button" class="je-tb-btn" data-action="h2" title="Heading 2">H2</button>
+          <button type="button" class="je-tb-btn" data-action="h3" title="Heading 3">H3</button>
+          <span class="je-tb-sep"></span>
+          <button type="button" class="je-tb-btn" data-action="ul" title="Bullet list">&#8801;</button>
+          <button type="button" class="je-tb-btn" data-action="ol" title="Numbered list">1.</button>
+          <button type="button" class="je-tb-btn" data-action="quote" title="Blockquote">&#10099;</button>
+          <span class="je-tb-sep"></span>
+          <button type="button" class="je-tb-btn je-tb-mono" data-action="icode" title="Inline code">ab</button>
+          <button type="button" class="je-tb-btn je-tb-mono" data-action="code" title="Code block">{}</button>
+          <button type="button" class="je-tb-btn je-tb-mono" data-action="link" title="Link">&#128279;</button>
+          <span class="je-tb-sep"></span>
+          <button type="button" class="je-tb-btn" data-action="hr" title="Horizontal rule">&#8213;</button>
+        </div>
+        <div id="vditor"></div>
       </label>
       <label>Category
         <select name="category">
@@ -66,10 +92,18 @@
         </select>
       </label>
       <div class="form-row">
-        <label>Inherent likelihood (1-5)
+        <label>
+          <span style="display: inline-flex; align-items: center;">
+            Inherent likelihood (1-5)
+            <button class="help-btn" type="button" id="help-btn-likelihood" title="View scoring definitions">?</button>
+          </span>
           <input name="inherent_likelihood" type="number" min="1" max="5" value="3">
         </label>
-        <label>Inherent impact (1-5)
+        <label>
+          <span style="display: inline-flex; align-items: center;">
+            Inherent impact (1-5)
+            <button class="help-btn" type="button" id="help-btn-impact" title="View scoring definitions">?</button>
+          </span>
           <input name="inherent_impact" type="number" min="1" max="5" value="3">
         </label>
       </div>
@@ -87,7 +121,7 @@
       <label>Review in (days, default 90)
         <input name="review_days" type="number" value="90" min="1">
       </label>
-      <button class="btn">save &amp; assess</button>
+      <button type="submit" class="btn">save &amp; assess</button>
       <p class="dim small">Tank will run a background assessment using your KB context
         to estimate residual risk.</p>
     </form>
@@ -129,12 +163,7 @@
           {% else %}—{% endif %}
         </td>
         <td>
-          <button class="btn-link"
-                  hx-put="/api/risks/{{ r.id }}/status"
-                  hx-vals='{"status":"closed"}'
-                  hx-ext="json-enc"
-                  hx-swap="none"
-                  hx-on::after-request="window.location.reload()">
+          <button class="btn-link" onclick="closeRisk('{{ r.id }}')">
             close
           </button>
         </td>
@@ -145,6 +174,17 @@
     </tbody>
   </table>
 </section>
+
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal-content">
+    <div id="modal-body"></div>
+    <button class="btn-secondary mt-075" id="modal-cancel-btn">Cancel</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"
+        integrity="sha384-eJNPL+l6x8h5j+uopxmlvvDeNRwWkSYtv5vIn4ksoqY3sgQ3vsDWLGQXwz1IU6j7"
+        crossorigin="anonymous"></script>
 
 <style nonce="{{ request.state.csp_nonce }}">
 .risks-page { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
@@ -171,15 +211,128 @@
   border: 1px solid var(--border); border-radius: 8px; }
 .filter-bar label { display: flex; align-items: center; gap: .4rem;
   font-size: .875rem; color: var(--text-muted); }
+
+/* ── Custom toolbar ── */
+.je-toolbar {
+  display: flex; align-items: center; gap: 1px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.je-tb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--text-dim); cursor: pointer; font-size: 0.85rem;
+  font-family: inherit; transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+.je-tb-btn:hover { background: var(--bg-card); color: var(--text); }
+.je-tb-btn b, .je-tb-btn em, .je-tb-btn s { font-size: 0.9rem; }
+.je-tb-mono { font-family: var(--font-mono); font-size: 0.78rem; }
+.je-tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+
+/* Hide Vditor's built-in (broken) toolbar; keep its border radius */
+#vditor .vditor-toolbar { display: none !important; }
+.vditor { border-radius: 0 0 8px 8px !important; border-color: var(--border) !important; }
+
+/* Content text color */
+#vditor .vditor-reset,
+#vditor .vditor-ir pre.vditor-reset,
+#vditor .vditor-ir .vditor-reset {
+  color: var(--text) !important;
+}
+#vditor .vditor-reset a { color: var(--accent); }
+
+/* Reduce default horizontal padding so text starts at the left edge */
+#vditor .vditor-ir { padding-left: 12px !important; padding-right: 12px !important; }
+#vditor .vditor-ir pre.vditor-reset { padding: 0 !important; margin: 0 auto 0 0 !important; max-width: none !important; }
+
+.risk-title-input { font-size: 1.15rem; padding: 0.5rem; font-weight: 500; }
+
+.help-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.5rem;
+  font-family: var(--font-mono);
+}
+.help-btn:hover {
+  background: var(--bg-card);
+  color: var(--text);
+  border-color: var(--text-muted);
+}
 </style>
 
 <script nonce="{{ request.state.csp_nonce }}">
+let currentBody = '';
+const isDark = !document.documentElement.classList.contains('theme-light');
+
+const vditor = new Vditor('vditor', {
+  mode: 'ir',
+  lang: 'en_US',
+  theme: isDark ? 'dark' : 'classic',
+  value: '',
+  minHeight: 200,
+  toolbar: [],
+  cache: { enable: false },
+  placeholder: "What is the risk? What could happen?",
+  input(val) { currentBody = val; },
+});
+
+// ── Custom toolbar ──────────────────────────────────────────────────────────
+document.getElementById('je-toolbar').addEventListener('mousedown', function(e) {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  e.preventDefault();
+
+  const action = btn.dataset.action;
+  const sel    = window.getSelection();
+  const s      = (sel && sel.rangeCount > 0) ? sel.toString() : '';
+
+  const wrap = (l, r) => vditor.insertValue(s ? l + s + r : l + r);
+
+  switch (action) {
+    case 'bold':   wrap('**', '**');          break;
+    case 'italic': wrap('*', '*');            break;
+    case 'strike': wrap('~~', '~~');          break;
+    case 'h1':     vditor.insertValue('\n# '   + (s || 'Heading') + '\n'); break;
+    case 'h2':     vditor.insertValue('\n## '  + (s || 'Heading') + '\n'); break;
+    case 'h3':     vditor.insertValue('\n### ' + (s || 'Heading') + '\n'); break;
+    case 'ul':     vditor.insertValue('\n- '   + (s || 'item') + '\n');    break;
+    case 'ol':     vditor.insertValue('\n1. '  + (s || 'item') + '\n');    break;
+    case 'quote':  vditor.insertValue('\n> '   + (s || 'quote') + '\n');   break;
+    case 'icode':  wrap('`', '`');            break;
+    case 'code':   vditor.insertValue('\n```\n' + (s || 'code') + '\n```\n'); break;
+    case 'link':   vditor.insertValue('[' + (s || 'link text') + '](url)'); break;
+    case 'hr':     vditor.insertValue('\n---\n'); break;
+  }
+});
+
 async function submitRisk(e) {
   e.preventDefault();
   const f = e.target;
+  const description = currentBody.trim() || vditor.getValue().trim();
+  if (!description) {
+      alert("Description is required.");
+      return false;
+  }
+
   const payload = {
     title: f.title.value,
-    description: f.description.value,
+    description: description,
     category: f.category.value,
     inherent_likelihood: parseInt(f.inherent_likelihood.value),
     inherent_impact: parseInt(f.inherent_impact.value),
@@ -189,9 +342,11 @@ async function submitRisk(e) {
     scope_entity_ids: [],
     controls: [],
   };
-  const btn = f.querySelector("button[type=submit]");
-  btn.disabled = true;
-  btn.textContent = "saving…";
+  const btn = f.querySelector("button[type=submit]") || f.querySelector("button.btn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "saving…";
+  }
   try {
     const resp = await fetch("/api/risks", {
       method: "POST",
@@ -202,16 +357,94 @@ async function submitRisk(e) {
       window.location.reload();
     } else {
       alert("Failed to save risk.");
-      btn.disabled = false;
-      btn.textContent = "save & assess";
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "save & assess";
+      }
     }
   } catch (err) {
     alert("Network error.");
-    btn.disabled = false;
-    btn.textContent = "save & assess";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "save & assess";
+    }
   }
   return false;
 }
 document.getElementById("add-risk-form").addEventListener("submit", submitRisk);
+
+let currentRiskId = null;
+
+function closeRisk(id) {
+  currentRiskId = id;
+  document.getElementById("modal-body").innerHTML = `
+    <h3>Close risk</h3>
+    <label>Mitigations / Rationale</label>
+    <textarea id="close-rationale" class="intake-textarea" rows="3" placeholder="What mitigations were put in place?"></textarea>
+    <button class="btn-primary mt-075" id="modal-action-btn">Close risk</button>`;
+  document.getElementById("modal-overlay").hidden = false;
+  document.getElementById("modal-action-btn").addEventListener("click", submitCloseRisk);
+}
+
+async function submitCloseRisk() {
+  const rationale = document.getElementById("close-rationale").value.trim() || null;
+  const btn = document.getElementById("modal-action-btn");
+  btn.disabled = true;
+  btn.textContent = "closing...";
+  
+  await fetch("/api/risks/" + currentRiskId + "/status", {
+    method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({status: "closed", closure_rationale: rationale}),
+  });
+  window.location.reload();
+}
+
+function showRiskMatrixHelp(e) {
+  if (e) e.preventDefault();
+  document.getElementById("modal-body").innerHTML = `
+    <h3>Risk Scoring Matrix (1-5)</h3>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem;">
+      <div>
+        <h4 style="margin-top:0; margin-bottom:0.5rem;">Likelihood</h4>
+        <ul style="font-size: 0.9rem; line-height: 1.5; padding-left: 1.2rem; margin:0; color: var(--text-muted);">
+          <li><strong style="color:var(--text)">1 - Rare:</strong> Highly unlikely, maybe once in 10 years.</li>
+          <li><strong style="color:var(--text)">2 - Unlikely:</strong> Might occur, once in 3-5 years.</li>
+          <li><strong style="color:var(--text)">3 - Possible:</strong> Could occur, perhaps once a year.</li>
+          <li><strong style="color:var(--text)">4 - Likely:</strong> Probable, happens several times a year.</li>
+          <li><strong style="color:var(--text)">5 - Almost Certain:</strong> Expected to happen frequently.</li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="margin-top:0; margin-bottom:0.5rem;">Impact</h4>
+        <ul style="font-size: 0.9rem; line-height: 1.5; padding-left: 1.2rem; margin:0; color: var(--text-muted);">
+          <li><strong style="color:var(--text)">1 - Negligible:</strong> Minor inconvenience, no financial or data loss.</li>
+          <li><strong style="color:var(--text)">2 - Minor:</strong> Small impact, manageable effort to recover.</li>
+          <li><strong style="color:var(--text)">3 - Moderate:</strong> Noticeable disruption, some financial/data loss.</li>
+          <li><strong style="color:var(--text)">4 - Major:</strong> Severe disruption, significant loss, regulatory scrutiny.</li>
+          <li><strong style="color:var(--text)">5 - Critical:</strong> Existential threat, catastrophic loss, business failure.</li>
+        </ul>
+      </div>
+    </div>
+  `;
+  document.getElementById("modal-overlay").hidden = false;
+}
+
+function closeModal() {
+  document.getElementById("modal-overlay").hidden = true;
+}
+
+(function() {
+  var overlay = document.getElementById("modal-overlay");
+  var content = document.getElementById("modal-content");
+  var cancelBtn = document.getElementById("modal-cancel-btn");
+  if (overlay) overlay.addEventListener("click", closeModal);
+  if (content) content.addEventListener("click", function(e) { e.stopPropagation(); });
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+  var hl = document.getElementById("help-btn-likelihood");
+  if (hl) hl.addEventListener("click", showRiskMatrixHelp);
+  var hi = document.getElementById("help-btn-impact");
+  if (hi) hi.addEventListener("click", showRiskMatrixHelp);
+})();
 </script>
 {% endblock %}

@@ -60,14 +60,13 @@
           <a href="/dfd/{{ d.id }}" class="dfd-kb-card">
             <span class="text-lg">🗺️</span>
             <span class="flex-1">
-              <strong>
-                {% if d.input_format == 'image' %}Image analysis
+              <strong>{{ d.title }} DFD analysis on {{ d.created_at_fmt }}</strong>
+              <span class="dim ml-05 text-sm2">
+                ({% if d.input_format == 'image' %}Image
                 {% elif d.input_format == 'generated_from_doc' %}From document
                 {% elif d.input_format == 'generated_from_description' %}From description
-                {% else %}Mermaid analysis
-                {% endif %}
-              </strong>
-              <span class="dim ml-05 text-sm2">{{ d.created_at | int }}</span>
+                {% else %}Mermaid{% endif %})
+              </span>
             </span>
             <span class="df-s4">
               {{ d.analysis.threats | length }} threats
@@ -227,8 +226,8 @@
     {% for d in recent %}
     <li class="dfd-recent-item">
       <a href="/dfd/{{ d.id }}" class="dfd-recent-link">
-        <span class="dfd-recent-meta dim">{{ d.created_at | int }}</span>
-        <span class="dfd-recent-threats">{{ d.analysis.threats | length }} threats</span>
+        <span class="dfd-recent-threats">{{ d.title }} DFD analysis on {{ d.created_at_fmt }}</span>
+        <span class="dfd-recent-meta dim">{{ d.analysis.threats | length }} threats</span>
         <span class="dfd-recent-format dim">
           {% if d.input_format == 'image' %}Image
           {% elif d.input_format == 'generated_from_doc' %}From document

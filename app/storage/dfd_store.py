@@ -70,4 +70,29 @@ def list_recent(limit: int = 20, project_id: str | None = None) -> list[dict]:
 def _row_to_dict(d: dict) -> dict:
     d["analysis"] = json.loads(d.pop("analysis_json", "{}"))
     d["cached"] = bool(d.get("cached", 0))
+
+    # Extract title from Mermaid source
+    title = d["analysis"].get("title")
+    if not title:
+        import re
+        mermaid_src = d.get("mermaid_src") or d["analysis"].get("annotated_mermaid") or ""
+        match = re.search(r'title:?\s*(.+)', mermaid_src, re.IGNORECASE)
+        if match:
+            title = match.group(1).strip()
+        else:
+            title = "System Diagram"
+    d["title"] = title
+
+    # Format the created_at date
+    import datetime
+    created_at = d.get("created_at")
+    if created_at:
+        try:
+            dt = datetime.datetime.fromtimestamp(created_at)
+            d["created_at_fmt"] = dt.strftime("%m.%d.%Y")
+        except Exception:
+            d["created_at_fmt"] = ""
+    else:
+        d["created_at_fmt"] = ""
+
     return d

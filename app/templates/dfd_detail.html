@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Tank — DFD Threat Analysis{% endblock %}
+{% block title %}{{ dfd.title }} — Tank Threat Analysis{% endblock %}
 
 {% block head_extra %}
 <style nonce="{{ request.state.csp_nonce }}">
@@ -224,10 +224,10 @@
 <!-- ─── Print-only content ─────────────────────────────────────────── -->
 <div class="print-only">
   <div class="print-cover">
-    <h1>DFD Threat Analysis Report</h1>
+    <h1>{{ dfd.title }} Threat Analysis</h1>
     <table class="print-meta-table">
       <tr><td>Analysis ID</td><td>{{ dfd.id }}</td></tr>
-      <tr><td>Date</td><td>{{ dfd.created_at | int }}</td></tr>
+      <tr><td>Date</td><td>{{ dfd.created_at_fmt }}</td></tr>
       <tr><td>Input format</td><td>{{ input_format }}</td></tr>
       <tr><td>Total threats</td><td>{{ threats | length }}</td></tr>
     </table>
@@ -374,9 +374,14 @@ document.querySelectorAll('.threat-card').forEach(function(card) {
 // (CSP3 §8.3.2), so Mermaid's generated stylesheet is always blocked. Setting
 // element.style properties from a nonce-protected <script> is governed by
 // script-src only — it bypasses style-src entirely, which is the correct fix.
-function applyTankTheme(container) {
+function applyTankTheme(container, isPrint) {
   var svg = container.querySelector('svg');
   if (!svg) return;
+
+  if (isPrint) {
+    svg.style.setProperty('background', 'transparent', 'important');
+    svg.style.setProperty('background-color', 'transparent', 'important');
+  }
 
   // Severity fill palette (mirrors CSS vars + dfd_stride.md)
   var SEV_FILL = { Critical: '#DC2626', High: '#EA580C', Medium: '#D97706', Low: '#4F46E5' };
@@ -389,47 +394,64 @@ function applyTankTheme(container) {
     return null;
   }
 
+  var defaultNodeFill = isPrint ? '#ffffff' : '#2d1b6e';
+  var defaultNodeStroke = isPrint ? '#555555' : '#7c3aed';
+  var clusterFill = isPrint ? '#f8f9fa' : '#1a1040';
+  var clusterStroke = isPrint ? '#cccccc' : '#5b3fa8';
+  var edgeStroke = isPrint ? '#555555' : '#9d8df1';
+  var edgeLabelColor = isPrint ? '#111111' : '#c4b5fd';
+  var defaultNodeLabelColor = isPrint ? '#111111' : '#e8e6f0';
+
   // 1. Individual nodes — find by .node group, set fill based on threat severity
   svg.querySelectorAll('g.node').forEach(function(g) {
     var nodeId = extractNodeId(g.id || '');
-    var fill = (nodeId && worstFill(nodeId)) || '#2d1b6e';
+    var wFill = nodeId ? worstFill(nodeId) : null;
+    var fill = wFill || defaultNodeFill;
     g.querySelectorAll('rect, circle, ellipse, polygon').forEach(function(shape) {
       shape.style.setProperty('fill', fill, 'important');
-      shape.style.setProperty('stroke', '#7c3aed', 'important');
-      shape.style.setProperty('stroke-width', '2px', 'important');
+      shape.style.setProperty('stroke', defaultNodeStroke, 'important');
+      shape.style.setProperty('stroke-width', isPrint ? '1.5px' : '2px', 'important');
+    });
+
+    // 6. Node labels — ensure text is readable and background is transparent
+    var labelColor = (isPrint && wFill) ? '#ffffff' : defaultNodeLabelColor;
+    g.querySelectorAll('.nodeLabel, .label span, .label p, foreignObject, foreignObject div').forEach(function(el) {
+      el.style.setProperty('color', labelColor, 'important');
+      if (isPrint) {
+        el.style.setProperty('background', 'transparent', 'important');
+        el.style.setProperty('background-color', 'transparent', 'important');
+      }
     });
   });
 
   // 2. Cluster / subgraph bounding boxes (trust boundaries, VPCs)
   svg.querySelectorAll('.cluster rect').forEach(function(rect) {
-    rect.style.setProperty('fill', '#1a1040', 'important');
-    rect.style.setProperty('stroke', '#5b3fa8', 'important');
+    rect.style.setProperty('fill', clusterFill, 'important');
+    rect.style.setProperty('stroke', clusterStroke, 'important');
     rect.style.setProperty('stroke-width', '1px', 'important');
-    rect.style.setProperty('fill-opacity', '0.85', 'important');
+    rect.style.setProperty('fill-opacity', isPrint ? '1' : '0.85', 'important');
   });
 
   // 3. Data-flow edges
   svg.querySelectorAll('.flowchart-link, path.flowchart-link').forEach(function(p) {
-    p.style.setProperty('stroke', '#9d8df1', 'important');
+    p.style.setProperty('stroke', edgeStroke, 'important');
     p.style.setProperty('stroke-width', '1.5px', 'important');
     p.style.setProperty('fill', 'none', 'important');
   });
 
   // 4. Arrowhead markers (inside <defs>)
   svg.querySelectorAll('marker path, marker polygon').forEach(function(el) {
-    el.style.setProperty('fill', '#9d8df1', 'important');
-    el.style.setProperty('stroke', '#9d8df1', 'important');
+    el.style.setProperty('fill', edgeStroke, 'important');
+    el.style.setProperty('stroke', edgeStroke, 'important');
   });
 
-  // 5. Edge label text
+  // 5. Edge label text and background rects
   svg.querySelectorAll('.edgeLabel span, .edgeLabel p').forEach(function(el) {
-    el.style.setProperty('color', '#c4b5fd', 'important');
+    el.style.setProperty('color', edgeLabelColor, 'important');
     el.style.setProperty('background', 'transparent', 'important');
   });
-
-  // 6. Node labels — ensure text is readable
-  svg.querySelectorAll('.nodeLabel, .label span, .label p').forEach(function(el) {
-    el.style.setProperty('color', '#e8e6f0', 'important');
+  svg.querySelectorAll('.edgeLabel rect').forEach(function(el) {
+    el.style.setProperty('fill', isPrint ? '#ffffff' : '#0d0d12', 'important');
   });
 }
 
@@ -448,7 +470,7 @@ async function initDiagram() {
     var result = await mermaid.render('dfd-main-svg', src);
     var inner = document.getElementById('diagram-inner');
     inner.innerHTML = result.svg;
-    applyTankTheme(inner);  // paint Tank colors via JS — bypasses CSP style-src
+    applyTankTheme(inner, false);  // paint Tank colors via JS — bypasses CSP style-src
 
     document.getElementById('diagram-skeleton').hidden = true;
     document.getElementById('zoom-controls').hidden = false;
@@ -466,7 +488,7 @@ async function initDiagram() {
     try {
       var pr = await mermaid.render('dfd-print-svg', _annotatedSrc);
       var pd = document.getElementById('print-diagram');
-      if (pd) { pd.innerHTML = pr.svg; applyTankTheme(pd); }
+      if (pd) { pd.innerHTML = pr.svg; applyTankTheme(pd, true); }
     } catch (_) {}
   }
 

@@ -26,6 +26,10 @@ class GenerateRequest(BaseModel):
     tabletop_id: str | None = None
 
 
+class UpdateRunbookRequest(BaseModel):
+    runbook_md: str
+
+
 @api.get("")
 async def list_runbooks(service_entity_id: str | None = None) -> dict:
     return {"runbooks": ir_runbooks_store.list_all(
@@ -73,6 +77,22 @@ async def confirm(runbook_id: str) -> dict:
     if not ir_runbooks_store.get(runbook_id):
         raise HTTPException(404, "not found")
     ir_runbooks_store.confirm(runbook_id)
+    return {"ok": True}
+
+
+@api.put("/{runbook_id}")
+async def update_runbook(runbook_id: str, body: UpdateRunbookRequest) -> dict:
+    rb = ir_runbooks_store.get(runbook_id)
+    if not rb:
+        raise HTTPException(404, "not found")
+    
+    conn = ir_runbooks_store.get_conn()
+    import time
+    with ir_runbooks_store.LOCK:
+        conn.execute(
+            "UPDATE ir_runbooks SET runbook_md=?, updated_at=? WHERE id=?",
+            (body.runbook_md, int(time.time()), runbook_id)
+        )
     return {"ok": True}
 
 

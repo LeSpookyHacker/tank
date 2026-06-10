@@ -28,10 +28,16 @@
   </div>
   {% else %}
   <div class="policy-editor-layout">
-    <div class="policy-editor-toolbar">
-      <button class="policy-view-btn active" id="btn-rendered">Rendered</button>
-      <button class="policy-view-btn" id="btn-raw">Edit Markdown</button>
-      <button class="btn-primary btn-sm" id="save-btn" hidden>Save changes</button>
+    <div class="policy-editor-toolbar" style="display:flex; justify-content: space-between;">
+      <div style="display:flex; gap: 0.5rem; align-items:center;">
+        <button class="policy-view-btn active" id="btn-rendered">Rendered</button>
+        <button class="policy-view-btn" id="btn-raw">Edit Markdown</button>
+        <button class="btn-primary btn-sm" id="save-btn" hidden>Save changes</button>
+      </div>
+      <div style="display:flex; gap: 0.5rem;">
+        <button class="btn-secondary btn-sm" id="btn-export-md">Export MD</button>
+        <button class="btn-secondary btn-sm" id="btn-export-pdf">Export PDF</button>
+      </div>
     </div>
 
     <div id="rendered-view" class="policy-rendered markdown-body">
@@ -44,6 +50,29 @@
   </div>
   {% endif %}
 </div>
+
+<style nonce="{{ request.state.csp_nonce }}">
+.policy-rendered { line-height: 1.4 !important; }
+.policy-rendered p { margin: 0.3rem 0 !important; }
+.policy-rendered ul, .policy-rendered ol { margin: 0.3rem 0 !important; }
+.policy-rendered li { margin: 0.15rem 0 !important; }
+.policy-rendered li p { margin: 0 !important; }
+.policy-rendered h1, .policy-rendered h2, .policy-rendered h3 { margin-top: 1rem !important; margin-bottom: 0.3rem !important; }
+
+@media print {
+  body * { visibility: hidden; }
+  .policy-rendered, .policy-rendered * { visibility: visible; }
+  .policy-rendered { 
+    position: absolute; left: 0; top: 0; width: 100%;
+    background: white !important; color: black !important;
+    padding: 0; border: none; box-shadow: none;
+  }
+  .policy-rendered h1, .policy-rendered h2, .policy-rendered h3, .policy-rendered strong { color: black !important; }
+  .policy-rendered a { text-decoration: none; color: black !important; }
+  .policy-rendered table th { background: #eee !important; color: black !important; }
+  .policy-rendered table td { color: black !important; border-color: #ccc !important; }
+}
+</style>
 
 <script nonce="{{ request.state.csp_nonce }}">
 {% if policy %}
@@ -107,6 +136,27 @@ async function setStatus(status) {
   });
   if (res.ok) window.location.reload();
 }
+
+function exportMarkdown() {
+  const md = document.getElementById("policy-textarea").value || initialMd;
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "{{ kind }}_policy.md";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportPDF() {
+  showRendered();
+  const oldTitle = document.title;
+  document.title = "{{ display_name }} - Security Policy";
+  window.print();
+  document.title = oldTitle;
+}
 {% endif %}
 
 async function generatePolicy() {
@@ -132,5 +182,9 @@ var _raw = document.getElementById("btn-raw");
 if (_raw) _raw.addEventListener("click", showRaw);
 var _savePol = document.getElementById("save-btn");
 if (_savePol) _savePol.addEventListener("click", savePolicy);
+var _expMd = document.getElementById("btn-export-md");
+if (_expMd) _expMd.addEventListener("click", exportMarkdown);
+var _expPdf = document.getElementById("btn-export-pdf");
+if (_expPdf) _expPdf.addEventListener("click", exportPDF);
 </script>
 {% endblock %}

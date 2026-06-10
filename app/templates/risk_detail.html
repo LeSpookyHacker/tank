@@ -24,6 +24,11 @@
       <p>{{ risk.treatment_rationale }}</p>
       {% endif %}
 
+      {% if risk.closure_rationale %}
+      <h3>Closure note</h3>
+      <p>{{ risk.closure_rationale }}</p>
+      {% endif %}
+
       {% if scope_entities %}
       <h3>In-scope services</h3>
       <ul>
@@ -92,6 +97,13 @@
   </div>
 </section>
 
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal-content">
+    <div id="modal-body"></div>
+    <button class="btn-secondary mt-075" id="modal-cancel-btn">Cancel</button>
+  </div>
+</div>
+
 <style nonce="{{ request.state.csp_nonce }}">
 .risk-detail-page { max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem; }
 .back-link { margin-bottom: .5rem; }
@@ -154,15 +166,44 @@ async function triggerAssess() {
   }
 }
 
-async function closeRisk() {
-  if (!confirm("Close this risk? It will be removed from the open register.")) return;
-  await fetch("/api/risks/{{ risk.id }}/status", {
-    method: "PUT",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({status: "closed"}),
+let currentRiskId = null;
+
+function closeRisk() {
+  currentRiskId = "{{ risk.id }}";
+  document.getElementById("modal-body").innerHTML = `
+    <h3>Close risk</h3>
+    <label>Mitigations / Rationale</label>
+    <textarea id="close-rationale" class="intake-textarea" rows="3" placeholder="What mitigations were put in place?"></textarea>
+    <button class="btn-primary mt-075" id="modal-action-btn">Close risk</button>`;
+  document.getElementById("modal-overlay").hidden = false;
+  document.getElementById("modal-action-btn").addEventListener("click", submitCloseRisk);
+}
+
+async function submitCloseRisk() {
+  const rationale = document.getElementById("close-rationale").value.trim() || null;
+  const btn = document.getElementById("modal-action-btn");
+  btn.disabled = true;
+  btn.textContent = "closing...";
+  
+  await fetch("/api/risks/" + currentRiskId + "/status", {
+    method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({status: "closed", closure_rationale: rationale}),
   });
   window.location.href = "/risks";
 }
+
+function closeModal() {
+  document.getElementById("modal-overlay").hidden = true;
+}
+
+(function() {
+  var overlay = document.getElementById("modal-overlay");
+  var content = document.getElementById("modal-content");
+  var cancelBtn = document.getElementById("modal-cancel-btn");
+  if (overlay) overlay.addEventListener("click", closeModal);
+  if (content) content.addEventListener("click", function(e) { e.stopPropagation(); });
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+})();
 var _assessBtn = document.getElementById("btn-assess");
 if (_assessBtn) _assessBtn.addEventListener("click", triggerAssess);
 var _closeBtn = document.getElementById("btn-close-risk");

@@ -7,10 +7,7 @@
     <h1>Attack-surface ledger</h1>
     <p class="dim">Weekly snapshot of all Endpoint entities. Diffs
       against the prior snapshot surface new exposures.</p>
-    <button class="btn"
-            hx-post="/api/attack-surface/snapshot"
-            hx-swap="none"
-            hx-on::after-request="window.location.reload()">
+    <button class="btn" id="btn-snapshot">
       Snapshot now
     </button>
   </header>
@@ -45,4 +42,24 @@
   </ol>
   {% endif %}
 </section>
+
+<script nonce="{{ request.state.csp_nonce }}">
+document.getElementById('btn-snapshot').addEventListener('click', async function() {
+  const btn = this;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Snapshotting...";
+  try {
+    const res = await fetch("/api/attack-surface/snapshot", { method: "POST" });
+    if (!res.ok) {
+      throw new Error("Failed to create snapshot");
+    }
+    window.location.reload();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
+</script>
 {% endblock %}

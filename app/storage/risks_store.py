@@ -134,14 +134,14 @@ def update_assessment(
         )
 
 
-def set_status(risk_id: str, status: str) -> None:
+def set_status(risk_id: str, status: str, closure_rationale: str | None = None) -> None:
     if status not in ALLOWED_STATUS:
         raise ValueError(f"unknown status: {status}")
     conn = get_conn()
     with LOCK:
         conn.execute(
-            "UPDATE risks SET status=?, updated_at=? WHERE id=?",
-            (status, int(time.time()), risk_id),
+            "UPDATE risks SET status=?, closure_rationale=?, updated_at=? WHERE id=?",
+            (status, closure_rationale, int(time.time()), risk_id),
         )
 
 

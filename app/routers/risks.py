@@ -44,6 +44,7 @@ class CreateRisk(BaseModel):
 
 class UpdateStatus(BaseModel):
     status: str
+    closure_rationale: str | None = None
 
 
 @api.get("")
@@ -98,7 +99,7 @@ async def assess_risk(request: Request, risk_id: str, background_tasks: Backgrou
 async def update_status(risk_id: str, body: UpdateStatus) -> dict:
     if not risks_store.get(risk_id):
         raise HTTPException(404, "not found")
-    risks_store.set_status(risk_id, body.status)
+    risks_store.set_status(risk_id, body.status, body.closure_rationale)
     return {"ok": True}
 
 

@@ -674,6 +674,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _migrate_dfd_columns(conn)
     _migrate_risk_register(conn)
     _migrate_ir_runbooks(conn)
+    _migrate_risk_closure_rationale(conn)
 
     # Vector extension table — separate from the main schema script because
     # `vec0` is a loaded extension that may be unavailable (see _load_extensions).
@@ -703,6 +704,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
     # Security audit SEC-003: persist sessions to SQLite so they survive restarts.
     _migrate_sessions_table(conn)
+
+def _migrate_risk_closure_rationale(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("ALTER TABLE risks ADD COLUMN closure_rationale TEXT")
+    except sqlite3.OperationalError:
+        pass
 
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

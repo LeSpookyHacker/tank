@@ -22,15 +22,28 @@
     <h1>{{ runbook.threat_scenario }}</h1>
   </header>
 
-  <div class="irr-actions">
-    {% if not runbook.confirmed_by_user %}
-    <button class="btn" id="btn-confirm-runbook">confirm runbook</button>
-    {% endif %}
-    <button class="btn-secondary" id="btn-print-runbook">print / export PDF</button>
-    <button class="btn-link text-danger" id="btn-delete-runbook">delete</button>
+  <div class="irr-actions" style="display:flex; justify-content: space-between; flex-wrap: wrap;">
+    <div style="display:flex; gap: 0.5rem; align-items:center;">
+      <button class="policy-view-btn active" id="btn-rendered">Rendered</button>
+      <button class="policy-view-btn" id="btn-raw">Edit Markdown</button>
+      <button class="btn-primary btn-sm" id="save-btn" hidden>Save changes</button>
+      {% if not runbook.confirmed_by_user %}
+      <button class="btn-sm btn-secondary" id="btn-confirm-runbook">Confirm runbook</button>
+      {% endif %}
+    </div>
+    <div style="display:flex; gap: 0.5rem; align-items:center;">
+      <button class="btn-secondary btn-sm" id="btn-export-md">Export MD</button>
+      <button class="btn-secondary btn-sm" id="btn-print-runbook">Export PDF</button>
+      <button class="btn-link text-danger btn-sm" id="btn-delete-runbook" style="margin-left:0.5rem;">Delete</button>
+    </div>
   </div>
 
-  <div class="irr-body markdown-body" id="runbook-body"></div>
+  <div id="rendered-view" class="irr-body markdown-body">
+    <!-- Populated by JS -->
+  </div>
+  <div id="raw-view" hidden>
+    <textarea id="runbook-textarea" class="policy-textarea" rows="40">{{ runbook.runbook_md }}</textarea>
+  </div>
 </section>
 
 <style nonce="{{ request.state.csp_nonce }}">
@@ -47,25 +60,97 @@
 .badge-warn { background: #d9770622; color: #d97706; padding: .15rem .5rem;
   border-radius: 10px; font-size: .75rem; }
 
+.irr-body { line-height: 1.4 !important; }
+.irr-body p { margin: 0.3rem 0 !important; }
+.irr-body ul, .irr-body ol { margin: 0.3rem 0 !important; }
+.irr-body li { margin: 0.15rem 0 !important; }
+.irr-body li p { margin: 0 !important; }
+.irr-body h1, .irr-body h2, .irr-body h3 { margin-top: 1rem !important; margin-bottom: 0.3rem !important; }
+
 /* Print styles — clean runbook PDF */
 @media print {
-  .global-header, .global-chat-widget, footer, .irr-actions, .back-link { display: none !important; }
-  .irr-detail { max-width: 100%; padding: 0; }
-  .irr-body { font-size: 11pt; }
+  body * { visibility: hidden; }
+  .irr-body, .irr-body * { visibility: visible; }
+  .irr-body { 
+    position: absolute; left: 0; top: 0; width: 100%;
+    background: white !important; color: black !important;
+    padding: 0; border: none; box-shadow: none; font-size: 11pt;
+  }
+  .irr-body h1, .irr-body h2, .irr-body h3, .irr-body strong { color: black !important; }
+  .irr-body a { text-decoration: none; color: black !important; }
+  .irr-body table th { background: #eee !important; color: black !important; }
+  .irr-body table td { color: black !important; border-color: #ccc !important; }
 }
 </style>
 
 <script nonce="{{ request.state.csp_nonce }}">
 (function () {
-  var raw = {{ runbook.runbook_md | tojson }};
-  var el = document.getElementById("runbook-body");
-  function render() {
+  window.rawRunbookMd = {{ runbook.runbook_md | tojson }};
+  var el = document.getElementById("rendered-view");
+  window.render = function() {
     if (!window.marked || !window.DOMPurify || !el) return;
-    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+    el.innerHTML = DOMPurify.sanitize(marked.parse(window.rawRunbookMd));
   }
-  if (window.marked && window.DOMPurify) { render(); }
-  else { window.addEventListener("load", render); }
+  if (window.marked && window.DOMPurify) { window.render(); }
+  else { window.addEventListener("load", window.render); }
 })();
+
+function showRendered() {
+  document.getElementById("rendered-view").hidden = false;
+  document.getElementById("raw-view").hidden = true;
+  document.getElementById("btn-rendered").classList.add("active");
+  document.getElementById("btn-raw").classList.remove("active");
+  document.getElementById("save-btn").hidden = true;
+}
+
+function showRaw() {
+  document.getElementById("rendered-view").hidden = true;
+  document.getElementById("raw-view").hidden = false;
+  document.getElementById("btn-rendered").classList.remove("active");
+  document.getElementById("btn-raw").classList.add("active");
+  document.getElementById("save-btn").hidden = false;
+}
+
+async function saveRunbook() {
+  const content = document.getElementById("runbook-textarea").value;
+  const btn = document.getElementById("save-btn");
+  btn.disabled = true; btn.textContent = "Saving…";
+  const res = await fetch("/api/ir-runbooks/{{ runbook.id }}", {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({runbook_md: content}),
+  });
+  if (res.ok) {
+    window.rawRunbookMd = content;
+    window.render();
+    showRendered();
+  } else {
+    alert("Failed to save");
+  }
+  btn.disabled = false; btn.textContent = "Save changes";
+}
+
+function exportMarkdown() {
+  const md = document.getElementById("runbook-textarea").value || window.rawRunbookMd;
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "runbook_{{ runbook.id }}.md";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportPDF() {
+  showRendered();
+  const oldTitle = document.title;
+  document.title = "Runbook - {{ runbook.threat_scenario | replace('\"', '') | replace('\n', ' ') }}";
+  window.print();
+  document.title = oldTitle;
+}
+
 
 async function confirm() {
   await fetch("/api/ir-runbooks/{{ runbook.id }}/confirm", {method: "POST"});
@@ -79,9 +164,18 @@ async function deleteRunbook() {
 }
 var _cfBtn = document.getElementById("btn-confirm-runbook");
 if (_cfBtn) _cfBtn.addEventListener("click", confirm);
-var _prBtn = document.getElementById("btn-print-runbook");
-if (_prBtn) _prBtn.addEventListener("click", function() { window.print(); });
 var _dlBtn = document.getElementById("btn-delete-runbook");
 if (_dlBtn) _dlBtn.addEventListener("click", deleteRunbook);
+
+var _rend = document.getElementById("btn-rendered");
+if (_rend) _rend.addEventListener("click", showRendered);
+var _rawBtn = document.getElementById("btn-raw");
+if (_rawBtn) _rawBtn.addEventListener("click", showRaw);
+var _saveBtn = document.getElementById("save-btn");
+if (_saveBtn) _saveBtn.addEventListener("click", saveRunbook);
+var _expMd = document.getElementById("btn-export-md");
+if (_expMd) _expMd.addEventListener("click", exportMarkdown);
+var _prBtn = document.getElementById("btn-print-runbook");
+if (_prBtn) _prBtn.addEventListener("click", exportPDF);
 </script>
 {% endblock %}

@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Tank — new design review{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css"
+      integrity="sha384-Y64ixq0sw4ASbzOXI0H86SHuTR4D9yoVMPq+2w/jVU3AOvf7l9pNZuWYmrAHVIhd"
+      crossorigin="anonymous" />
+{% endblock %}
+
 {% block content %}
 <section class="dr-new-page">
   <header class="page-head">
@@ -20,26 +26,143 @@
              placeholder="Marcus / payments-team">
     </label>
     <label>Design proposal (freewrite)
-      <textarea name="freewrite" rows="14" required
-                placeholder="Describe the design. What changes, who's
-affected, what data flows differently, what's new vs existing, what
-you're worried about. Plain English is fine."></textarea>
+      <div class="je-toolbar" id="je-toolbar">
+        <button type="button" class="je-tb-btn" data-action="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+        <button type="button" class="je-tb-btn" data-action="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+        <button type="button" class="je-tb-btn" data-action="strike" title="Strikethrough"><s>S</s></button>
+        <span class="je-tb-sep"></span>
+        <button type="button" class="je-tb-btn" data-action="h1" title="Heading 1">H1</button>
+        <button type="button" class="je-tb-btn" data-action="h2" title="Heading 2">H2</button>
+        <button type="button" class="je-tb-btn" data-action="h3" title="Heading 3">H3</button>
+        <span class="je-tb-sep"></span>
+        <button type="button" class="je-tb-btn" data-action="ul" title="Bullet list">&#8801;</button>
+        <button type="button" class="je-tb-btn" data-action="ol" title="Numbered list">1.</button>
+        <button type="button" class="je-tb-btn" data-action="quote" title="Blockquote">&#10099;</button>
+        <span class="je-tb-sep"></span>
+        <button type="button" class="je-tb-btn je-tb-mono" data-action="icode" title="Inline code">ab</button>
+        <button type="button" class="je-tb-btn je-tb-mono" data-action="code" title="Code block">{}</button>
+        <button type="button" class="je-tb-btn je-tb-mono" data-action="link" title="Link">&#128279;</button>
+        <span class="je-tb-sep"></span>
+        <button type="button" class="je-tb-btn" data-action="hr" title="Horizontal rule">&#8213;</button>
+      </div>
+      <div id="vditor"></div>
     </label>
     <button class="btn">scaffold</button>
   </form>
 </section>
 
+<script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"
+        integrity="sha384-eJNPL+l6x8h5j+uopxmlvvDeNRwWkSYtv5vIn4ksoqY3sgQ3vsDWLGQXwz1IU6j7"
+        crossorigin="anonymous"></script>
+
+<style nonce="{{ request.state.csp_nonce }}">
+/* ── Custom toolbar ── */
+.je-toolbar {
+  display: flex; align-items: center; gap: 1px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.je-tb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--text-dim); cursor: pointer; font-size: 0.85rem;
+  font-family: inherit; transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+.je-tb-btn:hover { background: var(--bg-card); color: var(--text); }
+.je-tb-btn b, .je-tb-btn em, .je-tb-btn s { font-size: 0.9rem; }
+.je-tb-mono { font-family: var(--font-mono); font-size: 0.78rem; }
+.je-tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+
+/* Hide Vditor's built-in (broken) toolbar; keep its border radius */
+#vditor .vditor-toolbar { display: none !important; }
+.vditor { border-radius: 0 0 8px 8px !important; border-color: var(--border) !important; }
+
+/* Content text color */
+#vditor .vditor-reset,
+#vditor .vditor-ir pre.vditor-reset,
+#vditor .vditor-ir .vditor-reset {
+  color: var(--text) !important;
+}
+#vditor .vditor-reset a { color: var(--accent); }
+
+/* Reduce default horizontal padding so text starts at the left edge */
+#vditor .vditor-ir { padding-left: 12px !important; padding-right: 12px !important; }
+#vditor .vditor-ir pre.vditor-reset { padding: 0 !important; margin: 0 auto 0 0 !important; max-width: none !important; }
+</style>
+
 <script nonce="{{ request.state.csp_nonce }}">
+let currentBody = '';
+const isDark = !document.documentElement.classList.contains('theme-light');
+
+const vditor = new Vditor('vditor', {
+  mode: 'ir',
+  lang: 'en_US',
+  theme: isDark ? 'dark' : 'classic',
+  value: '',
+  minHeight: 360,
+  toolbar: [],
+  cache: { enable: false },
+  placeholder: "Describe the design. What changes, who's affected, what data flows differently, what's new vs existing, what you're worried about. Plain English is fine.\n\nUse **bold**, *italics*, # headings, - lists, `code`, and more.",
+  input(val) { currentBody = val; },
+});
+
+// ── Custom toolbar ──────────────────────────────────────────────────────────
+document.getElementById('je-toolbar').addEventListener('mousedown', function(e) {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  e.preventDefault();
+
+  const action = btn.dataset.action;
+  const sel    = window.getSelection();
+  const s      = (sel && sel.rangeCount > 0) ? sel.toString() : '';
+
+  const wrap = (l, r) => vditor.insertValue(s ? l + s + r : l + r);
+
+  switch (action) {
+    case 'bold':   wrap('**', '**');          break;
+    case 'italic': wrap('*', '*');            break;
+    case 'strike': wrap('~~', '~~');          break;
+    case 'h1':     vditor.insertValue('\n# '   + (s || 'Heading') + '\n'); break;
+    case 'h2':     vditor.insertValue('\n## '  + (s || 'Heading') + '\n'); break;
+    case 'h3':     vditor.insertValue('\n### ' + (s || 'Heading') + '\n'); break;
+    case 'ul':     vditor.insertValue('\n- '   + (s || 'item') + '\n');    break;
+    case 'ol':     vditor.insertValue('\n1. '  + (s || 'item') + '\n');    break;
+    case 'quote':  vditor.insertValue('\n> '   + (s || 'quote') + '\n');   break;
+    case 'icode':  wrap('`', '`');            break;
+    case 'code':   vditor.insertValue('\n```\n' + (s || 'code') + '\n```\n'); break;
+    case 'link':   vditor.insertValue('[' + (s || 'link text') + '](url)'); break;
+    case 'hr':     vditor.insertValue('\n---\n'); break;
+  }
+});
+
 async function submitReview(e) {
   e.preventDefault();
   const f = e.target;
+  const bodyText = currentBody.trim() || vditor.getValue().trim();
+  if (!bodyText) {
+      alert("Design proposal is required.");
+      return false;
+  }
+
+  const btn = f.querySelector("button.btn");
+  const oldText = btn ? btn.textContent : "scaffold";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "scaffolding…";
+  }
+
   const resp = await fetch("/api/design-reviews", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       title: f.title.value,
       requester: f.requester.value || null,
-      freewrite: f.freewrite.value,
+      freewrite: bodyText,
     }),
   });
   const data = await resp.json();
@@ -47,6 +170,10 @@ async function submitReview(e) {
     window.location = "/design-reviews/" + data.id;
   } else {
     alert("intake failed");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
   }
   return false;
 }
