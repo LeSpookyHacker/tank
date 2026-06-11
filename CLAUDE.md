@@ -36,14 +36,7 @@ Anthropic API in cleartext. Everything passes through
 `app/redact/engine.py` first. Secrets are one-way SHA-256 hashed;
 they cannot be rehydrated even internally.
 
-The full build history (what was shipped per phase, what tradeoffs
-were taken, known gaps) lives in [HISTORY.md](HISTORY.md). Read it
-for context before making structural changes.
-
-The user-facing documentation lives in [docs/](docs/) — installation,
-onboarding walkthrough, per-feature reference, operations, FAQ,
-troubleshooting. When the user asks a question that's covered there,
-point them at the relevant doc instead of paraphrasing.
+See [HISTORY.md](HISTORY.md) for build history before making structural changes. See [docs/](docs/) for user-facing docs — point users there instead of paraphrasing.
 
 ## Commands
 
@@ -251,25 +244,7 @@ lens.**
 
 ## Living artifacts pattern (Phase 12+)
 
-Tank's later phases shifted from "one-shot reports" to **living
-artifacts** — versioned documents (threat models, decisions, design
-reviews, postmortems) Tank hosts and re-generates as the KB changes.
-The pattern, common across these phases:
-
-1. Schema: dedicated table with a status / version field.
-2. Storage: store module with the standard `create/get/list_*` shape,
-   writes under `LOCK`.
-3. Claude helper: Sonnet-driven seed/draft/generate with the artifact's
-   freewrite as input + (for versioned artifacts) the prior version
-   in the prompt for delta-aware regeneration.
-4. Router: REST API + server-rendered pages.
-5. Two templates: list + detail/editor.
-6. Hooks into other systems: spawn followups, spawn decisions,
-   surface in nudges, expose to chat via `app/kb/tools.py`.
-7. Drift detection (where relevant): a hash over contributing chunks
-   that the regen path compares to current.
-
-Reference implementation: `app/claude/threat_modeling.py`.
+Tank shifted from one-shot reports to **living artifacts** (threat models, decisions, design reviews, postmortems) — versioned, KB-driven, drift-aware. Pattern: dedicated table (status/version) → store (`create/get/list_*` + LOCK) → Claude helper (Sonnet seed/regen with prior version) → REST router + 2 templates (list + detail) → hooks into followups/decisions/nudges/chat tools → drift hash over contributing chunks. Reference: `app/claude/threat_modeling.py`.
 
 ## The three big subsystems (continued — Phase 12+ additions)
 
@@ -325,44 +300,23 @@ and open postmortem action items.
 `composite_score`, and `review_due_at`. `assess(risk_id)` calls Sonnet
 with KB context to fill those fields. `vulnerabilities` is an intake
 queue: `create → triage (set severity/notes) → assign (owner + due) →
-close (patched/accepted/wont_fix) | promote_to_risk()`. The
-`risk_register` report in `REPORT_REGISTRY` renders the full register as
-a markdown table.
+close (patched/accepted/wont_fix) | promote_to_risk()`.
 
 **9. First-hire onboarding suite** (`app/routers/{intake,discovery,
 stack_audit,plan}.py`, `app/claude/{intake_seeder,plan_generator}.py`,
 `app/storage/{intake,plan,asset_inventory}_store.py`).
 
-Four sequential steps surfaced in `/onboarding`:
-1. **Intake interview** — structured Q&A seeds entity stubs (`provenance='user'`,
-   `stub_source='intake_interview'`, confidence 0.3) and populates
-   `app_state` (role, tenure start, team, company).
-2. **Discovery** — GitHub org scan + team/people CSV import feed the entity
-   graph without full-document ingest.
-3. **Stack audit** — user categorizes discovered services via a drag-and-drop
-   matrix; categories persist in `asset_inventory`.
-4. **90-day plan** — `plan_generator.generate()` produces a phased task
-   list seeded from intake answers + KB, stored in `ninety_day_plan`.
+Four sequential steps at `/onboarding`: intake interview (seeds entity stubs with `provenance='user'`, populates `app_state`) → discovery (GitHub scan + CSV import) → stack audit (drag-and-drop categorization → `asset_inventory`) → 90-day plan (`plan_generator.generate()` → `ninety_day_plan`).
 
 **10. Security program dashboard** (`app/routers/security_program.py`,
 `app/storage/` via direct DB queries, `prompts/executive_security_brief.md`).
 
-`_collect_metrics()` aggregates counts from all major tables into
-`SecurityProgramMetrics` (open risks, vuln age, TM drift, compliance
-coverage, nudge counts, etc.). `take_snapshot()` snapshots these into
-`security_program_snapshots` (diffs surfaced in the UI). The Sunday 09:30
-scheduler job fires automatically. `POST /api/security-program/executive-brief`
-generates a Sonnet-written exec brief rehydrated for display.
+`_collect_metrics()` → `SecurityProgramMetrics` (open risks, vuln age, TM drift, compliance, nudges). `take_snapshot()` → `security_program_snapshots`. Auto-fires Sunday 09:30. Exec brief: `POST /api/security-program/executive-brief`.
 
 **11. Policy generator** (`app/claude/policy_generator.py`,
 `app/storage/policies_store.py`, `app/routers/policies.py`).
 
-Five policy kinds: `acceptable_use`, `incident_response`, `secure_sdl`,
-`vulnerability_management`, `data_classification`. Each calls Sonnet with
-the org's KB context (entity graph + role profile). Prompts in
-`prompts/policy_<kind>.md`. The result is stored in `policy_artifact`
-and rendered as markdown in `/policies/<kind>`. Mirrors the `reports.py`
-pattern — reuse `_build_scope_block()` idiom for KB injection.
+Five kinds: `acceptable_use`, `incident_response`, `secure_sdl`, `vulnerability_management`, `data_classification`. Sonnet + org KB context; prompts `prompts/policy_<kind>.md`; stored `policy_artifact`; rendered `/policies/<kind>`. Mirrors `reports.py` — use `_build_scope_block()`.
 
 ## Token cost tracking (three tables)
 
@@ -439,41 +393,14 @@ The `improve_mermaid` endpoint pulls KB context using `hybrid_search("data flow 
 Tank is designed to run on a user-owned dev VM via SSH tunnel, not
 on a laptop that sleeps. Key durable + operational pieces:
 
-- **Healthcheck**: `GET /healthz` returns
-  `{ok, scheduler, db}`. Wire into systemd / external
-  probe. No Sonnet calls; cheap. Defined in `app/main.py`.
-- **Durable scheduler state**: `scheduler_state` table replaces the
-  previous in-memory `_LAST_FIRED` dict. Restarts (intentional or
-  via `Restart=on-failure`) don't double-fire or skip today's jobs.
-  See `app/storage/scheduler_state_store.py`.
-- **TZ-aware scheduler**: `app/claude/scheduler.py::_now()` honors
-  `TANK_TIMEZONE` (IANA name). Hosted VMs are usually UTC, which
-  is almost never what the user wants for `digest_time = 08:00`.
-  Other env vars: `TANK_DIGEST_TIME` (default `08:00`), `TANK_DB_PATH`
-  (default `~/.tank/db.sqlite`), `TANK_ENV` (`dev` enables uvicorn
-  `--reload`; `prod` disables it — systemd unit forces `prod`).
-- **Weekly SQLite backup**: Sunday 03:00 job uses
-  `sqlite3.Connection.backup()` (WAL-safe, online) to write
-  `~/.tank/backups/db-YYYY-MM-DD.sqlite`. The `backup_log` table
-  is the ledger; retention drops everything beyond the most recent 8.
-- **Anthropic SDK retries**: `app/config.py::get_client()` sets
-  `max_retries=4` (up from default 2) and an explicit 600s timeout.
-  Both env-overridable via `TANK_API_MAX_RETRIES` and
-  `TANK_API_TIMEOUT_SECONDS`.
-- **Wipe phrase challenge**: `/api/wipe` requires
-  `confirm_phrase="delete tank"` (case-sensitive) in the form body.
-  Prevents accidental nukes from stale tabs. Backups in
-  `~/.tank/backups/` are NOT touched by the wipe.
-- **Event-bus fan-out**: `app/claude/event_bus.py` gives each SSE
-  subscriber its own queue. When the last subscriber for a topic
-  unsubscribes, the topic is removed from the registry — no
-  unbounded growth across long uptimes. Multi-tab safe (both tabs
-  receive every event).
-- **systemd unit**: `scripts/tank.service` + `scripts/install-systemd.sh`.
-  `Restart=on-failure` with burst-cap, 30s graceful shutdown,
-  `NoNewPrivileges` + `ProtectSystem=strict` sandbox, `EnvironmentFile`
-  reads `.env`. Forces `TANK_ENV=prod` regardless of `.env` to
-  disable `--reload` under a supervisor.
+- **Healthcheck**: `GET /healthz` → `{ok, scheduler, db}`. No Claude calls. In `app/main.py`.
+- **Durable scheduler state**: `scheduler_state` table (replaces in-memory `_LAST_FIRED`); restarts don't double-fire. See `app/storage/scheduler_state_store.py`.
+- **TZ-aware scheduler**: `app/claude/scheduler.py::_now()` honors `TANK_TIMEZONE` (IANA). Env: `TANK_DIGEST_TIME` (default `08:00`), `TANK_DB_PATH` (default `~/.tank/db.sqlite`), `TANK_ENV` (`dev` = `--reload`; `prod` = no reload; systemd forces `prod`).
+- **Weekly SQLite backup**: Sunday 03:00 uses `sqlite3.Connection.backup()` (WAL-safe, online) → `~/.tank/backups/db-YYYY-MM-DD.sqlite`. `backup_log` ledger; retention = 8.
+- **Anthropic SDK retries**: `app/config.py::get_client()` — `max_retries=4`, 600s timeout. Env-overridable via `TANK_API_MAX_RETRIES` / `TANK_API_TIMEOUT_SECONDS`.
+- **Wipe phrase challenge**: `/api/wipe` requires `confirm_phrase="delete tank"` (case-sensitive). Backups in `~/.tank/backups/` are NOT wiped.
+- **Event-bus fan-out**: `app/claude/event_bus.py` — per-subscriber queue; topics self-clean on last unsubscribe. Multi-tab safe.
+- **systemd unit**: `scripts/tank.service` + `scripts/install-systemd.sh`. `Restart=on-failure` with burst-cap, 30s shutdown, `NoNewPrivileges` + `ProtectSystem=strict`, `EnvironmentFile` reads `.env`. Forces `TANK_ENV=prod`.
 
 ## Theme + client-side state
 
@@ -545,11 +472,4 @@ Other `localStorage` keys used across the UI:
 
 ## Reference patterns
 
-This project mirrors patterns from `/Users/manuel.del.rio/projects/job-fit/`:
-- `app/config.py`: env via `python-dotenv`, `@lru_cache get_client()`,
-  `MODEL` constant, `load_prompt(name)`.
-- `app/db.py`: module-level `_CONN` + `threading.Lock` + WAL + per-table
-  store modules.
-- Prompts as `.md` files in `prompts/`, loaded by name; never inlined.
-
-When in doubt, check job-fit.
+Mirrors `/Users/manuel.del.rio/projects/job-fit/` — `config.py` (dotenv, `@lru_cache get_client()`, `MODEL`, `load_prompt`), `db.py` (module `_CONN` + Lock + WAL + store modules), prompts as `.md` in `prompts/`. When in doubt, check job-fit.
