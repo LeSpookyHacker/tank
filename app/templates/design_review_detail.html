@@ -43,7 +43,7 @@
               hx-ext="json-enc"
               hx-vals='{"status":"{{ s }}"}'
               hx-swap="none"
-              hx-on::after-request="window.location.reload()">
+              data-reload-after>
         {{ s }}
       </button>
       {% endif %}

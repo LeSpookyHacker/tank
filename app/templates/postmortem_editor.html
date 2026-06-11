@@ -19,7 +19,7 @@
     <button class="btn"
             hx-post="/api/postmortems/{{ pm.id }}/publish"
             hx-swap="none"
-            hx-on::after-request="window.location.reload()">
+            data-reload-after>
       Publish (creates {{ pm.fields.action_items|length }} followups)
     </button>
   </div>

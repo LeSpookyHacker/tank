@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Tank — {{ control.name }}{% endblock %}
+
+{% block content %}
+<section class="cmp-detail-page">
+
+  <header class="page-head">
+    <div class="back-link"><a href="/compliance">← Compliance</a></div>
+    <h1>{{ control.name }}</h1>
+    <div class="meta-row">
+      {% if attrs.get('family') %}
+      <span class="badge">{{ attrs.family }}</span>
+      {% endif %}
+      {% if attrs.get('framework') %}
+      <span class="badge">{{ attrs.framework }}</span>
+      {% endif %}
+      <span class="badge {% if evidence %}badge-ok{% else %}badge-warn{% endif %}">
+        {{ evidence|length }} evidence item{% if evidence|length != 1 %}s{% endif %}
+      </span>
+    </div>
+    {% if control.description %}
+    <p class="cmp-description">{{ control.description }}</p>
+    {% endif %}
+  </header>
+
+  {% if evidence %}
+  <div class="cmp-evidence-list">
+    <h2>Evidence found in your KB</h2>
+    <p class="dim small">
+      Tank mapped these documents to this control during the last evidence
+      collection run. Confidence reflects retrieval score — higher means a
+      stronger keyword/semantic match.
+    </p>
+
+    <table class="cmp-ev-table">
+      <thead><tr>
+        <th>Document</th>
+        <th>Kind</th>
+        <th>Category</th>
+        <th>Confidence</th>
+      </tr></thead>
+      <tbody>
+        {% for ev in evidence %}
+        <tr>
+          <td>
+            <strong>{{ ev.title or ev.evidence_id }}</strong>
+            {% if ev.source_path %}
+            <div class="dim small">{{ ev.source_path }}</div>
+            {% endif %}
+          </td>
+          <td><span class="badge">{{ ev.evidence_kind }}</span></td>
+          <td>{{ ev.category or '—' }}</td>
+          <td>
+            <div class="conf-bar-wrap" title="{{ '%.0f'|format(ev.confidence * 100) }}%">
+              <div class="conf-bar" data-pct="{{ [ev.confidence * 100, 100] | min | int }}"></div>
+              <span class="conf-label">{{ '%.0f'|format(ev.confidence * 100) }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="alert alert-warn cmp-no-evidence">
+    <strong>No evidence found yet.</strong>
+    Go back to the <a href="/compliance">compliance list</a> and click
+    <em>Re-collect evidence</em> to run a fresh scan of your KB.
+  </div>
+  {% endif %}
+
+</section>
+
+<style nonce="{{ request.state.csp_nonce }}">
+.cmp-detail-page { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem; }
+.back-link { margin-bottom: .5rem; }
+.back-link a { color: var(--text-muted); font-size: .875rem; text-decoration: none; }
+.back-link a:hover { color: var(--text); }
+.meta-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .5rem; }
+.cmp-description { margin: .75rem 0 0; color: var(--text-muted); max-width: 680px; line-height: 1.6; }
+
+.cmp-evidence-list { margin-top: 2rem; }
+.cmp-evidence-list h2 { font-size: 1rem; margin: 0 0 .3rem; }
+
+.cmp-no-evidence { margin-top: 2rem; }
+.cmp-no-evidence a { color: var(--accent, #6c5ce7); }
+
+/* Evidence table */
+.cmp-ev-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: .875rem; }
+.cmp-ev-table th {
+  text-align: left; padding: .5rem .75rem;
+  border-bottom: 2px solid var(--border);
+  font-size: .75rem; text-transform: uppercase; color: var(--text-muted);
+}
+.cmp-ev-table td { padding: .6rem .75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.cmp-ev-table tr:last-child td { border-bottom: none; }
+.cmp-ev-table tr:hover td { background: var(--surface-hover, rgba(108,92,231,.06)); }
+
+/* Confidence bar */
+.conf-bar-wrap { display: flex; align-items: center; gap: .5rem; }
+.conf-bar {
+  height: 6px; border-radius: 3px;
+  background: var(--accent, #6c5ce7);
+  opacity: .7;
+}
+.conf-label { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  // Set confidence bar widths from data-pct (avoids inline style= CSP issues)
+  document.querySelectorAll('.conf-bar[data-pct]').forEach(function(el) {
+    el.style.width = el.dataset.pct + '%';
+    // also clamp minimum visual width so 1% shows as a sliver, not nothing
+    if (parseInt(el.dataset.pct) < 4) el.style.width = '4px';
+  });
+})();
+</script>
+{% endblock %}

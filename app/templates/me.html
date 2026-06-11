@@ -32,7 +32,7 @@
           <button class="btn-link"
                   hx-delete="/api/me/owned/{{ row.entity.id }}"
                   hx-swap="none"
-                  hx-on::after-request="window.location.reload()">
+                  data-reload-after>
             release
           </button>
         </td>

@@ -164,6 +164,7 @@
           <li><a href="/security-program"><span class="lnav-icon">🏛️</span><span class="lnav-label">Program Dashboard</span></a></li>
           <li><a href="/compliance"><span class="lnav-icon">✅</span><span class="lnav-label">Compliance</span></a></li>
           <li><a href="/detections"><span class="lnav-icon">📡</span><span class="lnav-label">Detections</span></a></li>
+          <li><a href="/coverage-map"><span class="lnav-icon">🗺️</span><span class="lnav-label">Coverage Map</span></a></li>
         </ul>
       </div>
 
@@ -505,6 +506,16 @@
     document.addEventListener('DOMContentLoaded', applyColorVars);
     // Re-apply after HTMX swaps content into the DOM
     document.addEventListener('htmx:afterSwap', applyColorVars);
+
+    // SEC-003: hx-on::after-request uses new Function() internally (eval-equivalent),
+    // which is blocked by our strict script-src CSP (no 'unsafe-eval').
+    // Instead, mark buttons with data-reload-after and handle the reload here,
+    // inside a nonce-protected <script> block where JS execution is permitted.
+    document.addEventListener('htmx:afterRequest', function(evt) {
+      if (evt.detail.successful && evt.target.hasAttribute('data-reload-after')) {
+        window.location.reload();
+      }
+    });
   </script>
 
   {% block extra_scripts %}{% endblock %}

@@ -102,6 +102,64 @@ def _generate(*, label: str, prompt_name: str) -> str | None:
     return rid
 
 
+def refine(freewrite_redacted: str, current_doc_md: str) -> str | None:
+    """Merge user's freewrite into the existing philosophy doc. Returns new report id."""
+    state = get_state()
+    client = get_client()
+    try:
+        prompt = load_prompt("philosophy_refine")
+    except FileNotFoundError:
+        log.warning("philosophy_refine prompt missing")
+        return None
+    try:
+        resp = client.messages.parse(
+            model=MODEL,
+            max_tokens=3072,
+            system=[{"type": "text", "text": prompt,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": [
+                {"type": "text",
+                 "text": f"# Current philosophy doc\n{current_doc_md}"},
+                {"type": "text",
+                 "text": f"# User's thoughts (redacted)\n{freewrite_redacted}"},
+                {"type": "text",
+                 "text": "Produce an updated PhilosophyDoc incorporating the user's thoughts."},
+            ]}],
+            output_format=PhilosophyDoc,
+        )
+        log_token_usage("philosophy.refine", MODEL, getattr(resp, "usage", None))
+        usage = getattr(resp, "usage", None)
+        parsed = getattr(resp, "parsed_output", None)
+    except Exception as exc:
+        log.warning("philosophy refine failed: %s", exc)
+        return None
+    if not parsed:
+        return None
+
+    md = _render(parsed)
+    rid = reports_store.insert(
+        kind="philosophy",
+        title=f"Security philosophy — Day {tenure_day()} (refined)",
+        content_md=md, content_md_redacted=md,
+        role_mode=state.role_mode.value,
+        model=MODEL,
+        scope={"label": "refine", "day_n": tenure_day()},
+        tokens_in=getattr(usage, "input_tokens", None) if usage else None,
+        tokens_out=getattr(usage, "output_tokens", None) if usage else None,
+        cache_read_in=getattr(usage, "cache_read_input_tokens", None) if usage else None,
+        cache_create_in=getattr(usage, "cache_creation_input_tokens", None) if usage else None,
+    )
+    # Update the pointer in app_state.
+    from app.db import LOCK, get_conn
+    with LOCK:
+        get_conn().execute(
+            "UPDATE app_state SET philosophy_doc_id = ?, "
+            "updated_at = strftime('%s','now') WHERE id = 1",
+            (rid,),
+        )
+    return rid
+
+
 def latest() -> dict | None:
     state = get_state()
     if state.philosophy_doc_id:

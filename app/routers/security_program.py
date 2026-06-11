@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import MODEL, TEMPLATES_DIR, get_client, load_prompt, log_token_usage
 from app.db import LOCK, get_conn
+from app.rate_limiter import limiter
 from app.redact.engine import apply_redactions
 from app.schemas import ExecutiveBriefOutput, SecurityProgramMetrics
 
@@ -184,7 +185,8 @@ async def manual_snapshot() -> dict:
 
 
 @api.post("/executive-brief")
-async def executive_brief() -> dict:
+@limiter.limit("5/hour")
+async def executive_brief(request: Request) -> dict:
     """Generate an executive-level security brief via Claude."""
     metrics = _collect_metrics()
     metrics_text = json.dumps(metrics.model_dump(), indent=2)

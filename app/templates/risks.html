@@ -163,7 +163,7 @@
           {% else %}—{% endif %}
         </td>
         <td>
-          <button class="btn-link" onclick="closeRisk('{{ r.id }}')">
+          <button class="btn-link" data-action="close-risk" data-risk-id="{{ r.id }}">
             close
           </button>
         </td>
@@ -445,6 +445,13 @@ function closeModal() {
   if (hl) hl.addEventListener("click", showRiskMatrixHelp);
   var hi = document.getElementById("help-btn-impact");
   if (hi) hi.addEventListener("click", showRiskMatrixHelp);
+
+  // SEC-009: delegate close-risk clicks — no inline onclick needed
+  document.addEventListener("click", function(e) {
+    var btn = e.target.closest("[data-action='close-risk']");
+    if (!btn) return;
+    closeRisk(btn.dataset.riskId);
+  });
 })();
 </script>
 {% endblock %}

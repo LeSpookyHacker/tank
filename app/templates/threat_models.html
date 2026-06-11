@@ -53,7 +53,7 @@
           <button class="btn-link"
                   hx-post="/api/threat-models/generate/{{ tm.service_entity_id }}"
                   hx-swap="none"
-                  hx-on::after-request="window.location.reload()">
+                  data-reload-after>
             regenerate
           </button>
         </td>

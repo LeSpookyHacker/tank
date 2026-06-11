@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.claude import threat_modeling
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.storage import entities_store, threat_models_store
 
 router = APIRouter()
@@ -33,7 +34,8 @@ async def for_service(service_id: str) -> dict:
 
 
 @api.post("/generate/{service_id}")
-async def generate(service_id: str) -> dict:
+@limiter.limit("5/hour")
+async def generate(request: Request, service_id: str) -> dict:
     """Generate a new TM (or v1) for the service. Hits Sonnet."""
     svc = entities_store.get_entity(service_id)
     if not svc:

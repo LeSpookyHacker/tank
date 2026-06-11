@@ -43,20 +43,28 @@ function renderGraph(containerId, apiUrl, options) {
   };
   function nodeColor(type) { return TYPE_COLOR[type] || '#9aa1ab'; }
 
-  root.innerHTML = '<div style="color:var(--text-mute);padding:1.5rem">Loading graph…</div>';
+  root.innerHTML = '<div class="kg-status-msg">Loading graph…</div>';
 
   fetch(apiUrl)
     .then(function(r) { return r.json(); })
     .then(function(g) { _draw(g); })
     .catch(function(e) {
-      root.innerHTML = '<div style="color:var(--text-mute);padding:1.5rem">Graph unavailable: ' + e.message + '</div>';
+      root.innerHTML = '<div class="kg-status-msg">Graph unavailable: ' + _escHtml(e.message) + '</div>';
     });
 
   function _draw(g) {
     if (!g.nodes || !g.nodes.length) {
-      root.innerHTML = '<div style="color:var(--text-mute);padding:1.5rem">No entities yet. Ingest some documents to populate the knowledge graph.</div>';
+      root.innerHTML = '<div class="kg-status-msg">No entities yet. Ingest some documents to populate the knowledge graph.</div>';
       return;
     }
+
+    // Guard: drop any edges whose endpoints aren't in the node set.
+    // The server filters these, but this prevents D3 forceLink from throwing
+    // "node not found" if a future code path slips a dangling edge through.
+    var nodeSet = new Set(g.nodes.map(function(n) { return n.id; }));
+    g.edges = (g.edges || []).filter(function(e) {
+      return nodeSet.has(e.src_id) && nodeSet.has(e.dst_id);
+    });
 
     root.innerHTML = '';
 
@@ -174,27 +182,22 @@ function renderGraph(containerId, apiUrl, options) {
       window.location = '/entities/' + d.id;
     });
 
-    // Tooltip
-    var tooltip = d3.select(root).append('div')
-      .style('position', 'absolute')
-      .style('background', 'var(--bg-elevated)')
-      .style('border', '1px solid var(--border)')
-      .style('border-radius', '6px')
-      .style('padding', '0.4rem 0.75rem')
-      .style('font-size', '0.8rem')
-      .style('pointer-events', 'none')
-      .style('display', 'none')
-      .style('z-index', '10');
+    // Tooltip — use a CSS class (kg-tooltip) instead of D3 .style() chains
+    // so we don't generate inline style="" attributes that CSP would flag.
+    var tipEl = document.createElement('div');
+    tipEl.className = 'kg-tooltip';
+    root.appendChild(tipEl);
 
     nodes.on('mouseover.tip', function(event, d) {
-      tooltip.style('display', 'block')
-        .html('<strong>' + _escHtml(d.name) + '</strong> <span style="color:var(--text-mute)">' + _escHtml(d.type) + '</span>');
+      tipEl.innerHTML = '<strong>' + _escHtml(d.name) + '</strong>'
+        + ' <span class="kg-tooltip-type">' + _escHtml(d.type) + '</span>';
+      tipEl.style.display = 'block';  // DOM property — governed by script-src, not style-src
     }).on('mousemove.tip', function(event) {
       var rect = root.getBoundingClientRect();
-      tooltip.style('left', (event.clientX - rect.left + 12) + 'px')
-             .style('top',  (event.clientY - rect.top  + 12) + 'px');
+      tipEl.style.left = (event.clientX - rect.left + 12) + 'px';
+      tipEl.style.top  = (event.clientY - rect.top  + 12) + 'px';
     }).on('mouseout.tip', function() {
-      tooltip.style('display', 'none');
+      tipEl.style.display = 'none';
     });
 
     var sim = d3.forceSimulation(g.nodes)

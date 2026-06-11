@@ -131,7 +131,7 @@ lifecycle UI is a future addition.
 **Authentication:** `TANK_NYX_API_KEY` must be set in the environment
 before the endpoint is usable. If the variable is not set, the endpoint
 returns HTTP 503 (`"vulnerability intake not configured"`). When set,
-the caller must include `X-Nyx-Api-Key: <value>` in the request headers
+the caller must include `X-Nyx-Key: <value>` in the request headers
 (compared with `secrets.compare_digest` to prevent timing attacks);
 a wrong key returns HTTP 401.
 

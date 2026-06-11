@@ -1,9 +1,10 @@
 """Compliance / evidence endpoints + compliance framework selection wizard."""
 from __future__ import annotations
 
+import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -49,11 +50,27 @@ async def gaps() -> dict:
 @router.get("/compliance", response_class=HTMLResponse)
 def page(request: Request):
     controls = entities_store.list_entities(type_="Control", limit=500)
+    for c in controls:
+        c["attrs"] = json.loads(c.get("attrs_json") or "{}")
     gaps = set(compliance_kb.controls_with_no_evidence())
     return templates.TemplateResponse(
         request=request,
         name="compliance.html",
         context={"controls": controls, "gaps": gaps},
+    )
+
+
+@router.get("/compliance/controls/{control_id}", response_class=HTMLResponse)
+def control_detail_page(request: Request, control_id: str):
+    entity = entities_store.get_entity(control_id)
+    if not entity or entity.get("type") != "Control":
+        raise HTTPException(404, "Control not found")
+    attrs = json.loads(entity.get("attrs_json") or "{}")
+    evidence = compliance_kb.find_evidence_with_titles(control_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="compliance_detail.html",
+        context={"control": entity, "attrs": attrs, "evidence": evidence},
     )
 
 

@@ -10,7 +10,7 @@
     <button class="btn"
             hx-post="/api/glossary/discover"
             hx-swap="none"
-            hx-on::after-request="window.location.reload()">
+            data-reload-after>
       Discover new candidates
     </button>
   </header>
@@ -26,12 +26,12 @@
       <button class="btn-link"
               hx-post="/api/glossary/{{ p.id }}/confirm"
               hx-swap="none"
-              hx-on::after-request="window.location.reload()">confirm</button>
+              data-reload-after>confirm</button>
       ·
       <button class="btn-link"
               hx-post="/api/glossary/{{ p.id }}/reject"
               hx-swap="none"
-              hx-on::after-request="window.location.reload()">reject</button>
+              data-reload-after>reject</button>
     </li>
     {% endfor %}
   </ul>

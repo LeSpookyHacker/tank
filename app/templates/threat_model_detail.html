@@ -16,14 +16,14 @@
     <button class="btn"
             hx-post="/api/threat-models/generate/{{ tm.service_entity_id }}"
             hx-swap="none"
-            hx-on::after-request="window.location.reload()">
+            data-reload-after>
       Regenerate against current arch
     </button>
     {% if not tm.confirmed_by_user %}
     <button class="btn btn-secondary"
             hx-post="/api/threat-models/{{ tm.id }}/confirm"
             hx-swap="none"
-            hx-on::after-request="window.location.reload()">
+            data-reload-after>
       Confirm this version
     </button>
     {% endif %}

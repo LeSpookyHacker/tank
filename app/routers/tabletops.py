@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.claude import tabletop as tabletop_helper
 from app.config import TEMPLATES_DIR
+from app.rate_limiter import limiter
 from app.storage import tabletops_store
 
 router = APIRouter()
@@ -32,7 +33,8 @@ async def list_tts() -> dict:
 
 
 @api.post("/generate")
-async def generate(body: GenerateRequest) -> dict:
+@limiter.limit("5/hour")
+async def generate(request: Request, body: GenerateRequest) -> dict:
     tt_id = tabletop_helper.generate(
         service_id=body.service_id,
         threat_kind=body.threat_kind,
@@ -60,7 +62,8 @@ async def capture(tt_id: str, body: LessonsCapture) -> dict:
 
 
 @api.post("/{tt_id}/generate-runbook")
-async def generate_runbook(tt_id: str) -> dict:
+@limiter.limit("5/hour")
+async def generate_runbook(request: Request, tt_id: str) -> dict:
     """Generate an IR runbook from this tabletop scenario."""
     tt = tabletops_store.get(tt_id)
     if not tt:

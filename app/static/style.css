@@ -3024,3 +3024,18 @@ html:not(.theme-light) .icon-sun { display:none; }
 .text-accent   { color: var(--accent); }
 /* Used for project/team color-bar accent strips */
 .proj-accent-bar { height: 6px; }
+
+/* ── Knowledge graph (graph.js shared classes) ── */
+.kg-status-msg { color: var(--text-muted); padding: 1.5rem; }
+.kg-tooltip {
+  position: absolute;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+}
+.kg-tooltip-type { color: var(--text-muted); }

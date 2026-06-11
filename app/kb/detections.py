@@ -15,12 +15,18 @@ from app.storage import entities_store, relationships_store
 def find_for_technique(attack_id: str) -> dict:
     """Detection entities tagged with the given ATT&CK technique."""
     attack_id_up = attack_id.strip().upper()
+    # Escape LIKE special chars so user-supplied IDs are matched literally.
+    attack_id_like = (
+        attack_id_up.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
     # Detections that mention the technique id in attrs or name.
     rows = get_conn().execute(
         "SELECT id, name, description, attrs_json "
         "FROM entities WHERE type = 'Detection' "
-        "AND (attrs_json LIKE ? OR description LIKE ? OR name LIKE ?)",
-        (f"%{attack_id_up}%", f"%{attack_id_up}%", f"%{attack_id_up}%"),
+        "AND (attrs_json LIKE ? ESCAPE '\\' "
+        "OR description LIKE ? ESCAPE '\\' "
+        "OR name LIKE ? ESCAPE '\\')",
+        (f"%{attack_id_like}%", f"%{attack_id_like}%", f"%{attack_id_like}%"),
     ).fetchall()
     return {
         "attack_id": attack_id_up,
@@ -48,3 +54,41 @@ def coverage_table(limit_services: int = 30) -> list[dict]:
                 "covered_by": [d["name"] for d in row["detections"]],
             })
     return out
+
+
+def coverage_by_technique() -> dict:
+    """Return per-technique coverage summary for the coverage map page.
+
+    Makes one query per technique (not N*M) and returns a dict with:
+      - techniques: list of {id, name, description, detections, covered}
+        sorted covered-first then alphabetically
+      - covered_count: int
+      - gap_count: int
+      - total: int
+      - coverage_pct: float 0-100
+    """
+    techniques = entities_store.list_entities(type_="AttackTechnique",
+                                              limit=200)
+    rows = []
+    for t in techniques:
+        result = find_for_technique(t["name"])
+        rows.append({
+            "id": t["id"],
+            "name": t["name"],
+            "description": t.get("description") or "",
+            "detections": result["detections"],
+            "covered": len(result["detections"]) > 0,
+        })
+
+    # covered first, then gaps; within each group sort by name
+    rows.sort(key=lambda r: (0 if r["covered"] else 1, r["name"].lower()))
+
+    covered = sum(1 for r in rows if r["covered"])
+    total = len(rows)
+    return {
+        "techniques": rows,
+        "covered_count": covered,
+        "gap_count": total - covered,
+        "total": total,
+        "coverage_pct": round(covered / total * 100) if total else 0,
+    }

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Tank — ATT&CK Coverage Map{% endblock %}
+
+{% block content %}
+<section class="cov-page">
+
+  <header class="page-head">
+    <div class="back-link"><a href="/detections">← Detections</a></div>
+    <h1>ATT&amp;CK Coverage Map</h1>
+    <p class="dim">Which ATT&amp;CK techniques have Sigma detection rules?
+      Green = at least one rule covers it. Red = gap, no detection ingested.</p>
+  </header>
+
+  {# ── Summary bar ── #}
+  <div class="cov-summary">
+    <div class="cov-stat">
+      <span class="cov-stat-val">{{ detection_count }}</span>
+      <span class="cov-stat-label">Detection rules</span>
+    </div>
+    <div class="cov-stat">
+      <span class="cov-stat-val">{{ total }}</span>
+      <span class="cov-stat-label">Techniques tracked</span>
+    </div>
+    <div class="cov-stat cov-stat--covered">
+      <span class="cov-stat-val">{{ covered_count }}</span>
+      <span class="cov-stat-label">Covered</span>
+    </div>
+    <div class="cov-stat cov-stat--gap">
+      <span class="cov-stat-val">{{ gap_count }}</span>
+      <span class="cov-stat-label">Gaps</span>
+    </div>
+    <div class="cov-stat">
+      <div class="cov-pct-wrap">
+        <div class="cov-pct-bar" id="cov-pct-bar" data-pct="{{ coverage_pct }}"></div>
+      </div>
+      <span class="cov-stat-label">{{ coverage_pct }}% covered</span>
+    </div>
+  </div>
+
+  {# ── Technique grid ── #}
+  {% if techniques %}
+  <div class="cov-grid">
+    {% for t in techniques %}
+    <div class="cov-card {% if t.covered %}cov-card--covered{% else %}cov-card--gap{% endif %}"
+         id="card-{{ loop.index }}">
+      <div class="cov-card-head">
+        <span class="cov-technique-id">{{ t.name }}</span>
+        {% if t.covered %}
+          <span class="badge badge-ok cov-badge">covered</span>
+        {% else %}
+          <span class="badge badge-warn cov-badge">gap</span>
+        {% endif %}
+      </div>
+
+      {% if t.description %}
+      <div class="cov-technique-desc dim small">{{ t.description[:140] }}</div>
+      {% endif %}
+
+      {% if t.covered %}
+      <ul class="cov-detections">
+        {% for d in t.detections %}
+        <li>
+          <span class="cov-det-icon">⚡</span>
+          <span class="cov-det-name">{{ d.name }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="cov-gap-hint dim small">No matching Sigma rules ingested.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="alert alert-warn" style="margin-top:2rem">
+    No ATT&amp;CK techniques found. Ingest Sigma rules or threat model
+    documents to populate this map.
+  </div>
+  {% endif %}
+
+</section>
+
+<style nonce="{{ request.state.csp_nonce }}">
+.cov-page { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
+.back-link { margin-bottom: .5rem; }
+.back-link a { color: var(--text-muted); font-size: .875rem; text-decoration: none; }
+.back-link a:hover { color: var(--text); }
+
+/* ── Summary bar ── */
+.cov-summary {
+  display: flex; flex-wrap: wrap; gap: 1rem;
+  margin: 1.5rem 0 2rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  align-items: center;
+}
+.cov-stat { display: flex; flex-direction: column; align-items: center; gap: .15rem; min-width: 80px; }
+.cov-stat-val { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+.cov-stat-label { font-size: .7rem; text-transform: uppercase; color: var(--text-muted); }
+.cov-stat--covered .cov-stat-val { color: #22c55e; }
+.cov-stat--gap    .cov-stat-val { color: var(--sev-high, #EA580C); }
+
+/* Coverage % bar */
+.cov-pct-wrap {
+  width: 120px; height: 8px; border-radius: 4px;
+  background: var(--border); overflow: hidden;
+}
+.cov-pct-bar { height: 100%; border-radius: 4px; background: #22c55e; }
+
+/* ── Technique grid ── */
+.cov-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.cov-card {
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 1rem 1.1rem; background: var(--surface);
+  border-left-width: 3px;
+}
+.cov-card--covered { border-left-color: #22c55e; }
+.cov-card--gap     { border-left-color: var(--sev-high, #EA580C); }
+
+.cov-card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .4rem; }
+.cov-technique-id { font-family: var(--font-mono, 'JetBrains Mono', monospace); font-size: .8rem; font-weight: 600; }
+.cov-badge { font-size: .65rem; padding: .15rem .45rem; }
+.cov-technique-desc { margin-bottom: .6rem; line-height: 1.5; }
+
+.cov-detections { list-style: none; padding: 0; margin: .4rem 0 0; display: flex; flex-direction: column; gap: .3rem; }
+.cov-detections li { display: flex; align-items: flex-start; gap: .4rem; font-size: .8rem; }
+.cov-det-icon { flex-shrink: 0; font-size: .75rem; opacity: .7; }
+.cov-det-name { color: var(--text); line-height: 1.4; }
+
+.cov-gap-hint { margin-top: .4rem; font-style: italic; }
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  var bar = document.getElementById('cov-pct-bar');
+  if (bar) bar.style.width = bar.dataset.pct + '%';
+})();
+</script>
+{% endblock %}

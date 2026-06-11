@@ -44,4 +44,17 @@ def page_list(request: Request):
     )
 
 
+@router.get("/coverage-map", response_class=HTMLResponse)
+def coverage_map_page(request: Request):
+    data = detections_kb.coverage_by_technique()
+    detection_count = len(
+        entities_store.list_entities(type_="Detection", limit=500)
+    )
+    return templates.TemplateResponse(
+        request=request,
+        name="coverage_map.html",
+        context={**data, "detection_count": detection_count},
+    )
+
+
 router.include_router(api)

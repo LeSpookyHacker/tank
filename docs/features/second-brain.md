@@ -162,7 +162,20 @@ at this company.
   refines wording, removes contradicted ones, adds 1-3 new
   reflecting recent decisions. Prompt: `philosophy_evolve.md`.
 
-Manual trigger: `POST /api/philosophy/seed` or `/evolve` at any time.
+Manual trigger: `POST /api/philosophy/seed`, `/evolve`, or `/refine` at any time.
+
+### Freewrite refinement
+
+Below the rendered philosophy doc, a Vditor rich-text editor lets you type any ideas,
+lessons, or stance updates directly. Click **"Apply to philosophy"** and Tank:
+
+1. Runs your text through `apply_redactions()` (privacy contract — nothing leaves in cleartext).
+2. Sends it to `POST /api/philosophy/refine` alongside the current doc.
+3. Sonnet merges each idea into the appropriate stance (reinforce, contradict, or add new),
+   distils freewrite language into stance language, and returns an updated `PhilosophyDoc`.
+4. The page reloads with the new version; the old version is preserved in the `reports` table.
+
+Prompt: `prompts/philosophy_refine.md`. Rate-limited to 10 refine calls/hour.
 
 ### What it contains
 

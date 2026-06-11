@@ -11,7 +11,7 @@
     <button class="btn"
             hx-post="/api/compliance/collect-evidence"
             hx-swap="none"
-            hx-on::after-request="window.location.reload()">
+            data-reload-after>
       Re-collect evidence
     </button>
   </header>
@@ -30,18 +30,24 @@
     </tr></thead>
     <tbody>
       {% for c in controls %}
-      <tr>
-        <td><strong>{{ c.name }}</strong>
+      {% set has_evidence = c.id not in gaps %}
+      <tr {% if has_evidence %}class="cmp-row-link" data-href="/compliance/controls/{{ c.id }}" title="View evidence"{% endif %}>
+        <td>
+          <strong>{{ c.name }}</strong>
+          {% if has_evidence %}
+            <span class="cmp-view-hint">view evidence →</span>
+          {% endif %}
           {% if c.description %}
           <div class="dim small">{{ c.description[:160] }}</div>
           {% endif %}
         </td>
         <td>{{ c.attrs.get('family', '—') if c.attrs else '—' }}</td>
         <td>
-          {% if c.id in gaps %}
-            <span class="badge badge-warn">none</span>
+          {% if has_evidence %}
+            <a class="badge badge-ok cmp-evidence-link"
+               href="/compliance/controls/{{ c.id }}">view evidence</a>
           {% else %}
-            <span class="badge badge-ok">yes</span>
+            <span class="badge badge-warn">none</span>
           {% endif %}
         </td>
       </tr>
@@ -53,5 +59,33 @@
       {% endfor %}
     </tbody>
   </table>
+
+<style nonce="{{ request.state.csp_nonce }}">
+.cmp-row-link { cursor: pointer; }
+.cmp-row-link:hover { background: var(--surface-hover, rgba(108,92,231,.08)); }
+.cmp-row-link:hover .cmp-view-hint { opacity: 1; }
+.cmp-view-hint {
+  font-size: .75rem; color: var(--accent, #6c5ce7);
+  margin-left: .4rem; opacity: 0;
+  transition: opacity .15s;
+}
+.cmp-evidence-link { text-decoration: none; }
+.cmp-row-link:hover .cmp-evidence-link { text-decoration: underline; }
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  // Inline onclick="" is blocked by CSP (no unsafe-inline in script-src).
+  // Use event delegation on the tbody instead — rows carry data-href.
+  var tbody = document.querySelector('.cmp-table tbody');
+  if (!tbody) return;
+  tbody.addEventListener('click', function (e) {
+    // Don't interfere if the user clicked the <a> badge directly
+    if (e.target.closest('a')) return;
+    var row = e.target.closest('tr[data-href]');
+    if (row) window.location.href = row.dataset.href;
+  });
+})();
+</script>
 </section>
 {% endblock %}

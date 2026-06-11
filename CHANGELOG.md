@@ -12,6 +12,41 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-06-11] — Philosophy freewrite refinement; security audit pass 8 fixes
+
+### Added
+
+- **Philosophy freewrite refinement** — a Vditor 3.10.9 rich-text editor is now embedded
+  below the rendered philosophy doc at `/philosophy`. Type any ideas, lessons, or stance
+  updates; click "Apply to philosophy" and Claude merges them into the existing document via
+  `POST /api/philosophy/refine`. User text is passed through `apply_redactions()` before
+  reaching the Anthropic API (privacy contract preserved). New prompt:
+  `prompts/philosophy_refine.md`. New function: `app/claude/philosophy.py::refine()`. New
+  endpoint: `POST /api/philosophy/refine` (rate-limited to 10/hour).
+
+### Security
+
+- Six findings from security audit pass 8 resolved. Full report:
+  [`SECURITY-AUDIT-2026-06-11.md`](SECURITY-AUDIT-2026-06-11.md).
+  - **SEC-007 (Low):** Repo ingest endpoint echoed blocked-path prefix in HTTP 403 body
+    (`app/routers/ingest.py:157`). Now logs server-side and returns a generic message.
+  - **SEC-008 (Medium):** `style-src 'unsafe-inline'` re-introduced for Mermaid SVG —
+    accepted architectural trade-off; documented in code and CLAUDE.md. No code change.
+  - **SEC-009 (Medium):** `onclick="closeRisk(...)"` in `risks.html` was silently blocked
+    by CSP `script-src`, making the close button inoperative. Replaced with
+    `data-action="close-risk" data-risk-id=…` + delegated listener.
+  - **SEC-010 (Medium):** Six Claude-calling endpoints lacked `@limiter.limit()`: philosophy
+    seed/evolve (3/hr), philosophy refine (10/hr), threat-model generate (5/hr), tabletop
+    generate + generate-runbook (5/hr), security-program executive-brief (5/hr). All fixed.
+  - **SEC-011 (Low):** Compliance wizard passed raw questionnaire answers to Claude without
+    `apply_redactions()`. Fixed: answers are now redacted before `user_content` is assembled
+    (`app/claude/compliance_wizard.py`).
+  - **SEC-012 (Info):** LIKE wildcard passthrough in `find_for_technique()` — `%` and `_`
+    in `attack_id` were interpreted as SQLite wildcards. Fixed: escape via `ESCAPE '\\'`
+    before constructing the pattern (`app/kb/detections.py`).
+
+---
+
 ## [2026-06-10] — Report formatting overhaul, plan generator fix, postmortem Vditor editor
 
 ### Fixed

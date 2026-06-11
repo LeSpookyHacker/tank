@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Tank — security philosophy{% endblock %}
 
+{% block head_extra %}
+{% if doc and not doc.get('empty') %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css"
+      integrity="sha384-Y64ixq0sw4ASbzOXI0H86SHuTR4D9yoVMPq+2w/jVU3AOvf7l9pNZuWYmrAHVIhd"
+      crossorigin="anonymous" />
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <section class="philosophy-page">
   <header class="page-head">
@@ -12,13 +20,13 @@
       <button class="btn"
               hx-post="/api/philosophy/seed"
               hx-swap="none"
-              hx-on::after-request="window.location.reload()">
+              data-reload-after>
         Seed now
       </button>
       <button class="btn-secondary"
               hx-post="/api/philosophy/evolve"
               hx-swap="none"
-              hx-on::after-request="window.location.reload()">
+              data-reload-after>
         Evolve now
       </button>
     </div>
@@ -29,6 +37,30 @@
     <p class="dim small">
       Generated at {{ "%.0f"|format(doc.created_at) }} (kind: {{ doc.kind }})
     </p>
+
+    <hr class="phil-divider">
+    <section class="phil-refine">
+      <h2>Refine with your thoughts</h2>
+      <p class="dim">Type any ideas, stances, or lessons below — Claude will weave
+        them into the existing philosophy doc. Your text is redacted before it leaves
+        this machine.</p>
+
+      <div class="je-toolbar" id="phil-toolbar">
+        <button class="je-tb-btn" data-action="bold"   title="Bold"><b>B</b></button>
+        <button class="je-tb-btn" data-action="italic" title="Italic"><em>I</em></button>
+        <span class="je-tb-sep"></span>
+        <button class="je-tb-btn" data-action="ul"    title="Bullet list">&#8801;</button>
+        <button class="je-tb-btn" data-action="quote" title="Blockquote">&#10099;</button>
+        <span class="je-tb-sep"></span>
+        <button class="je-tb-btn je-tb-mono" data-action="icode" title="Inline code">ab</button>
+      </div>
+      <div id="phil-vditor"></div>
+
+      <div class="phil-refine-actions">
+        <span class="dim" id="phil-status"></span>
+        <button class="btn-primary" id="phil-refine-btn">Apply to philosophy</button>
+      </div>
+    </section>
   {% else %}
     <p class="dim">No philosophy doc yet. Click "Seed now" to draft
       the initial version from your decisions log + tabletops.</p>
@@ -46,6 +78,119 @@
   }
   if (window.marked && window.DOMPurify) { render(); }
   else { window.addEventListener("load", render); }
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"
+        integrity="sha384-eJNPL+l6x8h5j+uopxmlvvDeNRwWkSYtv5vIn4ksoqY3sgQ3vsDWLGQXwz1IU6j7"
+        crossorigin="anonymous"></script>
+
+<style nonce="{{ request.state.csp_nonce }}">
+.phil-divider { margin: 2.5rem 0; border-color: var(--border); }
+.phil-refine h2 { margin-bottom: 0.4rem; }
+.phil-refine { max-width: 860px; }
+
+/* ── Toolbar ── */
+.je-toolbar {
+  display: flex; align-items: center; gap: 1px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.je-tb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--text-dim); cursor: pointer; font-size: 0.85rem;
+  font-family: inherit; transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+.je-tb-btn:hover { background: var(--bg-card); color: var(--text); }
+.je-tb-btn b, .je-tb-btn em { font-size: 0.9rem; }
+.je-tb-mono { font-family: var(--font-mono); font-size: 0.78rem; }
+.je-tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+
+/* ── Vditor overrides ── */
+#phil-vditor .vditor-toolbar { display: none !important; }
+#phil-vditor.vditor { border-radius: 0 0 8px 8px !important; border-color: var(--border) !important; }
+#phil-vditor .vditor-reset,
+#phil-vditor .vditor-ir pre.vditor-reset,
+#phil-vditor .vditor-ir .vditor-reset { color: var(--text) !important; }
+#phil-vditor .vditor-reset a { color: var(--accent); }
+
+/* ── Actions row ── */
+.phil-refine-actions {
+  display: flex; align-items: center; gap: 1rem; margin-top: 1rem;
+}
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  var isDark = !document.documentElement.classList.contains('theme-light');
+  var currentText = '';
+
+  var vditor = new Vditor('phil-vditor', {
+    mode: 'ir',
+    lang: 'en_US',
+    theme: isDark ? 'dark' : 'classic',
+    minHeight: 240,
+    toolbar: [],
+    cache: { enable: false },
+    placeholder: 'e.g. "I believe IAM least-privilege is non-negotiable even if it slows delivery…"',
+    input: function (val) { currentText = val; },
+  });
+
+  // ── Custom toolbar ──
+  document.getElementById('phil-toolbar').addEventListener('mousedown', function (e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    e.preventDefault();
+    var action = btn.dataset.action;
+    var sel = window.getSelection();
+    var s = (sel && sel.rangeCount > 0) ? sel.toString() : '';
+    var wrap = function (l, r) { vditor.insertValue(s ? l + s + r : l + r); };
+    switch (action) {
+      case 'bold':   wrap('**', '**');  break;
+      case 'italic': wrap('*', '*');    break;
+      case 'ul':     vditor.insertValue('\n- ' + (s || 'item') + '\n'); break;
+      case 'quote':  vditor.insertValue('\n> ' + (s || 'quote') + '\n'); break;
+      case 'icode':  wrap('`', '`');    break;
+    }
+  });
+
+  // ── Submit ──
+  var refineBtn = document.getElementById('phil-refine-btn');
+  var statusEl  = document.getElementById('phil-status');
+
+  refineBtn.addEventListener('click', async function () {
+    var text = currentText.trim();
+    if (!text) {
+      statusEl.textContent = 'Please write something first.';
+      return;
+    }
+    refineBtn.disabled = true;
+    statusEl.textContent = 'Sending to Claude… this may take a moment.';
+    try {
+      var resp = await fetch('/api/philosophy/refine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ freewrite: text }),
+      });
+      var data = await resp.json();
+      if (!resp.ok || data.error) {
+        statusEl.textContent = data.detail || data.error || 'Failed — try again.';
+        refineBtn.disabled = false;
+        return;
+      }
+      statusEl.textContent = 'Done! Refreshing…';
+      window.location.reload();
+    } catch (_) {
+      statusEl.textContent = 'Network error — try again.';
+      refineBtn.disabled = false;
+    }
+  });
 })();
 </script>
 {% endif %}

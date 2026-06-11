@@ -154,7 +154,8 @@ async def ingest_repo_endpoint(request: Request,
         raise HTTPException(403, "path outside allowed ingest directories")
     blocked = is_blocked_path(p)
     if blocked:
-        raise HTTPException(403, f"path not allowed (sensitive directory: {blocked})")
+        log.warning("blocked repo ingest path: %s (matched: %s)", p, blocked)
+        raise HTTPException(403, "path not allowed")
     if not p.is_dir():
         raise HTTPException(404, f"no such directory: {req.path}")
     background_tasks.add_task(_do_ingest_repo, p, req.category)

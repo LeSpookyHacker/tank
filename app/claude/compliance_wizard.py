@@ -7,6 +7,7 @@ import re
 
 from app.claude.reports import _build_scope_block
 from app.config import MODEL, get_client, load_prompt, log_token_usage
+from app.redact.engine import apply_redactions
 from app.role import get_state
 
 log = logging.getLogger("tank.compliance_wizard")
@@ -70,14 +71,16 @@ QUESTIONS = [
 
 def recommend(answers: dict) -> dict:
     """Run the compliance wizard LLM call. Returns parsed recommendation dict."""
-    answers_text = json.dumps(answers, indent=2)
+    # SEC-011: redact answers before they leave this machine.
+    safe_answers = {k: apply_redactions(str(v)).redacted_text for k, v in answers.items()}
+    answers_text = json.dumps(safe_answers, indent=2)
     scope_block = _build_scope_block()
     state = get_state()
 
     user_content = f"""
 Company context:
-- Industry: {answers.get('q1_industry', 'unknown')}
-- Customers: {answers.get('q2_customers', 'unknown')}
+- Industry: {safe_answers.get('q1_industry', 'unknown')}
+- Customers: {safe_answers.get('q2_customers', 'unknown')}
 - Compliance targets already known: {', '.join(state.compliance_targets) or 'none'}
 
 Questionnaire answers:

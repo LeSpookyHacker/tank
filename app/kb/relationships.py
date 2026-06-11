@@ -94,6 +94,12 @@ def graph_for_type(type_: str, depth: int = 2,
                             next_frontier.append(other_id)
         frontier = next_frontier
 
+    # Drop edges whose endpoints didn't make it into the node set (cap was hit).
+    # D3 forceLink throws "node not found" for any dangling edge reference.
+    node_ids = set(nodes_by_id.keys())
+    edges_out = [e for e in edges_out
+                 if e["src_id"] in node_ids and e["dst_id"] in node_ids]
+
     return {"nodes": list(nodes_by_id.values()), "edges": edges_out}
 
 
@@ -129,5 +135,11 @@ def graph_for_all_types(depth: int = 1, limit_nodes: int = 150) -> dict:
                         other = entities_store.get_entity(other_id)
                         if other:
                             _add_node(other)
+
+    # Drop edges whose endpoints didn't make it into the node set (cap was hit).
+    # D3 forceLink throws "node not found" for any dangling edge reference.
+    node_ids = set(nodes_by_id.keys())
+    edges_out = [e for e in edges_out
+                 if e["src_id"] in node_ids and e["dst_id"] in node_ids]
 
     return {"nodes": list(nodes_by_id.values()), "edges": edges_out}

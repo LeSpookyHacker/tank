@@ -13,6 +13,24 @@ of work, in chronological order.
 
 ---
 
+## 2026-06-11 — Philosophy freewrite refinement; security audit pass 8
+
+Added a freewrite refinement feature to the philosophy page: a Vditor rich-text editor sits
+below the rendered doc, and clicking "Apply to philosophy" sends the user's raw thoughts to
+`POST /api/philosophy/refine`. The router applies `apply_redactions()` before passing the
+text to a new `philosophy.refine()` helper that merges each idea into the appropriate stance
+via Sonnet (`prompts/philosophy_refine.md`). All four token-tracking fields are passed to
+`reports_store.insert()`; the endpoint is rate-limited to 10/hr via slowapi.
+
+The fifth security audit pass covered new code from this session. Six findings (SEC-007 through
+SEC-012) were remediated: repo-ingest blocked-path leakage (Low), CSP inline `onclick` breakage
+on the risk register (Medium), six Claude-calling endpoints missing `@limiter.limit()` (Medium),
+compliance wizard answers bypassing `apply_redactions()` (Low), and LIKE wildcard passthrough in
+the detections query (Info). SEC-008 (`style-src 'unsafe-inline'`) was accepted as a documented
+Mermaid rendering trade-off. Full report: `SECURITY-AUDIT-2026-06-11.md`.
+
+---
+
 ## 2026-06-10 — Report formatting overhaul and report reliability fixes
 
 **Root cause:** `app/static/style.css` had `white-space: pre-wrap` on the `.markdown-body`
