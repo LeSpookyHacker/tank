@@ -426,14 +426,18 @@ code should hold to them.
   any prompt.
 - **No remote embedding API.** Local sentence-transformers only.
   Privacy beats retrieval quality.
-- **Anthropic SDK call shape**: `messages.parse(model=MODEL,
-  thinking={"type":"adaptive"}, system=[...], messages=[...],
-  output_format=PydanticClass)` for interactive structured output;
-  `messages.stream(...)` for chat; `messages.batches.create(requests=[...])`
+- **Anthropic SDK call shape**: `messages.parse(model=MODEL, system=[...],
+  messages=[...], output_format=PydanticClass)` for interactive structured
+  output; `messages.stream(...)` for chat; `messages.batches.create(requests=[...])`
   via `app/claude/batches.py` for scheduler fan-out (50% off, async,
   no `output_format` — use `tool_params_for` / `extract_validated`).
   Prompt caching via the `CACHE_5M` / `CACHE_1H` constants from
   `app/claude/caching.py`, not inline literals.
+  `thinking={"type":"adaptive"}` is used **selectively** — only for
+  high-stakes multi-step synthesis: `prioritization.py`, `policy_generator.py`,
+  `compliance_wizard.py`, and the `security_program.py` executive brief.
+  All other `messages.parse()` calls (reports, IR runbooks, plan generator,
+  threat modeling, etc.) omit it intentionally for latency and cost.
 - **SQLite**: single global connection guarded by `threading.Lock`.
   All writes inside `with LOCK:`. WAL mode + foreign keys on.
 
