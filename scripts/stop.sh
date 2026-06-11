@@ -17,12 +17,18 @@ if [[ -z "$PID" ]]; then
     exit 0
 fi
 
-echo "stopping uvicorn on port $PORT (pid=$PID)"
-kill -TERM "$PID"
+# lsof may return multiple PIDs (one per line); normalise into an array
+PIDS=($PID)
+echo "stopping uvicorn on port $PORT (pid=${PIDS[*]})"
+kill -TERM "${PIDS[@]}"
 
 # Wait up to 5s for graceful shutdown
 for _ in 1 2 3 4 5; do
-    if ! kill -0 "$PID" 2>/dev/null; then
+    alive=0
+    for pid in "${PIDS[@]}"; do
+        kill -0 "$pid" 2>/dev/null && alive=1 && break
+    done
+    if [[ $alive -eq 0 ]]; then
         echo "stopped"
         exit 0
     fi
@@ -30,4 +36,4 @@ for _ in 1 2 3 4 5; do
 done
 
 echo "process did not exit; sending SIGKILL"
-kill -KILL "$PID" 2>/dev/null || true
+kill -KILL "${PIDS[@]}" 2>/dev/null || true

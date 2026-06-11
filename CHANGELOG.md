@@ -12,6 +12,70 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ---
 
+## [2026-06-10] — Report formatting overhaul, plan generator fix, postmortem Vditor editor
+
+### Fixed
+
+- **Report double-spacing / excessive vertical whitespace** — `app/static/style.css` had
+  `white-space: pre-wrap` on the second `.markdown-body` rule block. `marked.js` HTML output
+  contains `\n` characters between block-level elements (`</h2>\n<ul>`, etc.); with `pre-wrap`
+  those newlines rendered as visible ~14px-tall line breaks. Removing `white-space: pre-wrap`
+  resolves double-spacing across all 9 templates that use `.markdown-body` (reports, threat
+  models, policies, postmortems, IR runbooks, design reviews, philosophy, and tabletops).
+
+- **Attack mapping button failure (HTTP 500)** — `attack_mapping()` in
+  `app/claude/reports.py` raised `RuntimeError("attack_mapping returned no rows")` when no
+  Threat Models existed in the KB, producing an HTTP 500 and a browser alert. Now renders a
+  graceful "No data to map" blockquote explaining the prerequisite (run Threat landscape per
+  service first) instead of crashing.
+
+- **Risk register blank report** — When the risk register DB had no open entries, Claude
+  returned a sparse `RiskRegisterReport` with `risks=[]`, rendering as a nearly blank page.
+  `_render_risk_register()` now emits an actionable "No open risks found" blockquote.
+
+- **Control coverage matrix all `?`** — When the KB lacked control-implementation evidence,
+  Claude returned `"unknown"` for all cells (correct per the prompt instruction "when in doubt,
+  choose unknown"). `_render_matrix()` now prepends an "Insufficient KB data" blockquote when
+  > 70% of cells are `"unknown"`, explaining why coverage shows as `?`.
+
+- **Plan generator — structured output error on empty response** — `plan_generator.py` used
+  `parsed.output` which raises `AttributeError` if `messages.parse()` returns no structured
+  output. Now uses `getattr(resp, "parsed_output", None)` with an explicit `None` check and a
+  `RuntimeError` with a clear message.
+
+### Changed
+
+- **Report sub-items reformatted as compact inline bullets** — `_render_plan()`,
+  `_render_state_of_security()`, `_render_initial_assessment()`, and
+  `_render_program_roadmap()` previously used `### h3` headers for per-item sub-sections
+  (actions, risks, findings, milestones). These are now inline bullet items
+  (`- **Title** — desc · _attr: val_`), eliminating per-item h3 margin accumulation and
+  cutting rendered page length by ~30%.
+
+- **Plan generator — extended thinking removed, cache and token limit upgraded** —
+  `app/claude/plan_generator.py` no longer passes `thinking={"type": "adaptive"}` (removes
+  latency overhead). Cache control upgraded from `{"type": "ephemeral"}` to `CACHE_1H` for
+  the system prompt block. `max_tokens` raised from 8192 → 16384.
+
+- **Postmortem freewrite — Vditor Markdown editor** — the plain `<textarea>` on
+  `/postmortems/new` is replaced with Vditor 3.10.9 (same as journal, notes, meeting prep).
+  Custom toolbar, SRI-hashed CDN tags, dark/light theme-aware (`app/templates/postmortem_new.html`).
+
+- **90-day plan generation — toast notification** — generating a new plan now shows a
+  fixed-position toast ("Plan generation started!") with a 12s auto-dismiss instead of a
+  simple spinner. Template bug fixed: `plan.items` → `plan['items']` (Jinja2 dict-access
+  syntax, `app/templates/plan.html`).
+
+- **Left-nav collapse button — overflow clip fix** — collapsed nav (`width: 0;
+  overflow-x: hidden`) clipped the absolutely-positioned button off-screen. Switches to
+  `position: fixed` in the collapsed state so it remains reachable at the left edge.
+
+- **`scripts/stop.sh` — multi-PID handling** — `lsof` can return multiple PIDs when uvicorn
+  forks workers. The script now normalises `$PID` into an array, sends `SIGTERM` to all, and
+  checks whether any process is still alive during the 5s graceful-shutdown loop.
+
+---
+
 ## [2026-06-09] — Vditor markdown editor in risk management UI
 
 ### Changed

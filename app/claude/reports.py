@@ -150,13 +150,14 @@ def _render_plan(report: PlanReport) -> str:
                             ("Day 90", report.day_90)):
         lines.append(f"## {window}")
         for a in actions:
-            lines.append(f"### {a.title}")
-            lines.append(f"- **Why:** {a.why}")
-            lines.append(f"- **Effort:** {a.estimated_effort}")
-            lines.append(f"- **Success signal:** {a.success_signal}")
-            if a.who_to_talk_to:
-                lines.append(f"- **Who to talk to:** {', '.join(a.who_to_talk_to)}")
-            lines.append("")
+            who = f" · _Talk to: {', '.join(a.who_to_talk_to)}_" if a.who_to_talk_to else ""
+            lines.append(
+                f"- **{a.title}** — {a.why} · "
+                f"_Effort: {a.estimated_effort}_ · "
+                f"_Signal: {a.success_signal}_"
+                f"{who}"
+            )
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -205,6 +206,21 @@ def _render_matrix(report: ControlMatrix) -> str:
     lines = ["# Control coverage matrix", "", report.summary, ""]
     controls = report.controls_checked
     if controls and report.rows:
+        # Detect sparse-KB condition: >70% of cells are 'unknown'
+        total_cells = len(report.rows) * len(controls)
+        unknown_cells = sum(
+            1 for row in report.rows
+            for c in controls
+            if row.controls.get(c, "unknown") == "unknown"
+        )
+        if total_cells > 0 and (unknown_cells / total_cells) > 0.70:
+            lines.append(
+                "> **Insufficient KB data.** Most control values are `?` (unknown) "
+                "because the Knowledge Base lacks evidence for these controls. "
+                "Ingest runbooks, architecture docs, or compliance records and "
+                "regenerate this report to see confirmed coverage."
+            )
+            lines.append("")
         header = "| Service | " + " | ".join(controls) + " |"
         sep = "|" + "|".join(["---"] * (len(controls) + 1)) + "|"
         lines.append(header)
@@ -390,7 +406,15 @@ def attack_mapping() -> str:
     from app.claude.attack_mapping import generate as _gen
     parsed = _gen()
     if not parsed.rows:
-        raise RuntimeError("attack_mapping returned no rows")
+        md = (
+            "# ATT&CK mapping\n\n"
+            "> **No data to map.** This report requires at least one Threat Model "
+            "with threats in the Knowledge Base. Ingest architecture docs and run "
+            "**Threat landscape** per service first, then regenerate this report.\n"
+        )
+        return _finalize(kind="attack_mapping",
+                         title="ATT&CK mapping",
+                         content_md_redacted=md, usage={})
     lines = ["# ATT&CK mapping", "", parsed.coverage_summary, ""]
     if parsed.top_gaps:
         lines.append("## Top gaps (exposed but uncovered)")
@@ -461,6 +485,13 @@ def _build_risk_register_user_task() -> str:
 
 def _render_risk_register(parsed: RiskRegisterReport) -> str:
     lines = ["# Risk register", "", parsed.summary, ""]
+    if not parsed.risks:
+        lines.append(
+            "> **No open risks found.** The risk register is currently empty. "
+            "Add risks via the Risks page or ingest documents that describe "
+            "known risks, then regenerate this report."
+        )
+        lines.append("")
     if parsed.top_risks:
         lines.append("## Critical risks (residual score ≥ 12)")
         for r in parsed.top_risks:
@@ -501,10 +532,11 @@ def _render_state_of_security(r: StateOfSecurityReport) -> str:
     if r.top_risks:
         lines.append("## Active risks")
         for risk in r.top_risks[:3]:
-            lines.append(f"### {risk.get('title', '?')}")
-            lines.append(f"**Business impact:** {risk.get('business_impact', '—')}")
-            lines.append(f"**Status:** {risk.get('status', '—')}")
-            lines.append("")
+            title = risk.get('title', '?')
+            impact = risk.get('business_impact', '—')
+            status = risk.get('status', '—')
+            lines.append(f"- **{title}** — {impact} · _Status: {status}_")
+        lines.append("")
     if r.actions_taken:
         lines.append("## Actions taken this month")
         for a in r.actions_taken:
@@ -525,19 +557,27 @@ def _render_initial_assessment(r: InitialAssessmentReport) -> str:
     if r.findings:
         lines.append("## Top findings")
         for i, f in enumerate(r.findings[:10], 1):
-            lines.append(f"### {i}. {f.get('title', '?')} _{f.get('severity', '?')}_")
-            lines.append(f"**Business impact:** {f.get('business_impact', '—')}")
-            lines.append(f"**Remediation effort:** {f.get('effort', '—')}")
-            lines.append("")
+            title = f.get('title', '?')
+            severity = f.get('severity', '?')
+            impact = f.get('business_impact', '—')
+            effort = f.get('effort', '—')
+            lines.append(
+                f"- **{i}. {title}** _{severity}_ "
+                f"— {impact} · _Effort: {effort}_"
+            )
+        lines.append("")
     if r.compliance_gap_summary:
         lines += ["## Compliance posture", "", r.compliance_gap_summary, ""]
     if r.immediate_actions:
         lines.append("## Immediate actions (next 30 days)")
         for a in r.immediate_actions:
-            lines.append(f"### {a.get('action', '?')}")
-            lines.append(f"- Effort: {a.get('effort_estimate', '—')}")
-            lines.append(f"- Why now: {a.get('why_now', '—')}")
-            lines.append("")
+            action = a.get('action', '?')
+            effort = a.get('effort_estimate', '—')
+            why = a.get('why_now', '—')
+            lines.append(
+                f"- **{action}** · _Effort: {effort}_ · _Why now: {why}_"
+            )
+        lines.append("")
     if r.unknown_areas:
         lines.append("## Still to investigate")
         for u in r.unknown_areas:
@@ -552,10 +592,15 @@ def _render_program_roadmap(r: ProgramRoadmapReport) -> str:
     if r.quarterly_milestones:
         lines.append("## Quarterly milestones")
         for q in r.quarterly_milestones:
-            lines.append(f"### {q.get('quarter', '?')}: {q.get('milestone', '?')}")
-            lines.append(f"- Risk reduction: {q.get('risk_reduction', '—')}")
-            lines.append(f"- Investment: {q.get('investment', '—')}")
-            lines.append("")
+            quarter = q.get('quarter', '?')
+            milestone = q.get('milestone', '?')
+            risk_reduction = q.get('risk_reduction', '—')
+            investment = q.get('investment', '—')
+            lines.append(
+                f"- **{quarter}: {milestone}** · "
+                f"_Risk reduction: {risk_reduction}_ · _Investment: {investment}_"
+            )
+        lines.append("")
     if r.success_metrics:
         lines.append("## Success metrics")
         for m in r.success_metrics:

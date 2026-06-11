@@ -1449,7 +1449,6 @@ tbody tr:hover { background: rgb(var(--nyx-iris) / 0.05); }
   border-radius: 10px;
   padding: 1rem 1.25rem;
   margin: 1rem 0;
-  white-space: pre-wrap;
   font-size: 0.95em;
   box-shadow: var(--shadow-nyx);
 }
@@ -2861,6 +2860,16 @@ html:not(.theme-light) .icon-sun { display:none; }
   transition: color .12s;
 }
 .left-nav-collapse-btn:hover { color: var(--text); }
+
+/* When collapsed, the nav is width:0 with overflow-x:hidden, which clips the
+   absolutely-positioned button off-screen. Switch to fixed so it escapes the
+   overflow clipping and stays reachable at the left edge. */
+.left-nav.collapsed .left-nav-collapse-btn {
+  position: fixed;
+  left: 4px;
+  bottom: 1rem;
+  right: auto;
+}
 
 /* ── Sidebar resize handle ── */
 .lnav-resize-handle {

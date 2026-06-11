@@ -91,8 +91,8 @@ Defined in [app/kb/tools.py](../../app/kb/tools.py).
 
 ## Report kinds (14 total)
 
-All use Sonnet 4.6 with `thinking={"type": "adaptive"}` and share
-the cached scope block. Generated from `/reports` or via subscription.
+All use Sonnet 4.6 and share the cached scope block (`CACHE_1H` TTL,
+reused across multi-report runs). Generated from `/reports` or via subscription.
 
 ### Report rendering and export
 

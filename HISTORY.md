@@ -13,6 +13,36 @@ of work, in chronological order.
 
 ---
 
+## 2026-06-10 — Report formatting overhaul and report reliability fixes
+
+**Root cause:** `app/static/style.css` had `white-space: pre-wrap` on the `.markdown-body`
+container block (the one that sets background, border, padding, and box-shadow — added in an
+earlier phase when those pages displayed raw text). After `marked.js` was integrated to render
+the HTML, this property remained and caused every `\n` text node between block-level elements
+in the parsed HTML to render as a visible line break — adding ~14px of extra space at each block
+boundary. With 15-20 blocks per report, that's 210-280px of invisible padding. Removing the
+single `white-space: pre-wrap` line resolves double-spacing across all 9 templates that use
+`.markdown-body`. A secondary cleanup flattened h3-per-sub-item patterns in four render
+functions into compact inline bullets, cutting rendered page length ~30%.
+
+**Bug fixes on top:** three report generator edge cases were also addressed:
+- `attack_mapping()` raised `RuntimeError` on empty rows (no TMs) → HTTP 500. Changed to
+  persist a graceful "No data to map" report instead. The error path was correct for a hard
+  failure but too aggressive for a missing-prerequisite condition.
+- `_render_risk_register()` rendered a nearly blank page when `risks=[]` — Claude returns
+  empty structured output when the DB has no open risks. Added a blockquote explaining the
+  empty state.
+- `_render_matrix()` rendered an all-`?` table with no explanation when the KB lacked control
+  evidence. Added a >70% threshold detection that prepends an "Insufficient KB data" note.
+
+**Plan generator cleanup:** `thinking={"type":"adaptive"}` was removed from `plan_generator.py`.
+The structured plan output (`PlanOutput`) is a predictable schema with no need for multi-step
+reasoning — removing thinking cuts latency without quality loss. Cache control upgraded from
+ephemeral to `CACHE_1H`; `max_tokens` raised to 16384 to accommodate full 13-week plans without
+hitting the previous 8192 ceiling.
+
+---
+
 ## 2026-06-08 — DFD diagram rendering fix (skeleton loaders, Mermaid securityLevel, CSP §8.3.2)
 
 Three-layer bug that made the DFD workspace completely unusable: skeleton loading bars never hid,

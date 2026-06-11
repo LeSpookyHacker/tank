@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 
+from app.claude.caching import CACHE_1H
 from app.claude.reports import _build_scope_block
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.role import get_state
@@ -45,14 +46,13 @@ Reference the actual service names, team names, and compliance targets mentioned
 
     scope_block = _build_scope_block()
     client = get_client()
-    parsed = client.messages.parse(
+    resp = client.messages.parse(
         model=MODEL,
-        max_tokens=8192,
-        thinking={"type": "adaptive"},
+        max_tokens=16384,   # 13-week plan ~6-8k tokens without thinking overhead
         system=[{
             "type": "text",
             "text": load_prompt("plan_generator"),
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": CACHE_1H,
         }],
         messages=[{
             "role": "user",
@@ -63,10 +63,12 @@ Reference the actual service names, team names, and compliance targets mentioned
         }],
         output_format=PlanOutput,
     )
-    usage = getattr(parsed, "usage", None)
+    usage = getattr(resp, "usage", None)
     log_token_usage("plan_generator", MODEL, usage)
 
-    plan_out: PlanOutput = parsed.output
+    plan_out: PlanOutput = getattr(resp, "parsed_output", None)
+    if plan_out is None:
+        raise RuntimeError("Plan generation returned no structured output")
     tasks = [t.model_dump() for t in plan_out.tasks]
     plan_id = plan_store.create(tasks)
     log.info("90-day plan generated: id=%s, %d tasks", plan_id, len(tasks))

@@ -220,8 +220,8 @@ Tank queries the KB for:
 - Most recent postmortem body (for prior-incident context)
 - Hybrid KB search on the threat scenario (runbooks, detections, controls)
 
-Sonnet generates the 5-phase runbook with `thinking={"type":
-"adaptive"}`. Generation takes 20-60 seconds. The runbook is stored
+Sonnet generates the 5-phase runbook via `messages.parse()` with
+`output_format=IRRunbookOutput`. Generation takes 20-60 seconds. The runbook is stored
 and registered as a `Runbook` entity with a `has_control` edge to the
 service so the KB graph reflects it.
 

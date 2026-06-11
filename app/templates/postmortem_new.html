@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Tank — new postmortem{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css"
+      integrity="sha384-Y64ixq0sw4ASbzOXI0H86SHuTR4D9yoVMPq+2w/jVU3AOvf7l9pNZuWYmrAHVIhd"
+      crossorigin="anonymous" />
+{% endblock %}
+
 {% block content %}
 <section class="pm-new">
   <header class="page-head">
@@ -23,34 +29,165 @@
         <option value="sev3">sev3 — internal-only</option>
       </select>
     </label>
-    <label>Freewrite
-      <textarea name="freewrite" rows="14" required
-                placeholder="What happened. Use whatever timestamps you
-have. What broke, what made it visible, what the team did, what's still
-open. Plain English."></textarea>
-    </label>
-    <button class="btn">draft postmortem</button>
+
+    <label class="pm-editor-label">Freewrite</label>
+
+    <!-- Custom toolbar: mirrors journal_entry.html -->
+    <div class="je-toolbar" id="je-toolbar">
+      <button type="button" class="je-tb-btn" data-action="bold"   title="Bold (Ctrl+B)"><b>B</b></button>
+      <button type="button" class="je-tb-btn" data-action="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+      <button type="button" class="je-tb-btn" data-action="strike" title="Strikethrough"><s>S</s></button>
+      <span class="je-tb-sep"></span>
+      <button type="button" class="je-tb-btn" data-action="h1" title="Heading 1">H1</button>
+      <button type="button" class="je-tb-btn" data-action="h2" title="Heading 2">H2</button>
+      <button type="button" class="je-tb-btn" data-action="h3" title="Heading 3">H3</button>
+      <span class="je-tb-sep"></span>
+      <button type="button" class="je-tb-btn" data-action="ul"    title="Bullet list">&#8801;</button>
+      <button type="button" class="je-tb-btn" data-action="ol"    title="Numbered list">1.</button>
+      <button type="button" class="je-tb-btn" data-action="quote" title="Blockquote">&#10099;</button>
+      <span class="je-tb-sep"></span>
+      <button type="button" class="je-tb-btn je-tb-mono" data-action="icode" title="Inline code">ab</button>
+      <button type="button" class="je-tb-btn je-tb-mono" data-action="code"  title="Code block">{}</button>
+      <button type="button" class="je-tb-btn je-tb-mono" data-action="link"  title="Link">&#128279;</button>
+      <span class="je-tb-sep"></span>
+      <button type="button" class="je-tb-btn" data-action="hr"   title="Horizontal rule">&#8213;</button>
+    </div>
+
+    <div id="vditor"></div>
+
+    <button class="btn" id="draft-btn">draft postmortem</button>
   </form>
 </section>
 
-<script nonce="{{ request.state.csp_nonce }}">
-async function submitDraft(e) {
-  e.preventDefault();
-  const f = e.target;
-  const resp = await fetch("/api/postmortems/draft", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      title: f.title.value,
-      severity: f.severity.value || null,
-      freewrite: f.freewrite.value,
-    }),
-  });
-  const data = await resp.json();
-  if (data.id) window.location = "/postmortems/" + data.id;
-  else alert("draft failed");
-  return false;
+<script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"
+        integrity="sha384-eJNPL+l6x8h5j+uopxmlvvDeNRwWkSYtv5vIn4ksoqY3sgQ3vsDWLGQXwz1IU6j7"
+        crossorigin="anonymous"></script>
+
+<style nonce="{{ request.state.csp_nonce }}">
+.pm-new { max-width: 860px; }
+.pm-editor-label {
+  display: block; font-size: 0.875rem; font-weight: 500;
+  color: var(--text-muted); margin-bottom: 0.4rem; margin-top: 1.1rem;
 }
-document.getElementById('pm-form').addEventListener('submit', submitDraft);
+
+/* ── Custom toolbar ── */
+.je-toolbar {
+  display: flex; align-items: center; gap: 1px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.je-tb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--text-dim); cursor: pointer; font-size: 0.85rem;
+  font-family: inherit; transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+.je-tb-btn:hover { background: var(--bg-card); color: var(--text); }
+.je-tb-btn b, .je-tb-btn em, .je-tb-btn s { font-size: 0.9rem; }
+.je-tb-mono { font-family: var(--font-mono); font-size: 0.78rem; }
+.je-tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+
+/* Hide Vditor's built-in (broken) toolbar; round bottom corners only */
+#vditor .vditor-toolbar { display: none !important; }
+.vditor { border-radius: 0 0 8px 8px !important; border-color: var(--border) !important; }
+
+/* Content text color */
+#vditor .vditor-reset,
+#vditor .vditor-ir pre.vditor-reset,
+#vditor .vditor-ir .vditor-reset {
+  color: var(--text) !important;
+}
+#vditor .vditor-reset a { color: var(--accent); }
+
+#draft-btn { margin-top: 1.25rem; }
+</style>
+
+<script nonce="{{ request.state.csp_nonce }}">
+(function () {
+  const isDark = !document.documentElement.classList.contains('theme-light');
+  let currentFreewrite = '';
+
+  const vditor = new Vditor('vditor', {
+    mode: 'ir',
+    lang: 'en_US',
+    theme: isDark ? 'dark' : 'classic',
+    value: '',
+    minHeight: 360,
+    toolbar: [],   // disabled — we use our own toolbar above
+    cache: { enable: false },
+    placeholder: 'What happened. Use whatever timestamps you have.\n\nWhat broke, what made it visible, what the team did, what\'s still open.\n\nPlain English — use **bold**, # headings, - lists, `code` as needed…',
+    input(val) { currentFreewrite = val; },
+  });
+
+  // ── Custom toolbar ──────────────────────────────────────────────────────
+  document.getElementById('je-toolbar').addEventListener('mousedown', function (e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    e.preventDefault();   // keep focus + selection in the editor
+
+    const action = btn.dataset.action;
+    const sel    = window.getSelection();
+    const s      = (sel && sel.rangeCount > 0) ? sel.toString() : '';
+
+    const wrap = (l, r) => vditor.insertValue(s ? l + s + r : l + r);
+
+    switch (action) {
+      case 'bold':   wrap('**', '**');          break;
+      case 'italic': wrap('*', '*');            break;
+      case 'strike': wrap('~~', '~~');          break;
+      case 'h1':     vditor.insertValue('\n# '   + (s || 'Heading') + '\n'); break;
+      case 'h2':     vditor.insertValue('\n## '  + (s || 'Heading') + '\n'); break;
+      case 'h3':     vditor.insertValue('\n### ' + (s || 'Heading') + '\n'); break;
+      case 'ul':     vditor.insertValue('\n- '   + (s || 'item') + '\n');    break;
+      case 'ol':     vditor.insertValue('\n1. '  + (s || 'item') + '\n');    break;
+      case 'quote':  vditor.insertValue('\n> '   + (s || 'quote') + '\n');   break;
+      case 'icode':  wrap('`', '`');            break;
+      case 'code':   vditor.insertValue('\n```\n' + (s || 'code') + '\n```\n'); break;
+      case 'link':   vditor.insertValue('[' + (s || 'link text') + '](url)'); break;
+      case 'hr':     vditor.insertValue('\n---\n'); break;
+    }
+  });
+
+  // ── Submit ──────────────────────────────────────────────────────────────
+  async function submitDraft(e) {
+    e.preventDefault();
+    const f        = e.target;
+    const freewrite = currentFreewrite || vditor.getValue();
+    if (!freewrite.trim()) {
+      vditor.focus();
+      return;
+    }
+
+    const draftBtn = document.getElementById('draft-btn');
+    draftBtn.disabled    = true;
+    draftBtn.textContent = 'drafting…';
+
+    const resp = await fetch('/api/postmortems/draft', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        title:     f.title.value,
+        severity:  f.severity.value || null,
+        freewrite,
+      }),
+    });
+
+    const data = await resp.json();
+    if (data.id) {
+      window.location = '/postmortems/' + data.id;
+    } else {
+      alert('draft failed');
+      draftBtn.disabled    = false;
+      draftBtn.textContent = 'draft postmortem';
+    }
+  }
+
+  document.getElementById('pm-form').addEventListener('submit', submitDraft);
+})();
 </script>
 {% endblock %}

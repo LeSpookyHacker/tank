@@ -4,6 +4,38 @@
 {% block head_extra %}
 <style nonce="{{ request.state.csp_nonce }}">
 .pl-s1 { display:flex; gap:0.75rem; margin-top:1rem; }
+
+/* Plan generation toast */
+.plan-toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  background: rgb(var(--nyx-iris)); color: #fff;
+  padding: 0.85rem 1.25rem;
+  border-radius: 12px;
+  font-size: 0.88rem; line-height: 1.45;
+  max-width: 320px;
+  box-shadow: 0 4px 24px rgb(0 0 0 / .35);
+  z-index: 1000;
+  display: flex; align-items: flex-start; gap: 0.65rem;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+.plan-toast.plan-toast-visible {
+  opacity: 1; transform: translateY(0); pointer-events: auto;
+}
+.plan-toast.plan-toast-hiding {
+  opacity: 0; transform: translateY(8px);
+}
+.plan-toast-icon { font-size: 1.15rem; flex-shrink: 0; margin-top: 0.05rem; }
+.plan-toast-body { flex: 1; }
+.plan-toast-title { font-weight: 600; margin-bottom: 0.2rem; }
+.plan-toast-msg { opacity: 0.88; font-size: 0.82rem; }
+.plan-toast-close {
+  background: none; border: none; color: #fff; opacity: 0.7;
+  cursor: pointer; font-size: 1rem; padding: 0; line-height: 1;
+  flex-shrink: 0; margin-top: 0.05rem;
+}
+.plan-toast-close:hover { opacity: 1; }
 </style>
 {% endblock %}
 
@@ -29,7 +61,7 @@
   {% else %}
   <div class="plan-weeks">
     {% for week in range(1, 14) %}
-    {% set week_tasks = plan.items | selectattr("week", "equalto", week) | list %}
+    {% set week_tasks = plan['items'] | selectattr("week", "equalto", week) | list %}
     {% if week_tasks %}
     <div class="plan-week {% if week == current_week %}plan-week-current{% endif %}">
       <h3 class="plan-week-header">
@@ -38,7 +70,7 @@
       </h3>
       <ul class="plan-tasks">
         {% for task in week_tasks %}
-        {% set task_idx = plan.items.index(task) %}
+        {% set task_idx = plan['items'].index(task) %}
         <li class="plan-task {% if task.done %}plan-task-done{% endif %}">
           <input type="checkbox" {% if task.done %}checked{% endif %}
                  class="plan-task-cb" data-idx="{{ task_idx }}">
@@ -60,31 +92,78 @@
   {% endif %}
 </div>
 
+<!-- Generation toast -->
+<div class="plan-toast" id="plan-toast" role="status" aria-live="polite">
+  <span class="plan-toast-icon">🗓️</span>
+  <div class="plan-toast-body">
+    <div class="plan-toast-title">Plan generation started!</div>
+    <div class="plan-toast-msg">Tank is building your week-by-week plan from your KB and intake answers. Come back in ~5 minutes and refresh — it'll be ready.</div>
+  </div>
+  <button class="plan-toast-close" id="plan-toast-close" aria-label="Dismiss">✕</button>
+</div>
+
 <script nonce="{{ request.state.csp_nonce }}">
-async function generatePlan() {
-  const btn = document.getElementById("gen-btn");
-  btn.disabled = true; btn.textContent = "Generating…";
-  const res = await fetch("/api/plan/generate", {method: "POST"});
-  const data = await res.json();
-  if (res.ok) {
-    setTimeout(() => window.location.reload(), 3000);
-  } else {
-    btn.disabled = false; btn.textContent = "Generate plan →";
-    alert(data.error || "Generation failed");
+(function () {
+  const btn      = document.getElementById('gen-btn');
+  const toast    = document.getElementById('plan-toast');
+  const toastX   = document.getElementById('plan-toast-close');
+  let   hideTimer = null;
+
+  function showToast() {
+    clearTimeout(hideTimer);
+    toast.classList.remove('plan-toast-hiding');
+    toast.classList.add('plan-toast-visible');
+    // Auto-dismiss after 12 s
+    hideTimer = setTimeout(dismissToast, 12000);
   }
-}
 
-document.getElementById("gen-btn").addEventListener("click", generatePlan);
-document.querySelectorAll(".plan-task-cb[data-idx]").forEach(function(cb) {
-  cb.addEventListener("change", function() { updateTask(parseInt(cb.dataset.idx), cb.checked); });
-});
+  function dismissToast() {
+    toast.classList.add('plan-toast-hiding');
+    setTimeout(function () {
+      toast.classList.remove('plan-toast-visible', 'plan-toast-hiding');
+    }, 260);
+  }
 
-async function updateTask(idx, done) {
-  await fetch("/api/plan/task/" + idx, {
-    method: "PUT",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({done}),
+  toastX.addEventListener('click', dismissToast);
+
+  async function generatePlan() {
+    btn.disabled    = true;
+    btn.textContent = 'Queued…';
+    try {
+      const res  = await fetch('/api/plan/generate', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast();
+        btn.textContent = '{% if plan %}Regenerate plan{% else %}Generate plan →{% endif %}';
+        // Re-enable after a short delay so the user can't double-fire immediately
+        setTimeout(function () { btn.disabled = false; }, 5000);
+      } else {
+        btn.disabled    = false;
+        btn.textContent = '{% if plan %}Regenerate plan{% else %}Generate plan →{% endif %}';
+        alert(data.error || 'Generation failed');
+      }
+    } catch (_) {
+      btn.disabled    = false;
+      btn.textContent = '{% if plan %}Regenerate plan{% else %}Generate plan →{% endif %}';
+      alert('Network error — please try again.');
+    }
+  }
+
+  btn.addEventListener('click', generatePlan);
+
+  document.querySelectorAll('.plan-task-cb[data-idx]').forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      updateTask(parseInt(cb.dataset.idx), cb.checked);
+    });
   });
-}
+
+  async function updateTask(idx, done) {
+    await fetch('/api/plan/task/' + idx, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ done }),
+    });
+  }
+}());
 </script>
 {% endblock %}
