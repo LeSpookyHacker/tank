@@ -70,3 +70,9 @@ See [sample_data/README.md](sample_data/README.md) for the full inventory.
 | [Installation](docs/installation.md) | VM setup, systemd, SSH tunnel |
 | [Troubleshooting](docs/troubleshooting.md) | Things that go wrong at runtime |
 | [Architecture](docs/architecture.md) | How it works internally |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
