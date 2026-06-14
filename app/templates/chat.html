@@ -132,6 +132,7 @@ async function sendMessage(ev) {
   const body = document.getElementById("streaming-body");
   const tools = document.getElementById("streaming-tools");
   body.textContent = "";
+  let _streamAccum = "";
   tools.textContent = "";
   sb.hidden = false;
 
@@ -144,7 +145,10 @@ async function sendMessage(ev) {
   const es = new EventSource(`/api/conversations/${convId}/stream`);
   es.addEventListener("text_delta", e => {
     const d = JSON.parse(e.data);
-    body.textContent += d.text;
+    _streamAccum += d.text;
+    body.innerHTML = (typeof marked !== "undefined" && window.DOMPurify)
+      ? DOMPurify.sanitize(marked.parse(_streamAccum))
+      : _streamAccum;
     msgs.scrollTop = msgs.scrollHeight;
   });
   es.addEventListener("tool_use", e => {
@@ -196,6 +200,12 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         document.querySelector(".composer").requestSubmit();
       }
+    });
+  }
+  // Render markdown in existing assistant messages loaded from the DB.
+  if (typeof marked !== "undefined" && window.DOMPurify) {
+    document.querySelectorAll(".bubble-assistant .bubble-body").forEach(el => {
+      el.innerHTML = DOMPurify.sanitize(marked.parse(el.textContent));
     });
   }
 });

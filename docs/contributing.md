@@ -27,7 +27,7 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-The test suite covers the redaction engine. There are 53 tests today (26 named functions; 2 are parametrized, expanding to 53 collected). Expected output:
+The test suite covers redaction, ownership, and ingest path guards. There are 53 tests today (26 named functions; 5 are parametrized, expanding to 53 collected). Expected output:
 
 ```
 53 passed in 0.Xs

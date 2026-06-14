@@ -719,6 +719,86 @@ input:focus, textarea:focus, select:focus {
 .bubble-meta { display: flex; gap: 0.5rem; margin-bottom: 0.4rem; }
 .bubble-role { font-size: 0.78em; color: var(--text-mute); text-transform: uppercase; }
 .bubble-body { white-space: pre-wrap; }
+.bubble-assistant .bubble-body { white-space: normal; }
+
+/* ── Markdown prose typography inside chat bubbles ── */
+.bubble-assistant .bubble-body p,
+.gchat-msg-assistant .gchat-msg-body p,
+.gchat-stream p {
+  margin: 0 0 0.4em;
+}
+.bubble-assistant .bubble-body p:last-child,
+.gchat-msg-assistant .gchat-msg-body p:last-child,
+.gchat-stream p:last-child {
+  margin-bottom: 0;
+}
+.bubble-assistant .bubble-body ul,
+.bubble-assistant .bubble-body ol,
+.gchat-msg-assistant .gchat-msg-body ul,
+.gchat-msg-assistant .gchat-msg-body ol,
+.gchat-stream ul,
+.gchat-stream ol {
+  margin: 0.2em 0 0.4em 1.3em;
+  padding: 0;
+}
+.bubble-assistant .bubble-body li,
+.gchat-msg-assistant .gchat-msg-body li,
+.gchat-stream li {
+  margin-bottom: 0.1em;
+}
+.bubble-assistant .bubble-body h1,
+.bubble-assistant .bubble-body h2,
+.bubble-assistant .bubble-body h3,
+.bubble-assistant .bubble-body h4,
+.gchat-msg-assistant .gchat-msg-body h1,
+.gchat-msg-assistant .gchat-msg-body h2,
+.gchat-msg-assistant .gchat-msg-body h3,
+.gchat-msg-assistant .gchat-msg-body h4,
+.gchat-stream h1,
+.gchat-stream h2,
+.gchat-stream h3,
+.gchat-stream h4 {
+  margin: 0.5em 0 0.2em;
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.bubble-assistant .bubble-body pre,
+.gchat-msg-assistant .gchat-msg-body pre,
+.gchat-stream pre {
+  margin: 0.35em 0;
+  background: rgb(var(--nyx-void) / 0.5);
+  padding: 0.45em 0.6em;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.82em;
+  line-height: 1.5;
+}
+.bubble-assistant .bubble-body code,
+.gchat-msg-assistant .gchat-msg-body code,
+.gchat-stream code {
+  background: rgb(var(--nyx-void) / 0.45);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.84em;
+  font-family: var(--mono);
+}
+.bubble-assistant .bubble-body pre code,
+.gchat-msg-assistant .gchat-msg-body pre code,
+.gchat-stream pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+.bubble-assistant .bubble-body blockquote,
+.gchat-msg-assistant .gchat-msg-body blockquote,
+.gchat-stream blockquote {
+  margin: 0.2em 0;
+  padding-left: 0.75em;
+  border-left: 3px solid rgb(var(--nyx-iris) / 0.5);
+  color: var(--text-dim);
+}
+
 .bubble-citations {
   margin-top: 0.5rem; font-size: 0.82em; color: var(--text-mute);
 }
@@ -2577,7 +2657,7 @@ html:not(.theme-light) .icon-sun { display:none; }
 .gchat-msg-body { font-size:0.8rem; padding:0.35rem 0.55rem; border-radius:7px; line-height:1.5; }
 .gchat-msg-user .gchat-msg-body { background:rgb(var(--nyx-iris)/.18); color:var(--text); }
 .gchat-msg-assistant .gchat-msg-body { background:rgb(var(--nyx-twilight)/.9); border:1px solid var(--border-soft); color:var(--text); }
-.gchat-stream { padding:0.3rem 0.7rem; font-size:0.79rem; color:var(--text-dim); white-space:pre-wrap; }
+.gchat-stream { padding:0.3rem 0.7rem; font-size:0.79rem; color:var(--text-dim); white-space:normal; }
 .gchat-composer { display:flex; gap:0.4rem; padding:0.5rem 0.65rem; border-top:1px solid var(--border-soft); flex-shrink:0; }
 .gchat-composer textarea { flex:1; resize:none; min-height:32px; max-height:80px; background:rgb(var(--nyx-twilight)/.7); border:1px solid var(--border-soft); border-radius:7px; color:var(--text); font-family:var(--sans); font-size:0.79rem; padding:0.35rem 0.55rem; }
 .gchat-composer textarea:focus { outline:none; border-color:rgb(var(--nyx-iris)/.5); }

@@ -277,7 +277,11 @@
         el.className = "gchat-msg gchat-msg-" + role;
         var body = document.createElement("div");
         body.className = "gchat-msg-body";
-        body.textContent = text;
+        if (role === "assistant" && typeof marked !== "undefined" && window.DOMPurify) {
+          body.innerHTML = DOMPurify.sanitize(marked.parse(text));
+        } else {
+          body.textContent = text;
+        }
         el.appendChild(body);
         messages.appendChild(el);
         messages.scrollTop = messages.scrollHeight;
@@ -326,6 +330,7 @@
         sendBtn.disabled = true;
         appendMsg("user", content);
         streamBody.textContent = "";
+        var _panelAccum = "";
         stream.hidden = false;
 
         fetch("/api/conversations/" + convId + "/messages", {
@@ -334,14 +339,18 @@
         }).then(function () {
           var es = new EventSource("/api/conversations/" + convId + "/stream");
           es.addEventListener("text_delta", function (ev) {
-            streamBody.textContent += JSON.parse(ev.data).text;
+            _panelAccum += JSON.parse(ev.data).text;
+            streamBody.innerHTML = (typeof marked !== "undefined" && window.DOMPurify)
+              ? DOMPurify.sanitize(marked.parse(_panelAccum))
+              : _panelAccum;
             messages.scrollTop = messages.scrollHeight;
           });
           es.addEventListener("done", function () {
             es.close();
-            var txt = streamBody.textContent;
+            var txt = _panelAccum;
+            _panelAccum = "";
             stream.hidden = true;
-            streamBody.textContent = "";
+            streamBody.innerHTML = "";
             if (txt) appendMsg("assistant", txt);
             sending = false;
             input.disabled = false;
@@ -350,6 +359,7 @@
           });
           es.addEventListener("error", function () {
             es.close();
+            _panelAccum = "";
             stream.hidden = true;
             appendMsg("assistant", "[Connection error — try again]");
             sending = false;
