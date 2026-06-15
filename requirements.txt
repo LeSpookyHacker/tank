@@ -2,7 +2,7 @@
 # Versions pinned to what is tested in this environment.
 # Use `pip install -r requirements.txt` to reproduce exactly.
 # Upper bounds prevent silent major-version upgrades; review and bump deliberately.
-anthropic>=0.92.0,<2.0.0
+anthropic>=0.109.1,<2.0.0
 fastapi>=0.115.0,<1.0.0
 uvicorn[standard]>=0.32.0,<1.0.0
 python-multipart>=0.0.12,<1.0.0
