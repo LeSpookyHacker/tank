@@ -27,7 +27,7 @@ For the full narrative build history with architectural rationale and tradeoff d
 ### Security
 
 - Six findings from security audit pass 8 resolved. Full report:
-  [`SECURITY-AUDIT-2026-06-11.md`](SECURITY-AUDIT-2026-06-11.md).
+  [`SECURITY-AUDIT-2026-06-11.md`](docs/security/SECURITY-AUDIT-2026-06-11.md).
   - **SEC-007 (Low):** Repo ingest endpoint echoed blocked-path prefix in HTTP 403 body
     (`app/routers/ingest.py:157`). Now logs server-side and returns a generic message.
   - **SEC-008 (Medium):** `style-src 'unsafe-inline'` re-introduced for Mermaid SVG —
@@ -163,7 +163,7 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ### Security
 
-- Six findings from audit pass 7 resolved. Full report: [`SECURITY-AUDIT-2026-06-08.md`](SECURITY-AUDIT-2026-06-08.md).
+- Six findings from audit pass 7 resolved. Full report: [`SECURITY-AUDIT-2026-06-08.md`](docs/security/SECURITY-AUDIT-2026-06-08.md).
 
 ---
 
@@ -171,7 +171,7 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ### Security
 
-- Thirty-four findings from audit pass 6 resolved. Full report: [`SECURITY-AUDIT-2026-06-05.md`](SECURITY-AUDIT-2026-06-05.md).
+- Thirty-four findings from audit pass 6 resolved. Full report: [`SECURITY-AUDIT-2026-06-05.md`](docs/security/SECURITY-AUDIT-2026-06-05.md).
 
 ---
 
@@ -179,7 +179,7 @@ For the full narrative build history with architectural rationale and tradeoff d
 
 ### Security
 
-- Sixteen findings from audit pass 5 resolved. Full report: [`SECURITY-AUDIT-2026-06-04.md`](SECURITY-AUDIT-2026-06-04.md).
+- Sixteen findings from audit pass 5 resolved. Full report: [`SECURITY-AUDIT-2026-06-04.md`](docs/security/SECURITY-AUDIT-2026-06-04.md).
 
 ---
 

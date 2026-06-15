@@ -76,3 +76,9 @@ See [sample_data/README.md](sample_data/README.md) for the full inventory.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+## Contributing
+
+Bug reports, docs improvements, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, the privacy contract, and PR guidelines. Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.

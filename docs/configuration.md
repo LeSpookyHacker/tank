@@ -69,6 +69,8 @@ cp .env.example .env
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `TANK_NYX_API_KEY` | string | `""` (disabled) | If set, the vulnerability intake endpoint (`POST /api/vulnerabilities/intake`) requires an `X-Nyx-Key` header matching this value. Leave unset unless you are connecting the [Nyx](https://github.com/LeSpookyHacker/nyx) disclosure-triage tool. |
+| `TANK_GITHUB_TOKEN` | string | `""` (disabled) | GitHub personal access token (classic PAT, `read:org` + `repo` scopes) used by Settings → Discovery → GitHub org scan and the continuous GitHub repo watcher. Required to use either feature; leave unset if you do not use GitHub discovery. |
+| `TANK_NVD_API_KEY` | string | `""` (disabled) | NVD (National Vulnerability Database) API key for the CVE feed watcher. Without it the CVE watcher skips all fetches. Free key at [nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key). |
 
 ---
 

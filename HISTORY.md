@@ -27,7 +27,7 @@ SEC-012) were remediated: repo-ingest blocked-path leakage (Low), CSP inline `on
 on the risk register (Medium), six Claude-calling endpoints missing `@limiter.limit()` (Medium),
 compliance wizard answers bypassing `apply_redactions()` (Low), and LIKE wildcard passthrough in
 the detections query (Info). SEC-008 (`style-src 'unsafe-inline'`) was accepted as a documented
-Mermaid rendering trade-off. Full report: `SECURITY-AUDIT-2026-06-11.md`.
+Mermaid rendering trade-off. Full report: `docs/security/SECURITY-AUDIT-2026-06-11.md`.
 
 ---
 
