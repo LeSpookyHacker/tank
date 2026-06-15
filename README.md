@@ -10,6 +10,9 @@ A local-first security engineering partner for the first security hire. Tank ask
 
 Read the [blogpost!!](https://wanderersgrimoire.com/posts/tank-i-built-an-ai-partner-for-the-first-security-hire) 
 
+
+<img width="2238" height="1231" alt="dashboard" src="https://github.com/user-attachments/assets/ba60af53-b6d4-4361-8f15-5ff930c5e598" />
+
 ---
 
 ## Features
