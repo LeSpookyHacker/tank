@@ -99,8 +99,13 @@
     <p class="dim">
       This permanently deletes all ingested data, conversations,
       reports, threat models, decisions, lessons, redaction map,
-      and nudges. Backups under <code>~/.tank/backups/</code> are
-      <em>not</em> touched by this — restore from one if you need to.
+      and nudges.
+    </p>
+    <p class="dim">
+      <strong>Note:</strong> Weekly database backups in
+      <code>~/.tank/backups/</code> contain the full redaction map with
+      original plaintext values. They are <em>not</em> deleted unless you
+      check the box below.
     </p>
     <div>
       <label>
@@ -109,6 +114,10 @@
                autocomplete="off"
                spellcheck="false"
                placeholder="delete tank">
+      </label>
+      <label style="display:block;margin-top:0.5rem">
+        <input type="checkbox" id="wipe-backups-check">
+        Also delete weekly backups in <code>~/.tank/backups/</code>
       </label>
       <button class="btn-secondary danger" id="btn-do-wipe">Wipe everything</button>
     </div>
@@ -218,9 +227,14 @@ document.querySelectorAll(".redact-toggle[data-category]").forEach(function(cb) 
 
 async function doWipe() {
   const phrase = document.getElementById("wipe-phrase").value;
-  if (!confirm("This is irreversible. Last chance — proceed?")) return;
+  const wipeBackups = document.getElementById("wipe-backups-check").checked;
+  const confirmMsg = wipeBackups
+    ? "This will delete ALL data including backups — irreversible. Proceed?"
+    : "This is irreversible. Last chance — proceed?";
+  if (!confirm(confirmMsg)) return;
   const body = new URLSearchParams();
   body.set("confirm_phrase", phrase);
+  if (wipeBackups) body.set("wipe_backups", "true");
   const r = await fetch("/api/wipe", {
     method: "POST",
     headers: {"X-Confirm": "delete-tank"},

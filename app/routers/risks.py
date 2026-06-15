@@ -66,10 +66,10 @@ async def get_risk(risk_id: str) -> dict:
 @api.post("")
 async def create_risk(body: CreateRisk, background_tasks: BackgroundTasks) -> dict:
     review_at = int(time.time()) + body.review_days * 86400
-    # Redact description before storing.
+    title_red = apply_redactions(body.title).redacted_text
     desc_redacted = apply_redactions(body.description).redacted_text
     rid = risks_store.create(
-        title=body.title,
+        title=title_red,
         description=desc_redacted,
         category=body.category,
         inherent_likelihood=body.inherent_likelihood,

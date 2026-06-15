@@ -61,6 +61,9 @@ _EXTRA_SECRET_RES: list[re.Pattern] = [
     re.compile(r"DefaultEndpointsProtocol=https?;[^\s\"']{20,}"),  # Azure conn string
     re.compile(r"\bAIza[A-Za-z0-9\-_]{35}\b"),              # GCP API key
     re.compile(r"\bghp_[A-Za-z0-9]{36}\b"),                 # GitHub classic PAT (belt+suspenders)
+    re.compile(r"\bBearer [A-Za-z0-9\-._~+/]{20,}=*"),      # Authorization: Bearer <token>
+    re.compile(r"https://hooks\.slack\.com/services/[A-Z0-9]+/[A-Z0-9]+/[A-Za-z0-9_\-]{24,}"),  # Slack webhook URL
+    re.compile(r"(?:postgresql|mysql|mongodb(?:\+srv)?|redis)://[^:]+:[^@\s\"']+@[^\s\"']+"),  # DB conn string with creds
 ]
 
 

@@ -85,17 +85,18 @@ def build_kb_block(hits: list[dict], entity_cards: list[dict]) -> dict:
       attrs: {...}
       edges: N
     """
+    from app.redact.engine import apply_redactions as _redact
     parts: list[str] = [_KB_TRUST_HEADER]
     if hits:
         parts.append(f"### Top chunks ({len(hits)})")
         for h in hits:
             source = h.get('section_path') or h.get('document_id') or '—'
-            parts.append(f"<document source={source!r}>")
+            source_red = _redact(source).redacted_text
+            parts.append(f"<document source={source_red!r}>")
             parts.append(h.get("snippet", "") or "")
             parts.append("</document>")
             parts.append("")
     if entity_cards:
-        from app.redact.engine import apply_redactions as _redact
         parts.append(f"### Entity cards ({len(entity_cards)})")
         for c in entity_cards:
             ent_name = _redact(c['name']).redacted_text

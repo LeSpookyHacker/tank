@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.config import TEMPLATES_DIR
+from app.redact.engine import apply_redactions
 from app.role import get_state
 from app.storage import vulnerabilities_store
 
@@ -57,7 +58,8 @@ def vulnerabilities_page(request: Request):
 
 @router.post("/api/vulnerabilities/{vuln_id}/triage")
 def triage(vuln_id: str, body: TriageBody) -> JSONResponse:
-    vulnerabilities_store.triage(vuln_id, severity=body.severity, notes=body.notes)
+    notes_red = apply_redactions(body.notes).redacted_text if body.notes else None
+    vulnerabilities_store.triage(vuln_id, severity=body.severity, notes=notes_red)
     return JSONResponse({"ok": True})
 
 
@@ -70,8 +72,10 @@ def assign(vuln_id: str, body: AssignBody) -> JSONResponse:
 
 @router.post("/api/vulnerabilities/{vuln_id}/close")
 def close_vuln(vuln_id: str, body: CloseBody) -> JSONResponse:
+    rationale_red = (apply_redactions(body.accepted_rationale).redacted_text
+                     if body.accepted_rationale else None)
     vulnerabilities_store.close(vuln_id, reason=body.reason,
-                                accepted_rationale=body.accepted_rationale)
+                                accepted_rationale=rationale_red)
     return JSONResponse({"ok": True})
 
 
