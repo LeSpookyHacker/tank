@@ -95,14 +95,17 @@ def build_kb_block(hits: list[dict], entity_cards: list[dict]) -> dict:
             parts.append("</document>")
             parts.append("")
     if entity_cards:
+        from app.redact.engine import apply_redactions as _redact
         parts.append(f"### Entity cards ({len(entity_cards)})")
         for c in entity_cards:
+            ent_name = _redact(c['name']).redacted_text
             parts.append(
-                f"[entity_id={c['id']}] type={c['type']} name={c['name']!r} "
+                f"[entity_id={c['id']}] type={c['type']} name={ent_name!r} "
                 f"provenance={c['provenance']} confidence={c['confidence']:.2f}"
             )
             if c.get("description"):
-                parts.append(f"description: {c['description']}")
+                ent_desc = _redact(c['description']).redacted_text
+                parts.append(f"description: {ent_desc}")
             if c.get("attrs"):
                 parts.append(f"attrs: {c['attrs']}")
             parts.append(f"edges: {c.get('edges_count', 0)}")

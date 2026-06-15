@@ -24,11 +24,33 @@ class CompiledRule:
     enabled: bool
 
 
+# Module-level cache so bulk ingest doesn't hit the DB for every chunk.
+# Invalidated whenever the row count or max-id of redaction_rules changes.
+_rules_cache: list[CompiledRule] | None = None
+_rules_cache_ver: int = -1
+
+
+def _rules_db_version(conn) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) + COALESCE(MAX(id), 0) FROM redaction_rules"
+    ).fetchone()
+    return row[0]
+
+
 def get_effective_rules() -> list[CompiledRule]:
     """Return the active rule list: built-ins overridden by user toggles
-    plus any custom regex rules from `redaction_rules`."""
+    plus any custom regex rules from `redaction_rules`.
+
+    Result is cached until the redaction_rules table changes (detected via
+    a cheap version counter), so bulk ingest pays one DB read per changed
+    rule configuration rather than one per chunk.
+    """
+    global _rules_cache, _rules_cache_ver
     conn = get_conn()
     with LOCK:
+        ver = _rules_db_version(conn)
+        if _rules_cache is not None and ver == _rules_cache_ver:
+            return _rules_cache
         rows = conn.execute(
             "SELECT id, category, enabled, pattern, placeholder_fmt, description "
             "FROM redaction_rules"
@@ -70,7 +92,15 @@ def get_effective_rules() -> list[CompiledRule]:
             description=c["description"] or "",
         )
         out.append(CompiledRule(rule=custom_rule, enabled=True))
+
+    _rules_cache = out
+    _rules_cache_ver = ver
     return out
+
+
+def _invalidate_rules_cache() -> None:
+    global _rules_cache
+    _rules_cache = None
 
 
 def set_category_enabled(category: str, enabled: bool) -> None:
@@ -94,6 +124,7 @@ def set_category_enabled(category: str, enabled: bool) -> None:
                 "UPDATE redaction_rules SET enabled = ? WHERE id = ?",
                 (1 if enabled else 0, existing["id"]),
             )
+    _invalidate_rules_cache()
 
 
 def _reject_redos(pattern: str) -> None:
@@ -162,7 +193,9 @@ def add_custom_rule(category: str, pattern: str,
             " created_at) VALUES (?, 1, ?, ?, ?, ?)",
             (category, pattern, placeholder_fmt, description, time.time()),
         )
-        return cur.lastrowid
+        row_id = cur.lastrowid
+    _invalidate_rules_cache()
+    return row_id
 
 
 def remove_custom_rule(rule_id: int) -> None:
@@ -172,3 +205,4 @@ def remove_custom_rule(rule_id: int) -> None:
             "DELETE FROM redaction_rules WHERE id = ? AND pattern IS NOT NULL",
             (rule_id,),
         )
+    _invalidate_rules_cache()

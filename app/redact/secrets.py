@@ -100,12 +100,12 @@ def _find_via_detect_secrets(text: str) -> list[Match]:
                 tok = potential.secret_value
                 if not tok:
                     continue
-                idx = line.find(tok)
-                if idx == -1:
-                    continue
-                start = offset + idx
-                end = start + len(tok)
-                out.append(Match(start, end, tok, "secret_token"))
+                # Use re.finditer so every occurrence on the line is captured,
+                # not just the first one (line.find would always return the
+                # first position and silently skip repeated tokens).
+                for m in re.finditer(re.escape(tok), line):
+                    out.append(Match(offset + m.start(), offset + m.end(),
+                                     tok, "secret_token"))
             offset += len(line)
     return out
 

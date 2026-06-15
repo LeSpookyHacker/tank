@@ -12,6 +12,7 @@ import logging
 import time
 
 from app.config import MODEL, get_client, load_prompt
+from app.redact.engine import scrub_for_send
 from app.role import get_state, tenure_day
 from app.schemas import AnniversaryRetro
 from app.storage import (decisions_store, postmortems_store, reports_store,
@@ -40,11 +41,11 @@ def generate(day_n: int) -> str | None:
         f"- Threat models generated/updated: {len(tms)}\n"
         f"- Postmortems published: {len(pms)}\n\n"
         "## Decisions\n"
-        + "\n".join(f"- {d['title']} [{d['kind']}]" for d in decisions[:30])
+        + "\n".join(f"- {scrub_for_send(d['title'])} [{d['kind']}]" for d in decisions[:30])
         + "\n\n## Threat models\n"
-        + "\n".join(f"- {t['title']} v{t['version']}" for t in tms)
+        + "\n".join(f"- {scrub_for_send(t['title'])} v{t['version']}" for t in tms)
         + "\n\n## Postmortems\n"
-        + "\n".join(f"- {p['title']} ({p.get('severity')})" for p in pms)
+        + "\n".join(f"- {scrub_for_send(p['title'])} ({p.get('severity')})" for p in pms)
     )
 
     client = get_client()
@@ -110,11 +111,11 @@ def build_batch_request(day_n: int) -> dict:
         f"- Threat models generated/updated: {len(tms)}\n"
         f"- Postmortems published: {len(pms)}\n\n"
         "## Decisions\n"
-        + "\n".join(f"- {d['title']} [{d['kind']}]" for d in decisions[:30])
+        + "\n".join(f"- {scrub_for_send(d['title'])} [{d['kind']}]" for d in decisions[:30])
         + "\n\n## Threat models\n"
-        + "\n".join(f"- {t['title']} v{t['version']}" for t in tms)
+        + "\n".join(f"- {scrub_for_send(t['title'])} v{t['version']}" for t in tms)
         + "\n\n## Postmortems\n"
-        + "\n".join(f"- {p['title']} ({p.get('severity')})" for p in pms)
+        + "\n".join(f"- {scrub_for_send(p['title'])} ({p.get('severity')})" for p in pms)
     )
     prompt = load_prompt("anniversary_security")
     tools, tool_choice = tool_params_for(AnniversaryRetro)

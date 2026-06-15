@@ -16,10 +16,18 @@ runs apply_redactions and returns just the redacted string.
 
 from __future__ import annotations
 
+import re
+
 from app.redact.config import get_effective_rules
 from app.redact.rules import Match
 from app.redact.store import load_rehydration_map, upsert_match
 from app.schemas import RedactionMatch, RedactionResult
+
+# Matches any placeholder produced by the built-in or custom rules.
+_PLACEHOLDER_RE = re.compile(
+    r"\[(?:EMAIL|INTERNAL_HOST|HOST|PRIVATE_IP|PUBLIC_IP|PRIVATE_IPV6|PUBLIC_IPV6|"
+    r"AWS_ACCT|AWS_ARN|GCP_PROJECT|AZURE_SUB|SECRET|PERSON|CUSTOM[A-Z_]*)_\d+\]"
+)
 
 
 # Importing secrets.py for its side effect: it appends SECRET_RULE +
@@ -122,16 +130,29 @@ def rehydrate(text: str, mapping: dict[str, str] | None = None) -> str:
 
     If `mapping` is None we pull the full redaction map. Pass an explicit
     mapping when you only want to rehydrate placeholders you actually
-    sent — keeps the substitution set narrow.
+    sent — keeps the substitution set narrow and avoids loading the entire
+    redaction_map for every response.
+
+    Uses a single compiled regex pass (O(n)) rather than a per-placeholder
+    str.replace loop (O(n×m)).  Longest keys are sorted first so that
+    `[HOST_010]` is tried before `[HOST_01]`, matching the old behaviour.
     """
     if mapping is None:
         mapping = load_rehydration_map()
     if not mapping:
         return text
-    # Longest first so `[HOST_10]` is replaced before `[HOST_1]`.
-    for placeholder in sorted(mapping.keys(), key=len, reverse=True):
-        text = text.replace(placeholder, mapping[placeholder])
-    return text
+    sorted_keys = sorted(mapping.keys(), key=len, reverse=True)
+    pattern = re.compile("|".join(re.escape(k) for k in sorted_keys))
+    return pattern.sub(lambda m: mapping[m.group(0)], text)
+
+
+def used_placeholders(text: str) -> set[str]:
+    """Return the set of redaction placeholders present in *text*.
+
+    Useful for scoping `load_rehydration_map` to only the entries that
+    actually appear in a response, rather than loading the entire map.
+    """
+    return set(_PLACEHOLDER_RE.findall(text))
 
 
 def scrub_for_send(text: str) -> str:

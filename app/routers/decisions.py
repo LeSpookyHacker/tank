@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.claude import decisions as decisions_helper
 from app.config import TEMPLATES_DIR
+from app.redact.engine import apply_redactions
 from app.storage import decisions_store
 
 router = APIRouter()
@@ -59,9 +60,11 @@ async def get_one(decision_id: str) -> dict:
 
 @api.post("")
 async def create(body: CreateDecision) -> dict:
+    title_red = apply_redactions(body.title).redacted_text
+    body_red  = apply_redactions(body.body_md).redacted_text
     did = decisions_store.create(
-        title=body.title, body_md=body.body_md,
-        body_md_redacted=body.body_md, kind=body.kind,
+        title=title_red, body_md=body.body_md,
+        body_md_redacted=body_red, kind=body.kind,
         scope_entity_ids=body.scope_entity_ids,
         rationale=body.rationale, expires_at=body.expires_at,
         owner_entity_id=body.owner_entity_id,

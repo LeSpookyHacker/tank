@@ -8,6 +8,6 @@ Public API:
     from app.redact import apply_redactions, rehydrate
 """
 
-from app.redact.engine import apply_redactions, rehydrate
+from app.redact.engine import apply_redactions, rehydrate, used_placeholders
 
-__all__ = ["apply_redactions", "rehydrate"]
+__all__ = ["apply_redactions", "rehydrate", "used_placeholders"]

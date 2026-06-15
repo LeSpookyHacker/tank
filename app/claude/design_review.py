@@ -16,7 +16,7 @@ import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import find_by_name
-from app.redact.engine import apply_redactions, rehydrate
+from app.redact.engine import apply_redactions, rehydrate, used_placeholders
 from app.redact.store import load_rehydration_map
 from app.schemas import DesignReviewChecklistItem, DesignReviewIntakePayload
 from app.storage import design_reviews_store
@@ -68,7 +68,7 @@ def seed_intake(*, title: str, freewrite: str,
         + "\n\n## Proposal (verbatim)\n"
         + redacted
     )
-    body_md = rehydrate(body_red, load_rehydration_map())
+    body_md = rehydrate(body_red, load_rehydration_map(used_placeholders(body_red)))
 
     # resolve suggested reviewer names to entity IDs where possible
     scope_ids: list[str] = []

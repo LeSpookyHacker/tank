@@ -13,7 +13,7 @@ import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import get_card
-from app.redact.engine import apply_redactions, rehydrate
+from app.redact.engine import apply_redactions, rehydrate, used_placeholders
 from app.redact.store import load_rehydration_map
 from app.schemas import TabletopScenario
 from app.storage import tabletops_store
@@ -30,7 +30,7 @@ def generate(*, service_id: str | None,
         raise RuntimeError("tabletop generation returned no output")
 
     scenario_md_red = _render(payload)
-    scenario_md = rehydrate(scenario_md_red, load_rehydration_map())
+    scenario_md = rehydrate(scenario_md_red, load_rehydration_map(used_placeholders(scenario_md_red)))
 
     injects_payload = [inj.model_dump() for inj in payload.injects]
     return tabletops_store.create(

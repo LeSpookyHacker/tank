@@ -96,9 +96,10 @@ async def add_decision(dr_id: str, body: DecisionFromReview) -> dict:
     dr = design_reviews_store.get(dr_id)
     if not dr:
         raise HTTPException(404, "not found")
+    title_red = apply_redactions(body.title).redacted_text
     body_md_redacted = apply_redactions(body.body_md).redacted_text
     did = decisions_store.create(
-        title=body.title, body_md=body.body_md,
+        title=title_red, body_md=body.body_md,
         body_md_redacted=body_md_redacted, kind=body.kind,
         scope_entity_ids=dr.get("scope_entity_ids") or [],
         rationale=body.rationale, expires_at=body.expires_at,
