@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.config import TEMPLATES_DIR
+from app.redact.engine import apply_redactions
 from app.storage import lessons_store
 
 router = APIRouter()
@@ -53,8 +54,10 @@ async def get_one(lesson_id: str) -> dict:
 
 @api.post("")
 async def create(body: CreateLesson) -> dict:
+    title_red = apply_redactions(body.title).redacted_text
+    body_md_red = apply_redactions(body.body_md).redacted_text
     lid = lessons_store.create(
-        title=body.title, body_md=body.body_md,
+        title=title_red, body_md=body_md_red,
         source_kind=body.source_kind, source_id=body.source_id,
         tags=body.tags, scope_entity_ids=body.scope_entity_ids,
     )

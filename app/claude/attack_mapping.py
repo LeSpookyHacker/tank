@@ -26,7 +26,7 @@ from app.claude.batch_helpers import extract_validated, tool_params_for
 from app.claude.event_bus import publish
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.detections import find_for_technique
-from app.redact.engine import apply_redactions, rehydrate
+from app.redact.engine import apply_redactions, rehydrate, used_placeholders
 from app.redact.store import load_rehydration_map
 from app.role import get_state
 from app.schemas import AttackMappingReport, AttackMappingRow
@@ -332,7 +332,7 @@ def _finalize_attack_mapping(payload: dict, stats: dict) -> None:
         rows=aggregated_rows, coverage_summary=summary, top_gaps=gaps,
     )
     md_redacted = _render_md(combined)
-    md = rehydrate(md_redacted, load_rehydration_map())
+    md = rehydrate(md_redacted, load_rehydration_map(used_placeholders(md_redacted)))
     state = get_state()
     report_id = reports_store.insert(
         kind="attack_mapping",

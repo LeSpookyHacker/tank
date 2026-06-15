@@ -21,6 +21,7 @@ records matches against the redaction_map, and substitutes placeholders.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from dataclasses import dataclass
 from typing import Callable
@@ -79,6 +80,28 @@ HOSTNAME_RE = re.compile(
 IPV4_RE = re.compile(
     r"\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}"
     r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b"
+)
+
+# IPv6 — all valid compressed/full forms. We use ipaddress.ip_address() to
+# validate and classify rather than trying to encode the logic in the regex.
+# The pattern is intentionally broad; the finder post-validates via stdlib.
+# Requires at least two colon-separated hex groups to avoid matching
+# short hex strings that happen to contain a colon (e.g. CSS #rgb).
+IPV6_RE = re.compile(
+    r"(?<![:\w])"                       # not preceded by colon or word char
+    r"(?:"
+    r"(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}"                   # full
+    r"|(?:[0-9a-fA-F]{1,4}:){1,7}:"                                 # trailing ::
+    r"|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}"
+    r"|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}"
+    r"|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}"
+    r"|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}"
+    r"|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}"
+    r"|[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}"
+    r"|:(?::[0-9a-fA-F]{1,4}){1,7}"
+    r"|::"                                                           # all-zeros
+    r")"
+    r"(?![:\w])"                         # not followed by colon or word char
 )
 
 # AWS-ish patterns.
@@ -183,6 +206,41 @@ def find_public_ipv4(text: str) -> list[Match]:
     return out
 
 
+def _is_private_ipv6(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return (addr.is_private or addr.is_loopback
+                or addr.is_link_local or addr.is_unspecified)
+    except ValueError:
+        return False
+
+
+def find_private_ipv6(text: str) -> list[Match]:
+    out: list[Match] = []
+    for m in IPV6_RE.finditer(text):
+        ip = m.group(0)
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if _is_private_ipv6(ip):
+            out.append(Match(m.start(), m.end(), ip, "ipv6_private"))
+    return out
+
+
+def find_public_ipv6(text: str) -> list[Match]:
+    out: list[Match] = []
+    for m in IPV6_RE.finditer(text):
+        ip = m.group(0)
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if not _is_private_ipv6(ip):
+            out.append(Match(m.start(), m.end(), ip, "ipv6_public"))
+    return out
+
+
 def _has_context(text: str, span_start: int, span_end: int,
                  words: tuple[str, ...], window: int = 64) -> bool:
     """True if any context word appears within `window` chars of the span."""
@@ -228,11 +286,20 @@ def find_azure_subscriptions(text: str) -> list[Match]:
     return out
 
 
-# A short stop-list to avoid trivially flagging English as a GCP project ID.
+# Stop-list for GCP project ID detection: words that match the pattern
+# ([a-z][a-z0-9\-]{4,28}[a-z0-9]) but are common English / architecture terms.
 _COMMON_WORDS = frozenset({
     "service", "services", "project", "projects", "platform", "production",
     "staging", "environment", "configuration", "deployment", "deployments",
     "infrastructure", "monitoring", "permissions", "credentials",
+    # common compound architecture terms that would false-positive heavily
+    "authentication", "authorization", "notification", "integration",
+    "application", "management", "processing", "container", "kubernetes",
+    "microservice", "database", "repository", "development", "organization",
+    "architecture", "foundation", "automation", "orchestration", "validation",
+    "ingestion", "transformation", "aggregation", "collection", "discovery",
+    "annotation", "recommendation", "classification", "registration",
+    "subscription", "distribution", "replication", "synchronization",
 })
 
 
@@ -300,6 +367,19 @@ ALL_RULES: list[Rule] = [
         placeholder_fmt="[PUBLIC_IP_{n:03d}]",
         enabled_default=False,
         description="Public IPv4 addresses. Off by default.",
+    ),
+    Rule(
+        category="ipv6_private",
+        finder=find_private_ipv6,
+        placeholder_fmt="[PRIVATE_IPV6_{n:03d}]",
+        description="Private / loopback / link-local IPv6 addresses (ULA, fe80::, ::1).",
+    ),
+    Rule(
+        category="ipv6_public",
+        finder=find_public_ipv6,
+        placeholder_fmt="[PUBLIC_IPV6_{n:03d}]",
+        enabled_default=False,
+        description="Public IPv6 addresses. Off by default.",
     ),
     # secret_token and person_name rules live in secrets.py because they
     # need detect-secrets / spaCy respectively; they're appended to the

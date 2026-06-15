@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.config import TEMPLATES_DIR
 from app.rate_limiter import limiter
+from app.redact.engine import apply_redactions
 from app.storage import entities_store, ir_runbooks_store
 
 log = logging.getLogger("tank.routers.ir_runbooks")
@@ -86,12 +87,13 @@ async def update_runbook(runbook_id: str, body: UpdateRunbookRequest) -> dict:
     if not rb:
         raise HTTPException(404, "not found")
     
+    runbook_md_red = apply_redactions(body.runbook_md).redacted_text
     conn = ir_runbooks_store.get_conn()
     import time
     with ir_runbooks_store.LOCK:
         conn.execute(
             "UPDATE ir_runbooks SET runbook_md=?, updated_at=? WHERE id=?",
-            (body.runbook_md, int(time.time()), runbook_id)
+            (runbook_md_red, int(time.time()), runbook_id)
         )
     return {"ok": True}
 

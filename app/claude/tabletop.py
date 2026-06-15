@@ -13,7 +13,7 @@ import logging
 
 from app.config import MODEL, get_client, load_prompt, log_token_usage
 from app.kb.entities import get_card
-from app.redact.engine import apply_redactions, rehydrate
+from app.redact.engine import apply_redactions, rehydrate, scrub_for_send, used_placeholders
 from app.redact.store import load_rehydration_map
 from app.schemas import TabletopScenario
 from app.storage import tabletops_store
@@ -30,7 +30,7 @@ def generate(*, service_id: str | None,
         raise RuntimeError("tabletop generation returned no output")
 
     scenario_md_red = _render(payload)
-    scenario_md = rehydrate(scenario_md_red, load_rehydration_map())
+    scenario_md = rehydrate(scenario_md_red, load_rehydration_map(used_placeholders(scenario_md_red)))
 
     injects_payload = [inj.model_dump() for inj in payload.injects]
     return tabletops_store.create(
@@ -108,16 +108,17 @@ def _render(payload: TabletopScenario) -> str:
 def capture_lessons(tt_id: str, lessons_md: str,
                     tags: list[str] | None = None) -> list[str]:
     """Mark the tabletop as run and propagate lessons to lessons DB."""
-    tabletops_store.mark_ran(tt_id, lessons_md=lessons_md)
+    lessons_md_red = scrub_for_send(lessons_md)
+    tabletops_store.mark_ran(tt_id, lessons_md=lessons_md_red)
     try:
         from app.storage import lessons_store
     except Exception:
         return []
     # Split lessons_md by leading "- " bullets, one row per bullet.
-    bullets = [line[2:].strip() for line in lessons_md.splitlines()
+    bullets = [line[2:].strip() for line in lessons_md_red.splitlines()
                if line.strip().startswith("- ")]
     if not bullets:
-        bullets = [lessons_md.strip()]
+        bullets = [lessons_md_red.strip()]
     ids = []
     for body in bullets:
         if not body:

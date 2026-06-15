@@ -14,7 +14,7 @@ from app.claude.caching import build_scope_block
 from app.claude.event_bus import publish
 from app.claude.reports import _build_scope_block, _finalize
 from app.config import MODEL, get_client, load_prompt
-from app.redact.engine import rehydrate
+from app.redact.engine import rehydrate, used_placeholders
 from app.redact.store import load_rehydration_map
 from app.role import get_state, tenure_day
 from app.schemas import AnniversaryRetro
@@ -200,7 +200,7 @@ def _handle_anniversary_bundle(custom_id: str, msg, payload: dict) -> None:
         if parsed is None:
             return
         md_red = _render_retro(parsed)
-        md = rehydrate(md_red, load_rehydration_map())
+        md = rehydrate(md_red, load_rehydration_map(used_placeholders(md_red)))
         rid = reports_store.insert(
             kind=f"anniversary_{day_n}",
             title=f"Day-{day_n} retrospective",

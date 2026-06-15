@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.claude import glossary_extractor
 from app.config import TEMPLATES_DIR
+from app.redact.engine import apply_redactions
 from app.storage import glossary_store
 
 router = APIRouter()
@@ -53,9 +54,12 @@ async def reject(term_id: str) -> dict:
 
 @api.post("")
 async def manual_add(body: TermPayload) -> dict:
+    term_red = apply_redactions(body.term).redacted_text
+    def_red = apply_redactions(body.definition).redacted_text
+    aliases_red = [apply_redactions(a).redacted_text for a in body.aliases]
     gid = glossary_store.upsert(
-        term=body.term, definition=body.definition,
-        aliases=body.aliases, confirmed=True,
+        term=term_red, definition=def_red,
+        aliases=aliases_red, confirmed=True,
     )
     return {"id": gid}
 

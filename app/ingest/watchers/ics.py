@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Iterable
 
 from app.db import LOCK, get_conn
+from app.redact.engine import apply_redactions as _redact
 
 log = logging.getLogger("tank.watchers.ics")
 
@@ -190,8 +191,10 @@ class ICSWatcher:
                     " attendees_json, source, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, 'ics', ?)",
                     (uuid.uuid4().hex, ev.get("external_id"),
-                     ev["title"], ev["starts_at"], ev.get("ends_at"),
-                     json.dumps(ev.get("attendees") or []),
+                     _redact(ev["title"]).redacted_text,
+                     ev["starts_at"], ev.get("ends_at"),
+                     json.dumps([_redact(a).redacted_text
+                                 for a in (ev.get("attendees") or [])]),
                      time.time()),
                 )
                 added += 1

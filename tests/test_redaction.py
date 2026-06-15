@@ -224,3 +224,114 @@ def test_custom_rule_redacts(fresh_db):
     assert "ACME-9999" not in out.redacted_text
     assert "[TICKET_001]" in out.redacted_text
     assert "[TICKET_002]" in out.redacted_text
+
+
+# ---------------- Azure / GCP cloud IDs ----------------
+
+def test_azure_subscription_with_context(fresh_db):
+    apply, _rehy = _eng()
+    uuid = "abc12345-def6-7890-abcd-ef0123456789"
+    out = apply(f"Azure subscription {uuid} created in tenant.")
+    assert uuid not in out.redacted_text
+    assert any(m.category == "azure_subscription" for m in out.matches)
+
+
+def test_azure_uuid_without_context_stays(fresh_db):
+    apply, _rehy = _eng()
+    uuid = "abc12345-def6-7890-abcd-ef0123456789"
+    out = apply(f"Some random uuid {uuid} appears here.")
+    assert uuid in out.redacted_text
+
+
+def test_gcp_project_with_context(fresh_db):
+    apply, _rehy = _eng()
+    out = apply("GCP project my-data-pipeline has 3 VMs.")
+    assert "my-data-pipeline" not in out.redacted_text
+    assert any(m.category == "gcp_project" for m in out.matches)
+
+
+def test_gcp_common_word_not_redacted(fresh_db):
+    apply, _rehy = _eng()
+    out = apply("The service deployment runs in GCP.")
+    # "service" and "deployment" are in the stop-list and must not be redacted
+    assert "service" in out.redacted_text
+    assert "deployment" in out.redacted_text
+    assert "[GCP_PROJECT" not in out.redacted_text
+
+
+# ---------------- IPv6 ----------------
+
+def test_private_ipv6_redacted(fresh_db):
+    apply, _rehy = _eng()
+    for ip in ("::1", "fe80::1", "fc00::1", "fd12:3456:789a::1"):
+        out = apply(f"Host is at {ip}.")
+        assert ip not in out.redacted_text, f"{ip!r} should be redacted"
+        assert any(m.category == "ipv6_private" for m in out.matches)
+
+
+def test_public_ipv6_not_redacted_by_default(fresh_db):
+    apply, _rehy = _eng()
+    # 2001:4860:4860::8888 is Google's public DNS — globally routable
+    ip = "2001:4860:4860::8888"
+    out = apply(f"External host {ip}.")
+    # ipv6_public is off by default
+    assert ip in out.redacted_text
+
+
+# ---------------- case-insensitive dedup ----------------
+
+def test_email_case_insensitive_dedup(fresh_db):
+    apply, _rehy = _eng()
+    a = apply("Contact ALICE@EXAMPLE.COM here.")
+    b = apply("send to alice@example.com thanks.")
+    ph_a = next(m.placeholder for m in a.matches if m.category == "email")
+    ph_b = next(m.placeholder for m in b.matches if m.category == "email")
+    assert ph_a == ph_b
+
+
+# ---------------- detect-secrets repeated token on one line ----------------
+
+def test_repeated_secret_on_same_line(fresh_db):
+    apply, _rehy = _eng()
+    key = "AKIAIOSFODNN7EXAMPLE"
+    # Same key appearing twice on the same line — both occurrences must be gone.
+    out = apply(f"OLD_KEY={key} NEW_KEY={key}")
+    assert key not in out.redacted_text
+    assert out.redacted_text.count("[SECRET_") == 2
+
+
+# ---------------- used_placeholders helper ----------------
+
+def test_used_placeholders_extracts_correctly(fresh_db):
+    from app.redact.engine import used_placeholders
+    apply, _rehy = _eng()
+    out = apply("alice@example.com and payments.internal are down.")
+    phs = used_placeholders(out.redacted_text)
+    assert any(p.startswith("[EMAIL_") for p in phs)
+    assert any(p.startswith("[INTERNAL_HOST_") for p in phs)
+
+
+def test_scoped_rehydration(fresh_db):
+    from app.redact.engine import used_placeholders
+    from app.redact.store import load_rehydration_map
+    apply, rehy = _eng()
+    # Seed the map with two different emails.
+    apply("alice@example.com is here")
+    out = apply("bob@example.com is there")
+    bob_ph = next(m.placeholder for m in out.matches if m.category == "email")
+    # Scoped map for bob's placeholder only.
+    scoped = load_rehydration_map(used_placeholders(out.redacted_text))
+    assert len(scoped) == 1
+    assert bob_ph in scoped
+    restored = rehy(out.redacted_text, scoped)
+    assert "bob@example.com" in restored
+    assert "[EMAIL_" not in restored
+
+
+# ---------------- custom rule ReDoS rejection ----------------
+
+def test_custom_rule_redos_rejected(fresh_db):
+    from app.redact.config import add_custom_rule
+    import re
+    with pytest.raises(re.error):
+        add_custom_rule("bad", r"(a+)+b")

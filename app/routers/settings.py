@@ -109,13 +109,18 @@ async def set_cadence(body: CadencePut) -> dict:
 
 @router.post("/api/wipe")
 @limiter.limit("3/hour")
-async def wipe_all(request: Request, confirm_phrase: str = Form(...)):
+async def wipe_all(request: Request, confirm_phrase: str = Form(...),
+                   wipe_backups: bool = Form(default=False)):
     """Delete the SQLite DB. The next request reinitializes.
 
     Requires:
     1. The literal string `WIPE_PHRASE` ("delete tank") in `confirm_phrase`.
     2. The custom header `X-Confirm: delete-tank` — browsers cannot set custom
        headers in plain form submissions, so this blocks CSRF attacks.
+
+    Pass `wipe_backups=true` to also delete weekly backup copies in
+    `~/.tank/backups/`. These backups contain the full redaction_map with
+    original plaintext values; wipe them if you need to remove all stored PII.
     """
     if request.headers.get("X-Confirm") != "delete-tank":
         raise HTTPException(403, "missing or invalid X-Confirm header")
@@ -135,6 +140,13 @@ async def wipe_all(request: Request, confirm_phrase: str = Form(...)):
         s = Path(str(p) + sfx)
         if s.exists():
             s.unlink()
+
+    if wipe_backups:
+        backup_dir = p.parent / "backups"
+        if backup_dir.is_dir():
+            for f in backup_dir.glob("*.sqlite"):
+                f.unlink(missing_ok=True)
+
     # Reset cached connection.
     import app.db as db_mod
     db_mod._CONN = None
