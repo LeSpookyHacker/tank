@@ -8,6 +8,8 @@ A local-first security engineering partner for the first security hire. Tank ask
 
 **Cost-conscious by default.** Prompt caching at every stable breakpoint (1h TTL on system + KB-scope blocks, 5m on per-turn retrieval), a Sonnet/Haiku split that routes structured-extraction work to the cheaper model, and Anthropic Message Batches (50% off) for every background scheduler job — auto-briefs, report subscriptions, anniversaries, and ATT&CK mapping all submit asynchronously and persist when results land.
 
+Read the [blogpost!!](https://wanderersgrimoire.com/posts/tank-i-built-an-ai-partner-for-the-first-security-hire) 
+
 ---
 
 ## Features
